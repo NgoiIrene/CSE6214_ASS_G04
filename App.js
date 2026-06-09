@@ -1,15 +1,24 @@
+// import React from 'react';
+// // 引入你想看的那个 js 文件（这里以同级目录的 order.js 为例）
+// import OrderScreen from './order'; 
+
+// export default function App() {
+//   // 直接在这里渲染你想看的页面
+//   return <OrderScreen />;
+// }
+
 import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
   SafeAreaView,
   ScrollView,
   KeyboardAvoidingView, //🌟 1. 引入键盘避让组件
   Platform,             //🌟 2. 引入平台判断（iOS/Android 机制不同）
-  Alert 
+  Alert
 } from 'react-native';
 // 导入小眼睛、返回键等图标
 import { Ionicons } from '@expo/vector-icons';
@@ -58,7 +67,7 @@ export default function App() {
       return;
     }
     // 暂时先弹窗打印出数据，证明我们拿到了输入
-   // Alert.alert("Success", `Welcome, ${fullName}! Your information is ready.`);
+    // Alert.alert("Success", `Welcome, ${fullName}! Your information is ready.`);
   };
 
   // 忘记密码触发
@@ -67,38 +76,38 @@ export default function App() {
   };
 
   return ( /* 🌟 秘诀：我们两边都不放东西，或者放一个一模一样的空 View,标题就会自然在中间完美居中 */
-      <SafeAreaView style={styles.safeArea}>
-        {/* 1. 顶部导航栏 (代码完全没有改动) */}
-        <View style={styles.header}>
-          <View style={{ width: 32}} />  
-          <Text style={styles.headerTitle}>{currentPage === 'login' ? 'Log In' : 'Sign Up'}</Text>
-          <View style={{ width: 32 }} />
-        </View>
-  
-        <View style={styles.divider} />
-  
-        {/* 🌟 核心改动：用 KeyboardAvoidingView 包裹整个表单区域 */}
-        <KeyboardAvoidingView 
-          style={styles.keyboardAvoid}
-          // iOS 推荐用 padding，Android 推荐用 height 或者不设
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20} // 微调弹起的高度偏移量
-        >
+    <SafeAreaView style={styles.safeArea}>
+      {/* 1. 顶部导航栏 (代码完全没有改动) */}
+      <View style={styles.header}>
+        <View style={{ width: 32 }} />
+        <Text style={styles.headerTitle}>{currentPage === 'login' ? 'Log In' : 'Sign Up'}</Text>
+        <View style={{ width: 32 }} />
+      </View>
+
+      <View style={styles.divider} />
+
+      {/* 🌟 核心改动：用 KeyboardAvoidingView 包裹整个表单区域 */}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        // iOS 推荐用 padding，Android 推荐用 height 或者不设
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20} // 微调弹起的高度偏移量
+      >
         {/* 使用 ScrollView 包裹中间所有内容，防止手机装不下内容 */}
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          
+
           {/* ==================== 登录界面 UI ==================== */}
           {currentPage === 'login' && (
             <View style={{ width: '100%', alignItems: 'center' }}>
-              
+
               {/* 登录字段 1: Email */}
               <View style={styles.inputGroup}>
                 <Text style={styles.fieldLabel}>Email Address</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="mail-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="ailysmith@gmail.com" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="ailysmith@gmail.com"
                     placeholderTextColor="#bbb"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -113,25 +122,25 @@ export default function App() {
                 <Text style={styles.fieldLabel}>Password</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="lock-closed-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="......" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="......"
                     placeholderTextColor="#bbb"
-                    secureTextEntry={secureLoginPwd} 
+                    secureTextEntry={secureLoginPwd}
                     value={loginPassword}
                     onChangeText={setLoginPassword}
                   />
-                   {/* 点击小眼睛切换状态 */}
+                  {/* 点击小眼睛切换状态 */}
                   <TouchableOpacity onPress={() => setSecureLoginPwd(!secureLoginPwd)}>
-                    <Ionicons 
-                      name={secureLoginPwd ? "eye-off-outline" : "eye-outline"} 
-                      size={18} 
-                      color="#777" 
-                      style={styles.rightIcon} 
+                    <Ionicons
+                      name={secureLoginPwd ? "eye-off-outline" : "eye-outline"}
+                      size={18}
+                      color="#777"
+                      style={styles.rightIcon}
                     />
                   </TouchableOpacity>
                 </View>
-                
+
                 {/* 🌟 密码框右下角的 Forgot Password 蓝色小字 */}
                 <TouchableOpacity style={styles.forgotPasswordContainer} onPress={handleForgotPassword}>
                   <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -154,15 +163,15 @@ export default function App() {
           {/* ==================== 注册界面 UI ==================== */}
           {currentPage === 'signup' && (
             <View style={{ width: '100%', alignItems: 'center' }}>
-              
+
               {/* 字段 1: Full Name */}
               <View style={styles.inputGroup}>
                 <Text style={styles.fieldLabel}>Full Name</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="person-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="John Doe" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="John Doe"
                     placeholderTextColor="#bbb"
                     value={fullName}
                     onChangeText={setFullName}
@@ -175,9 +184,9 @@ export default function App() {
                 <Text style={styles.fieldLabel}>Email Address</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="mail-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="johndoe@gmail.com" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="johndoe@gmail.com"
                     placeholderTextColor="#bbb"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -198,7 +207,7 @@ export default function App() {
                       onValueChange={(itemValue) => setAccountType(itemValue)}
                       style={styles.picker}
                     >
-                      <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{fontSize: 13}} />
+                      <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{ fontSize: 13 }} />
                       <Picker.Item label="Customer" value="customer" style />
                       <Picker.Item label="Vendor" value="vendor" style />
                       <Picker.Item label="Delivery Man " value="delivery" />
@@ -212,9 +221,9 @@ export default function App() {
                 <Text style={styles.fieldLabel}>Phone Number</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="call-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="012-3456789" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="012-3456789"
                     placeholderTextColor="#bbb"
                     keyboardType="phone-pad"
                     value={phoneNumber}
@@ -234,9 +243,9 @@ export default function App() {
                       onValueChange={(itemValue) => setGender(itemValue)}
                       style={styles.picker}
                     >
-                      <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{fontSize: 13}} />
-                      <Picker.Item label="Male" value="male" style={{fontSize: 13}} />
-                      <Picker.Item label="Female" value="female" style={{fontSize: 13}} />
+                      <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{ fontSize: 13 }} />
+                      <Picker.Item label="Male" value="male" style={{ fontSize: 13 }} />
+                      <Picker.Item label="Female" value="female" style={{ fontSize: 13 }} />
                     </Picker>
                   </View>
                 </View>
@@ -247,9 +256,9 @@ export default function App() {
                 <Text style={styles.fieldLabel}>Age</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="calendar-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="20" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="20"
                     placeholderTextColor="#bbb"
                     keyboardType="numeric"
                     value={age}
@@ -263,21 +272,21 @@ export default function App() {
                 <Text style={styles.fieldLabel}>Password</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="lock-closed-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="......" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="......"
                     placeholderTextColor="#bbb"
-                    secureTextEntry={secureSignUpPwd} 
+                    secureTextEntry={secureSignUpPwd}
                     value={signUpPassword}
                     onChangeText={setSignUpPassword}
                   />
-                   {/* 点击小眼睛切换状态 */}
+                  {/* 点击小眼睛切换状态 */}
                   <TouchableOpacity onPress={() => setSecureSignUpPwd(!secureSignUpPwd)}>
-                    <Ionicons 
-                      name={secureSignUpPwd ? "eye-off-outline" : "eye-outline"} 
-                      size={18} 
-                      color="#777" 
-                      style={styles.rightIcon} 
+                    <Ionicons
+                      name={secureSignUpPwd ? "eye-off-outline" : "eye-outline"}
+                      size={18}
+                      color="#777"
+                      style={styles.rightIcon}
                     />
                   </TouchableOpacity>
                 </View>
@@ -288,20 +297,20 @@ export default function App() {
                 <Text style={styles.fieldLabel}>Confirm Password</Text>
                 <View style={styles.inputBoxContainer}>
                   <Ionicons name="lock-closed-outline" size={18} color="#777" style={styles.icon} />
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="......" 
+                  <TextInput
+                    style={styles.input}
+                    placeholder="......"
                     placeholderTextColor="#bbb"
-                    secureTextEntry={secureConfirmPwd} 
+                    secureTextEntry={secureConfirmPwd}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                   />
                   <TouchableOpacity onPress={() => setSecureConfirmPwd(!secureConfirmPwd)}>
-                    <Ionicons 
-                      name={secureConfirmPwd ? "eye-off-outline" : "eye-outline"} 
-                      size={18} 
-                      color="#777" 
-                      style={styles.rightIcon} 
+                    <Ionicons
+                      name={secureConfirmPwd ? "eye-off-outline" : "eye-outline"}
+                      size={18}
+                      color="#777"
+                      style={styles.rightIcon}
                     />
                   </TouchableOpacity>
                 </View>
@@ -339,17 +348,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingBottom: 12,
     // 🌟 核心修复：加大了顶部的间距，确保在绝大多数全面屏手机上，标题都能完美避开摄像头
-    paddingTop: Platform.OS === 'ios' ? 15 : 35, 
+    paddingTop: Platform.OS === 'ios' ? 15 : 35,
   },
   headerTitle: {
-    fontSize: 22, 
+    fontSize: 22,
     fontWeight: '600',
     color: '#000',
     textAlign: 'center',
   },
   divider: {
-    height: 1, 
-    backgroundColor: '#eee', 
+    height: 1,
+    backgroundColor: '#eee',
     width: '100%',
   },
   keyboardAvoid: {
@@ -366,7 +375,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,  //the space between each boxes(verticle)
   },
   fieldLabel: {
-    fontSize: 13, 
+    fontSize: 13,
     fontWeight: '500',
     color: '#333',
     marginBottom: 4,
@@ -375,10 +384,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e5e5e5', 
-    borderRadius: 6,       
-    height: 40,            
-    backgroundColor: '#fafafa', 
+    borderColor: '#e5e5e5',
+    borderRadius: 6,
+    height: 40,
+    backgroundColor: '#fafafa',
     paddingHorizontal: 10,
   },
   pickerBoxContainer: {
@@ -400,7 +409,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: '100%',
-    fontSize: 13, 
+    fontSize: 13,
     color: '#333',
   },
   pickerWrapper: {
@@ -432,7 +441,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16, 
+    fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
