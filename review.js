@@ -7,9 +7,15 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Platform
+  Platform,
+  Modal,
+  Dimensions,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
+const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
 
 // ==================== 🛠️ 模拟评价数据源 ====================
 const MOCK_REVIEWS = [
@@ -71,11 +77,12 @@ const MOCK_REVIEWS = [
   }
 ];
 
-export default function ReviewScreen({ onBack }) {
+export default function ReviewScreen({ navigateToScreen }) {
   // 1. 状态管理
   const [selectedStar, setSelectedStar] = useState(null); // 当前选中的星级筛选（null 表示不过滤）
   const [searchQuery, setSearchQuery] = useState('');     // 搜索栏文本
   const [isAscending, setIsAscending] = useState(false);   // 排序：默认按时间降序（最新的在上）
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 🚪 侧边栏显隐状态
 
   // 2. 核心过滤与排序逻辑
   const filteredReviews = useMemo(() => {
@@ -107,7 +114,6 @@ export default function ReviewScreen({ onBack }) {
 
   // 3. 处理星级按钮点击
   const handleStarPress = (star) => {
-    // 如果重复点击当前已选中的星级，则取消筛选（展示全部）
     if (selectedStar === star) {
       setSelectedStar(null);
     } else {
@@ -115,7 +121,17 @@ export default function ReviewScreen({ onBack }) {
     }
   };
 
-  // 4. 文本高亮渲染函数 (完美契合图2中的特定词汇如 "question" 红色高亮)
+  // 4. 处理侧边栏跳转逻辑
+  const handleMenuPress = (targetScreen) => {
+    setIsSidebarOpen(false); // 关闭侧边栏
+    if (targetScreen === 'review') return; // 如果已经是当前评价页面则不重复跳转
+
+    if (navigateToScreen) {
+      navigateToScreen(targetScreen); // 触发外部主路由层路由跳转
+    }
+  };
+
+  // 5. 文本高亮渲染函数
   const renderHighlightedContent = (text, highlight) => {
     if (!highlight.trim()) return <Text style={styles.reviewContentText}>{text}</Text>;
 
@@ -135,7 +151,7 @@ export default function ReviewScreen({ onBack }) {
     );
   };
 
-  // 5. 渲染星星评分图标
+  // 6. 渲染星星评分图标
   const renderStars = (rating) => {
     const starIcons = [];
     for (let i = 1; i <= 5; i++) {
@@ -150,13 +166,86 @@ export default function ReviewScreen({ onBack }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      
+      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      <Modal
+        transparent={true}
+        visible={isSidebarOpen}
+        animationType="none"
+        onRequestClose={() => setIsSidebarOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          {/* 左侧实体菜单 */}
+          <View style={styles.sidebar}>
+            {/* 顶栏：Menu 切换按钮 */}
+            <View style={styles.sidebarHeader}>
+              <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
+                <Ionicons name="menu" size={32} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 用户头像区域 */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person-outline" size={45} color="#000" />
+              </View>
+              <Text style={styles.avatarName}>Rasa Syiok</Text>
+            </View>
+
+            {/* 导航列表 */}
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
+              <Text style={styles.sidebarItemText}>Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
+              <Text style={styles.sidebarItemText}>Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('menu')}>
+              <Text style={styles.sidebarItemText}>Menu</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}>
+              <Text style={styles.sidebarItemText}>Update Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}>
+              <Text style={styles.sidebarItemText}>History Order</Text>
+            </TouchableOpacity>
+
+            {/* 当前在 Review 页面：高亮显示 */}
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('review')}>
+              <Text style={styles.sidebarItemText}>Review</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
+              <Text style={styles.sidebarItemText}>Reset Password</Text>
+            </TouchableOpacity>
+
+            {/* 底部退出登录 */}
+            <View style={styles.sidebarFooter}>
+              <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
+                <Ionicons name="log-out-outline" size={24} color="#000" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 右侧空白处暗色遮罩层 */}
+          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        </View>
+      </Modal>
+
       {/* ==================== 头部导航 ==================== */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBackBtn} onPress={onBack}>
-          <Ionicons name="arrow-back-circle-outline" size={36} color="#000" />
+        {/* 🚪 替换原有的返回按钮为 Menu 侧边栏开关 */}
+        <TouchableOpacity style={styles.headerMenuBtn} onPress={() => setIsSidebarOpen(true)}>
+          <Ionicons name="menu-outline" size={28} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review</Text>
-        <View style={{ width: 36 }} />
+        <View style={{ width: 32 }} />
       </View>
       <View style={styles.divider} />
 
@@ -257,11 +346,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     justifyContent: 'space-between',
     paddingHorizontal: 15, 
-    paddingBottom: 8, 
-    paddingTop: Platform.OS === 'ios' ? 12 : 35, 
+    paddingBottom: 12, 
+    paddingTop: Platform.OS === 'ios' ? 15 : 35, 
   },
-  headerBackBtn: { justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 48, fontWeight: '400', color: '#000', fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif' },
+  headerMenuBtn: {
+    width: 32, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#000', borderRadius: 6, padding: 2,
+  },
+  headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000', textAlign: 'center' },
 
   // 筛选区域样式
   filterSection: {
@@ -295,7 +387,7 @@ const styles = StyleSheet.create({
     borderRightColor: '#000',
   },
   starBtnActive: {
-    backgroundColor: '#8e8e8e', // 对应图1中选中的暗灰色状态
+    backgroundColor: '#8e8e8e', 
   },
   starBtnText: {
     fontSize: 14,
@@ -402,7 +494,7 @@ const styles = StyleSheet.create({
     textAlign: 'justify',
   },
   highlightedText: {
-    color: '#d93025', // 完美还原图2中的红色检索词高亮
+    color: '#d93025', 
     fontWeight: '500',
   },
 
@@ -415,5 +507,86 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#666',
     fontSize: 14,
+  },
+
+  /* ==================== 📌 新增的 Sidebar 样式表 ==================== */
+  modalContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+sidebar: {
+    width: Dimensions.get('window').width * 0.75, // 👈 直接在这里改成 0.75 (75%) 或 0.8 (80%)
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRightWidth: 2,
+    borderRightColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  sidebarHeader: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    marginBottom: 10,
+  },
+  avatarCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  avatarName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#000',
+  },
+  sidebarItem: {
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    alignItems: 'center',
+  },
+  sidebarActiveItem: {
+    backgroundColor: '#A9A9A9', 
+  },
+  sidebarItemText: {
+    fontSize: 22,
+    color: '#000',
+    fontWeight: 'normal',
+  },
+  sidebarFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: '#000',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutText: {
+    fontSize: 22,
+    color: '#000',
+    marginLeft: 10,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
   },
 });

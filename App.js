@@ -1,11 +1,68 @@
-import React from 'react';
-// 引入你想看的那个 js 文件（这里以同级目录的 order.js 为例）
-import OrderScreen from './review'; 
+import React, { useState } from 'react';
+import { View, StyleSheet, StatusBar } from 'react-native';
+
+// ==================== 🛠️ 真实子页面引入（同级目录版） ====================
+import OrderScreen from './order';           
+import ReviewScreen from './review';          
+import MenuScreen from './menu';              
+import HistoryOrderScreen from './historyorder'; 
+import OperationStatusScreen from './operationstatus'; 
 
 export default function App() {
-  // 直接在这里渲染你想看的页面
-  return <OrderScreen />;
+  // 初始设为 'menu' 页面
+  const [currentScreen, setCurrentScreen] = useState('menu');
+
+  // 路由跳转核心方法
+  const navigateToScreen = (screenName) => {
+    console.log(`[路由导航] 正在前往页面: ${screenName}`);
+    if (screenName === 'logout') {
+      setCurrentScreen('menu'); // 退出登录时重置回 menu
+      return;
+    }
+    setCurrentScreen(screenName);
+  };
+
+  // 根据子页面侧边栏传回的字符串渲染对应的真实组件
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case 'menu':
+        return <MenuScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+      case 'order':
+        return <OrderScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+      case 'review':
+        return <ReviewScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+      case 'historyorder':
+        return <HistoryOrderScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+      case 'operationstatus':
+        return <OperationStatusScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+      default:
+        return <MenuScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      {renderScreen()}
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+});
+
+// import React from 'react';
+// // 引入你想看的那个 js 文件（这里以同级目录的 order.js 为例）
+// import OrderScreen from './order'; 
+
+// export default function App() {
+//   // 直接在这里渲染你想看的页面
+//   return <OrderScreen />;
+// }
 
 // import React, { useState } from 'react';
 // import {
