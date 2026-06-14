@@ -19,7 +19,6 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width } = Dimensions.get('window');
-const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
 
 // ==================== 🔢 智能库存快捷控制器组件 ====================
 function StockController({ stockValue, onChangeStock, isEditing }) {
@@ -120,7 +119,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
   // ==================== ⚡ 5. 核心逻辑功能 ====================
 
-  // 🌟 核心控制修复点：双向完美拦截跨栏点击
+  // 🌟 双向完美拦截跨栏点击
   const handleTabChange = (nextTab) => {
     if (activeTab === 'ANNOUNCEMENT' && isEditing && nextTab !== 'ANNOUNCEMENT') {
       Alert.alert("Notice", "Please SAVE your announcement updates before leaving.");
@@ -180,14 +179,14 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
   const openAddCategoryModal = () => {
     setIsEditModeCategory(false);
-    NewCategoryName('');
+    setNewCategoryName(''); // 🔧 修复原本大小写错误的 Bug (NewCategoryName)
     setCategoryModalVisible(true);
   };
 
   const openEditCategoryModal = () => {
     if (activeTab === 'ANNOUNCEMENT') return;
     setIsEditModeCategory(true);
-    NewCategoryName(activeTab);
+    setNewCategoryName(activeTab); // 🔧 修复原本大小写错误的 Bug (NewCategoryName)
     setCategoryModalVisible(true);
   };
 
@@ -315,14 +314,12 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     ]);
   };
 
-  // 🛠️ 处理侧边栏导航点击
+  // 🛠️ 处理侧边栏导航点击与跳转（打通保障）
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false); // 先关闭侧边栏
-    
-    // 如果点击的是当前页面，不需要跳转
     if (targetScreen === 'menu') return;
 
-    // 回传参数给上层主控组件进行界面跳转
+    // 回传参数给上层主控路由，确保跳转畅通
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
@@ -358,7 +355,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
               <Text style={styles.avatarName}>Rasa Syiok</Text>
             </View>
 
-            {/* 导航列表按图二设计 */}
+            {/* 导航列表 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -408,7 +405,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       <View style={styles.header}>
         {!isEditing ? (
           <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsSidebarOpen(true)}>
-            <Ionicons name="menu-outline" size={28} color="#000" />
+            <Ionicons name="menu" size={35} color="#000" />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(false)}>
@@ -430,6 +427,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           <View style={{ width: 38 }} />
         )}
       </View>
+      <View style={styles.divider} />
 
       {/* ==================== 2. TAB BAR ==================== */}
       <View style={styles.tabBarContainer}>
@@ -667,16 +665,17 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 // ==================== 🎨 STYLES ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 10, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
-  headerIconBtn: { padding: 5, width: 38, alignItems: 'center' },
-  headerTitle: { fontSize: 26, fontWeight: 'bold', color: '#000' },
+  divider: { height: 2, backgroundColor: '#000', width: '100%' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
+  headerIconBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000' },
 
-  tabBarContainer: { width: '100%', borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: '#000', backgroundColor: '#fff', height: 44 },
+  tabBarContainer: { width: '100%', borderBottomWidth: 1.5, borderColor: '#000', backgroundColor: '#fff', height: 50 },
   tabBarScroll: { flexDirection: 'row', alignItems: 'center' },
 
   tabButton: { paddingVertical: 10, paddingHorizontal: 16, borderRightWidth: 1.5, borderColor: '#000', minWidth: 95, height: '100%', alignItems: 'center', justifyContent: 'center' },
   tabButtonActive: { backgroundColor: '#A9A9A9' },
-  tabText: { fontSize: 10, fontWeight: 'bold', color: '#000', letterSpacing: 0.3 },
+  tabText: { fontSize: 14, fontWeight: '500', color: '#000' },
   tabTextActive: { color: '#fff' },
   tabAddButton: { width: 50, height: '100%', justifyContent: 'center', alignItems: 'center', borderRightWidth: 1.5, borderColor: '#000' },
 
@@ -759,13 +758,13 @@ const styles = StyleSheet.create({
   modalSubmitBtn: { backgroundColor: '#A9A9A9', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
 
-  /* ==================== 📌 新增的 Sidebar 样式表 ==================== */
+  /* ==================== 📌 Sidebar 样式表 ==================== */
   modalContainer: {
     flex: 1,
     flexDirection: 'row',
   },
-sidebar: {
-    width: Dimensions.get('window').width * 0.75, // 👈 直接在这里改成 0.75 (75%) 或 0.8 (80%)
+  sidebar: {
+    width: Dimensions.get('window').width * 0.75, 
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -808,7 +807,7 @@ sidebar: {
     alignItems: 'center',
   },
   sidebarActiveItem: {
-    backgroundColor: '#A9A9A9', // 对应图二选中 “Menu” 时的灰色高亮
+    backgroundColor: '#A9A9A9', 
   },
   sidebarItemText: {
     fontSize: 22,
@@ -837,6 +836,6 @@ sidebar: {
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // 右侧半透明遮罩
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
   },
 });

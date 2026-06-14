@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
-const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
 
 // ==================== 🛠️ 模拟订单数据源 ====================
 const MOCK_ORDERS = [
@@ -30,7 +29,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // 1. 获取今天的真实系统时间
-  const today = React.useMemo(() => new Date(), []);
+  const today = useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth(); // 0-11
   const currentDate = today.getDate();
@@ -46,7 +45,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   const [selectedDay, setSelectedDay] = useState(currentDate); 
 
   // 5. 动态计算当前月份的日历矩阵 (标准日历：Sun - Sat)
-  const calendarDays = React.useMemo(() => {
+  const calendarDays = useMemo(() => {
     const firstDayInstance = new Date(viewYear, viewMonth, 1);
     const startDayOfWeek = firstDayInstance.getDay(); 
     const totalDaysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -62,7 +61,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   }, [viewYear, viewMonth]);
 
   // 6. 获取当前选中的周区间 (Sun 到 Sat) 的精确起止时间戳
-  const currentWeekRange = React.useMemo(() => {
+  const currentWeekRange = useMemo(() => {
     const selectedDateInstance = new Date(viewYear, viewMonth, selectedDay);
     const selectedWeekDay = selectedDateInstance.getDay(); 
     
@@ -76,7 +75,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   }, [viewYear, viewMonth, selectedDay]);
 
   // 🚀 核心过滤：根据日历选择动态过滤订单
-  const filteredOrders = React.useMemo(() => {
+  const filteredOrders = useMemo(() => {
     return MOCK_ORDERS.filter(order => {
       const orderDate = new Date(order.date);
       const oYear = orderDate.getFullYear();
@@ -101,7 +100,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   }, [filterType, viewYear, viewMonth, selectedDay, currentWeekRange]);
 
   // 💰 动态累加筛选后的总营业额
-  const totalAmount = React.useMemo(() => {
+  const totalAmount = useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.price, 0);
   }, [filteredOrders]);
 
@@ -150,7 +149,6 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     setViewMonth(targetMonth);
     setViewYear(targetYear);
 
-    // 如果切过去的目标月份正是当前真实月份，贴心地恢复到今天，否则设为 1 号
     if (targetYear === currentYear && targetMonth === currentMonth) {
       setSelectedDay(currentDate);
     } else {
@@ -187,11 +185,12 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return `${parseInt(d)}/${parseInt(m)}/${y}`;
   };
 
-  // 🛠️ 处理侧边栏导航点击
+  // ⚙️ 核心打通：处理侧边栏导航点击与跳转
   const handleMenuPress = (targetScreen) => {
-    setIsSidebarOpen(false); // 先关闭侧边栏
-    if (targetScreen === 'historyorder') return;
+    setIsSidebarOpen(false); // 1. 先平滑关闭侧边栏弹窗
+    if (targetScreen === 'historyorder') return; // 如果已经是当前页，则不进行操作
 
+    // 2. 双重保障触发外部路由机制
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
@@ -253,6 +252,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
 
+            {/* 🛠️ 重置密码跳转入口（已确认完美通车） */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
@@ -418,7 +418,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   );
 }
 
-// ==================== 🎨 样式表 ====================
+// ==================== 🎨 粗线框极简风格样式表 ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
@@ -500,8 +500,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
   },
-sidebar: {
-    width: Dimensions.get('window').width * 0.75, // 👈 直接在这里改成 0.75 (75%) 或 0.8 (80%)
+  sidebar: {
+    width: Dimensions.get('window').width * 0.75, 
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
