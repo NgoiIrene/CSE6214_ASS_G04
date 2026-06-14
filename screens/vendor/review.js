@@ -15,7 +15,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
-const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
 
 // ==================== 🛠️ 模拟评价数据源 ====================
 const MOCK_REVIEWS = [
@@ -218,6 +217,7 @@ export default function ReviewScreen({ navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
 
+            {/* 🛠️ 已经为您彻底打通并配置了修改密码页面的跳转入口 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
@@ -240,7 +240,6 @@ export default function ReviewScreen({ navigateToScreen }) {
 
       {/* ==================== 头部导航 ==================== */}
       <View style={styles.header}>
-        {/* 🚪 替换原有的返回按钮为 Menu 侧边栏开关 */}
         <TouchableOpacity style={styles.headerMenuBtn} onPress={() => setIsSidebarOpen(true)}>
           <Ionicons name="menu-outline" size={28} color="#000" />
         </TouchableOpacity>
@@ -255,12 +254,16 @@ export default function ReviewScreen({ navigateToScreen }) {
         <View style={styles.starLevelContainer}>
           <Text style={styles.starLevelLabel}>Star Level:</Text>
           <View style={styles.starButtonsGroup}>
-            {[5, 4, 3, 2, 1].map((star) => {
+            {[5, 4, 3, 2, 1].map((star, idx) => {
               const isSelected = selectedStar === star;
               return (
                 <TouchableOpacity
                   key={star}
-                  style={[styles.starBtn, isSelected && styles.starBtnActive]}
+                  style={[
+                    styles.starBtn, 
+                    isSelected && styles.starBtnActive,
+                    idx === 4 && { borderRightWidth: 0 } // 👈 细节美化：最后一个格子的右框线去掉，更干净
+                  ]}
                   onPress={() => handleStarPress(star)}
                 >
                   <Text style={[styles.starBtnText, isSelected && styles.starBtnTextActive]}>
@@ -509,13 +512,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  /* ==================== 📌 新增的 Sidebar 样式表 ==================== */
+  /* ==================== 📌 Sidebar 样式表 ==================== */
   modalContainer: {
     flex: 1,
     flexDirection: 'row',
   },
-sidebar: {
-    width: Dimensions.get('window').width * 0.75, // 👈 直接在这里改成 0.75 (75%) 或 0.8 (80%)
+  sidebar: {
+    width: Dimensions.get('window').width * 0.75, 
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
