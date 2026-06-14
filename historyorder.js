@@ -7,14 +7,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  Platform
+  Platform,
+  Modal,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
+const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
 
 // ==================== 🛠️ 模拟订单数据源 ====================
-// 这里的日期格式为 YYYY-MM-DD，你可以根据真实 API 返回的数据调整
 const MOCK_ORDERS = [
   { id: '1', date: '2026-06-10', time: '13:40', orderNo: '1330', customer: 'Cindy', price: 30 },
   { id: '2', date: '2026-06-10', time: '15:20', orderNo: '1331', customer: 'Alex', price: 45 },
@@ -23,7 +25,10 @@ const MOCK_ORDERS = [
   { id: '5', date: '2026-05-28', time: '11:30', orderNo: '1299', customer: 'Eva', price: 25 },
 ];
 
-export default function OrderHistoryScreen({ onBack }) {
+export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
+  // 🚪 侧边栏显隐状态
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   // 1. 获取今天的真实系统时间
   const today = React.useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
@@ -70,7 +75,6 @@ export default function OrderHistoryScreen({ onBack }) {
     return { start: sunday.getTime(), end: saturday.getTime() };
   }, [viewYear, viewMonth, selectedDay]);
 
-
   // 🚀 核心过滤：根据日历选择动态过滤订单
   const filteredOrders = React.useMemo(() => {
     return MOCK_ORDERS.filter(order => {
@@ -96,12 +100,10 @@ export default function OrderHistoryScreen({ onBack }) {
     });
   }, [filterType, viewYear, viewMonth, selectedDay, currentWeekRange]);
 
-
   // 💰 动态累加筛选后的总营业额
   const totalAmount = React.useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.price, 0);
   }, [filteredOrders]);
-
 
   // 7. 核心高亮逻辑：判断某一天是否应该亮起
   const isDayHighlighted = (day) => {
@@ -136,27 +138,44 @@ export default function OrderHistoryScreen({ onBack }) {
     return viewYear === currentYear && viewMonth === currentMonth && day > currentDate;
   };
 
-  // 9. 月份切换处理函数
+  // 9. 月份切换处理函数（智能体验修正）
   const handlePrevMonth = () => {
+    let targetMonth = viewMonth - 1;
+    let targetYear = viewYear;
     if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear(prev => prev - 1);
-    } else {
-      setViewMonth(prev => prev - 1);
+      targetMonth = 11;
+      targetYear = viewYear - 1;
     }
-    setSelectedDay(1); 
+    
+    setViewMonth(targetMonth);
+    setViewYear(targetYear);
+
+    // 如果切过去的目标月份正是当前真实月份，贴心地恢复到今天，否则设为 1 号
+    if (targetYear === currentYear && targetMonth === currentMonth) {
+      setSelectedDay(currentDate);
+    } else {
+      setSelectedDay(1);
+    }
   };
 
   const handleNextMonth = () => {
     if (viewYear === currentYear && viewMonth === currentMonth) return;
 
+    let targetMonth = viewMonth + 1;
+    let targetYear = viewYear;
     if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear(prev => prev + 1);
-    } else {
-      setViewMonth(prev => prev + 1);
+      targetMonth = 0;
+      targetYear = viewYear + 1;
     }
-    setSelectedDay(1);
+
+    setViewMonth(targetMonth);
+    setViewYear(targetYear);
+
+    if (targetYear === currentYear && targetMonth === currentMonth) {
+      setSelectedDay(currentDate);
+    } else {
+      setSelectedDay(1);
+    }
   };
 
   const isAtCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
@@ -168,21 +187,105 @@ export default function OrderHistoryScreen({ onBack }) {
     return `${parseInt(d)}/${parseInt(m)}/${y}`;
   };
 
+  // 🛠️ 处理侧边栏导航点击
+  const handleMenuPress = (targetScreen) => {
+    setIsSidebarOpen(false); // 先关闭侧边栏
+    if (targetScreen === 'historyorder') return;
+
+    if (navigateToScreen) {
+      navigateToScreen(targetScreen);
+    } else if (onBack) {
+      onBack(targetScreen); 
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
+      
+      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      <Modal
+        transparent={true}
+        visible={isSidebarOpen}
+        animationType="none"
+        onRequestClose={() => setIsSidebarOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          {/* 左侧实体菜单 */}
+          <View style={styles.sidebar}>
+            {/* 顶栏：Menu 切换按钮 */}
+            <View style={styles.sidebarHeader}>
+              <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
+                <Ionicons name="menu" size={32} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 用户头像区域 */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person-outline" size={45} color="#000" />
+              </View>
+              <Text style={styles.avatarName}>Rasa Syiok</Text>
+            </View>
+
+            {/* 导航列表 */}
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
+              <Text style={styles.sidebarItemText}>Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
+              <Text style={styles.sidebarItemText}>Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('menu')}>
+              <Text style={styles.sidebarItemText}>Menu</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}>
+              <Text style={styles.sidebarItemText}>Update Status</Text>
+            </TouchableOpacity>
+
+            {/* 当前页面高亮为灰色背景 */}
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('historyorder')}>
+              <Text style={styles.sidebarItemText}>History Order</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
+              <Text style={styles.sidebarItemText}>Review</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
+              <Text style={styles.sidebarItemText}>Reset Password</Text>
+            </TouchableOpacity>
+
+            {/* 底部退出登录 */}
+            <View style={styles.sidebarFooter}>
+              <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
+                <Ionicons name="log-out-outline" size={24} color="#000" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 右侧空白处暗色遮罩层 */}
+          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        </View>
+      </Modal>
+
       {/* ==================== 头部导航 ==================== */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBackBtn} onPress={onBack}>
-          <Ionicons name="arrow-back-circle-outline" size={32} color="#000" />
+        <TouchableOpacity style={styles.headerBackBtn} onPress={() => setIsSidebarOpen(true)}>
+          <Ionicons name="menu" size={35} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order History</Text>
         <View style={{ width: 32 }} />
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 营业额总计（跟随选择动态改变） ==================== */}
+      {/* ==================== 营业额总计 ==================== */}
       <View style={styles.totalContainer}>
-        <Text style={styles.totalText}>TOTAL : RM {totalAmount}</Text>
+        <Text style={styles.totalText}>TOTAL : RM {totalAmount.toFixed(2)}</Text>
       </View>
       <View style={styles.divider} />
 
@@ -212,7 +315,7 @@ export default function OrderHistoryScreen({ onBack }) {
       {/* ==================== 主内容区 ==================== */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
-        {/* ==================== 动态 Google 日历面板 ==================== */}
+        {/* ==================== 动态日历面板 ==================== */}
         <View style={styles.googleCalendarCard}>
           <View style={styles.calendarHeader}>
             <Text style={styles.calendarMonthText}>{monthNames[viewMonth]} {viewYear}</Text>
@@ -303,7 +406,7 @@ export default function OrderHistoryScreen({ onBack }) {
                   </View>
                 </View>
                 <View style={styles.cardRightContent}>
-                  <Text style={styles.priceText}>RM {order.price}</Text>
+                  <Text style={styles.priceText}>RM {order.price.toFixed(2)}</Text>
                 </View>
               </View>
             </View>
@@ -325,7 +428,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, 
   },
-  headerBackBtn: { width: 32, justifyContent: 'center', alignItems: 'center' },
+  headerBackBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000' },
 
   totalContainer: { width: '100%', paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
@@ -390,5 +493,86 @@ const styles = StyleSheet.create({
   priceText: { fontSize: 28, fontWeight: '500', color: '#000' },
 
   emptyContainer: { padding: 30, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { color: '#999', fontSize: 14 }
+  emptyText: { color: '#999', fontSize: 14 },
+
+  /* ==================== 📌 Sidebar 样式表 ==================== */
+  modalContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+sidebar: {
+    width: Dimensions.get('window').width * 0.75, // 👈 直接在这里改成 0.75 (75%) 或 0.8 (80%)
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRightWidth: 2,
+    borderRightColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  sidebarHeader: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    marginBottom: 10,
+  },
+  avatarCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  avatarName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#000',
+  },
+  sidebarItem: {
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    alignItems: 'center',
+  },
+  sidebarActiveItem: {
+    backgroundColor: '#A9A9A9', 
+  },
+  sidebarItemText: {
+    fontSize: 22,
+    color: '#000',
+    fontWeight: 'normal',
+  },
+  sidebarFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: '#000',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutText: {
+    fontSize: 22,
+    color: '#000',
+    marginLeft: 10,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+  },
 });

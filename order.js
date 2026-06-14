@@ -7,16 +7,21 @@ import {
   ScrollView,
   TouchableHighlight, 
   TouchableOpacity,
-  Platform 
+  Platform,
+  Modal,
+  Dimensions,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+const { width } = Dimensions.get('window');
+const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
+
 // ==================== 🛠️ 全量且严格校对的数据仓库 ====================
-// 🌟 核心改动：把 timeLeft 从写死字符串改成了以秒(Seconds)为单位的数字
 const ALL_ORDERS_DATA = {
   '#1034': {
     id: '#1034', time: '13:14', name: 'CANDY', customerName: 'CANDY', price: 'RM 20.00', totalEarned: 'RM 20.00', 
-    timeLeftSeconds: 300, // 5 分钟 = 300 秒
+    timeLeftSeconds: 300, 
     orderTime: '13:14', estTime: '13:40', pickUpNo: '#1134',
     items: [
       { code: 'A01', name: 'NASI GORENG', qty: 1, remark: '' },
@@ -25,7 +30,7 @@ const ALL_ORDERS_DATA = {
   },
   '#1054': {
     id: '#1054', time: '13:26', name: 'CINDY', customerName: 'CINDY', price: 'RM 34.20', totalEarned: 'RM 34.20', 
-    timeLeftSeconds: 900, // 15 分钟 = 900 秒
+    timeLeftSeconds: 900, 
     orderTime: '13:26', estTime: '13:55', pickUpNo: '#1154',
     items: [
       { code: 'M20', name: 'SPECIAL MAGGIE GORENG EXTRA PEDAS SEAFOOD DOUBLE PLUS', qty: 1, remark: 'SAYUR LEBIH, MAU CABAI POTONG BANYAK BANYAK YA' },
@@ -34,7 +39,7 @@ const ALL_ORDERS_DATA = {
   },
   '#1055': {
     id: '#1055', time: '13:26', name: 'CELINE', customerName: 'CELINE', price: 'RM 8.00', totalEarned: 'RM 8.00', 
-    timeLeftSeconds: 1200, // 20 分钟 = 1200 秒
+    timeLeftSeconds: 1200, 
     orderTime: '13:26', estTime: '13:50', pickUpNo: '#1155',
     items: [
       { code: 'A02', name: 'AYAM GORENG', qty: 1, remark: '' },
@@ -43,7 +48,7 @@ const ALL_ORDERS_DATA = {
   },
   '#1060': {
     id: '#1060', time: '13:30', name: 'CATHY', customerName: 'CATHY', price: 'RM 96.00', totalEarned: 'RM 96.00', 
-    timeLeftSeconds: 1500, // 25 分钟 = 1500 秒
+    timeLeftSeconds: 1500, 
     orderTime: '13:30', estTime: '14:00', pickUpNo: '#1160',
     items: [
       { code: 'A01', name: 'NASI GORENG', qty: 6, remark: '' },
@@ -52,7 +57,7 @@ const ALL_ORDERS_DATA = {
   },
   '#1099': {
     id: '#1099', time: '13:35', name: 'FINDY', customerName: 'FINDY', price: 'RM 118.00', totalEarned: 'RM 118.00', 
-    timeLeftSeconds: 1800, // 30 分钟 = 1800 秒
+    timeLeftSeconds: 1800, 
     orderTime: '13:35', estTime: '14:15', pickUpNo: '#1199',
     items: [
       { code: 'A01', name: 'NASI GORENG', qty: 1, remark: '' },
@@ -61,7 +66,6 @@ const ALL_ORDERS_DATA = {
   }
 };
 
-// 🌟 辅助工具：把秒数转换为 "MM:SS MIN LEFT" 的格式（例如 299秒 -> 04:59 MIN LEFT）
 const formatCountdown = (totalSeconds) => {
   if (totalSeconds <= 0) return "00:00 TIME'S UP";
   const mins = Math.floor(totalSeconds / 60);
@@ -72,11 +76,12 @@ const formatCountdown = (totalSeconds) => {
 };
 
 // ==================== 📄 页面 1 & 3：主页列表组件 ====================
-function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOrderIds, acceptedOrderIds, dynamicTimes }) {
+function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOrderIds, acceptedOrderIds, dynamicTimes, onOpenMenu }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerMenuBtn}>
+        {/* 🚪 替换原有的静态按钮，绑定打开侧边栏的方法 */}
+        <TouchableOpacity style={styles.headerMenuBtn} onPress={onOpenMenu}>
           <Ionicons name="menu-outline" size={28} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Home</Text>
@@ -131,7 +136,6 @@ function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOr
                   </View>
                 </View>
                 <View style={styles.cardRightContent}>
-                  {/* 🌟 核心渲染改动：如果是 accepted tab，读取实时倒计时动态状态并进行格式化格式 */}
                   <Text style={currentTab === 'requested' ? styles.priceText : styles.timeLeftText}>
                     {currentTab === 'requested' 
                       ? order.price 
@@ -186,7 +190,6 @@ function OrderDetailScreen({ orderId, initialStatus, onBack, onAcceptOrder, onDe
           <Text style={styles.metaText}>CUSTOMER NAME: {orderData.customerName}</Text>
           <Text style={styles.metaText}>TIME: {orderData.orderTime}</Text>
           {status === 'preparing' ? (
-            /* 🌟 详情页内右上角的倒计时也同步为实时格式化数据扣减 */
             <Text style={styles.timeLeftLarge}>
               {formatCountdown(dynamicTimes[orderId] !== undefined ? dynamicTimes[orderId] : orderData.timeLeftSeconds)}
             </Text>
@@ -247,15 +250,17 @@ function OrderDetailScreen({ orderId, initialStatus, onBack, onAcceptOrder, onDe
 }
 
 // ==================== 📱 全局路由及动态状态管理主入口 ====================
-export default function App() {
+export default function App({ navigateToScreen }) {
   const [screen, setScreen] = useState('HOME'); 
   const [selectedOrderId, setSelectedOrderId] = useState('#1034'); 
   const [currentTab, setCurrentTab] = useState('requested'); 
 
+  // 🚪 侧边栏显隐状态
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const [requestedOrderIds, setRequestedOrderIds] = useState(['#1034', '#1054', '#1055', '#1060', '#1099']); 
   const [acceptedOrderIds, setAcceptedOrderIds] = useState(['#1034', '#1054']); 
 
-  // 🌟 全局倒计时状态仓库：映射各个订单编号当前的剩余总秒数
   const [dynamicTimes, setDynamicTimes] = useState({
     '#1034': 300,
     '#1054': 900,
@@ -264,12 +269,10 @@ export default function App() {
     '#1099': 1800,
   });
 
-  // 🌟 真实物理时钟核心驱动引擎
   useEffect(() => {
     const timer = setInterval(() => {
       setDynamicTimes((prevTimes) => {
         const updatedTimes = { ...prevTimes };
-        // 遍历所有订单，只要大于 0 秒，就自动递减 1 秒
         Object.keys(updatedTimes).forEach((id) => {
           if (updatedTimes[id] > 0) {
             updatedTimes[id] = updatedTimes[id] - 1;
@@ -277,10 +280,20 @@ export default function App() {
         });
         return updatedTimes;
       });
-    }, 1000); // 每 1000 毫秒（即 1 秒）精准触发一次重新渲染
+    }, 1000);
 
-    return () => clearInterval(timer); // 组件卸载时自动销毁定时器防止内存泄漏
+    return () => clearInterval(timer); 
   }, []);
+
+  // 处理侧边栏跳转逻辑
+  const handleMenuPress = (targetScreen) => {
+    setIsSidebarOpen(false); // 关闭侧边栏
+    if (targetScreen === 'order') return; // 如果已经是当前主页则不作处理
+
+    if (navigateToScreen) {
+      navigateToScreen(targetScreen); // 触发外部主导航层路由跳转
+    }
+  };
 
   const handleAcceptOrder = (id) => {
     setRequestedOrderIds(prev => prev.filter(item => item !== id));
@@ -298,32 +311,105 @@ export default function App() {
     setScreen('HOME');
   };
 
-  if (screen === 'DETAIL') {
-    return (
-      <OrderDetailScreen 
-        orderId={selectedOrderId}
-        initialStatus={currentTab === 'requested' ? 'waiting' : 'preparing'}
-        onBack={() => setScreen('HOME')}
-        onAcceptOrder={handleAcceptOrder}
-        onDeclineOrder={handleDeclineOrder}
-        onDoneOrder={handleDoneOrder}
-        dynamicTimes={dynamicTimes} // 传递倒计时状态
-      />
-    );
-  }
-
   return (
-    <HomeScreen 
-      currentTab={currentTab}
-      setCurrentTab={setCurrentTab}
-      requestedOrderIds={requestedOrderIds}
-      acceptedOrderIds={acceptedOrderIds}
-      dynamicTimes={dynamicTimes} // 传递倒计时状态
-      onNavigateToDetail={(id) => {
-        setSelectedOrderId(id);
-        setScreen('DETAIL');
-      }}
-    />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      
+      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      <Modal
+        transparent={true}
+        visible={isSidebarOpen}
+        animationType="none"
+        onRequestClose={() => setIsSidebarOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          {/* 左侧实体菜单 */}
+          <View style={styles.sidebar}>
+            {/* 顶栏：Menu 切换按钮 */}
+            <View style={styles.sidebarHeader}>
+              <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
+                <Ionicons name="menu" size={32} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 用户头像区域 */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person-outline" size={45} color="#000" />
+              </View>
+              <Text style={styles.avatarName}>Rasa Syiok</Text>
+            </View>
+
+            {/* 导航列表 - 当前 Home 页面高亮 */}
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('order')}>
+              <Text style={styles.sidebarItemText}>Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
+              <Text style={styles.sidebarItemText}>Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('menu')}>
+              <Text style={styles.sidebarItemText}>Menu</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}>
+              <Text style={styles.sidebarItemText}>Update Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}>
+              <Text style={styles.sidebarItemText}>History Order</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
+              <Text style={styles.sidebarItemText}>Review</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
+              <Text style={styles.sidebarItemText}>Reset Password</Text>
+            </TouchableOpacity>
+
+            {/* 底部退出登录 */}
+            <View style={styles.sidebarFooter}>
+              <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
+                <Ionicons name="log-out-outline" size={24} color="#000" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 右侧空白处暗色遮罩层 */}
+          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        </View>
+      </Modal>
+
+      {/* 核心页面渲染分流 */}
+      {screen === 'DETAIL' ? (
+        <OrderDetailScreen 
+          orderId={selectedOrderId}
+          initialStatus={currentTab === 'requested' ? 'waiting' : 'preparing'}
+          onBack={() => setScreen('HOME')}
+          onAcceptOrder={handleAcceptOrder}
+          onDeclineOrder={handleDeclineOrder}
+          onDoneOrder={handleDoneOrder}
+          dynamicTimes={dynamicTimes}
+        />
+      ) : (
+        <HomeScreen 
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          requestedOrderIds={requestedOrderIds}
+          acceptedOrderIds={acceptedOrderIds}
+          dynamicTimes={dynamicTimes}
+          onOpenMenu={() => setIsSidebarOpen(true)} // 打开菜单方法传递
+          onNavigateToDetail={(id) => {
+            setSelectedOrderId(id);
+            setScreen('DETAIL');
+          }}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
@@ -431,5 +517,86 @@ const styles = StyleSheet.create({
   acceptButton: { backgroundColor: '#D3D3D3', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 35 },
   acceptButtonText: { color: '#fff', fontSize: 20, fontWeight: '500' },
   doneButton: { backgroundColor: '#D3D3D3', borderRadius: 18, paddingVertical: 8, width: '45%', alignItems: 'center' },
-  doneButtonText: { color: '#fff', fontSize: 20, fontWeight: '500' }
+  doneButtonText: { color: '#fff', fontSize: 20, fontWeight: '500' },
+
+  /* ==================== 📌 新增的 Sidebar 样式表 ==================== */
+  modalContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+sidebar: {
+    width: Dimensions.get('window').width * 0.75, // 👈 直接在这里改成 0.75 (75%) 或 0.8 (80%)
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRightWidth: 2,
+    borderRightColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  sidebarHeader: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    marginBottom: 10,
+  },
+  avatarCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  avatarName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#000',
+  },
+  sidebarItem: {
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    alignItems: 'center',
+  },
+  sidebarActiveItem: {
+    backgroundColor: '#A9A9A9', 
+  },
+  sidebarItemText: {
+    fontSize: 22,
+    color: '#000',
+    fontWeight: 'normal',
+  },
+  sidebarFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: '#000',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutText: {
+    fontSize: 22,
+    color: '#000',
+    marginLeft: 10,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+  },
 });
