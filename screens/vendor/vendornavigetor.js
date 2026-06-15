@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 
-// ==================== 🛠️ 真实子页面引入（同级目录版） ====================
+// ==================== 🛠️ 真实子页面引入 ====================
 import OrderScreen from './order';
 import ReviewScreen from './review';
 import MenuScreen from './menu';
 import HistoryOrderScreen from './historyorder';
 import OperationStatusScreen from './operationstatus';
-import ResetPasswordScreen from './resetpassword'; // ✨ 新增：引入重置密码页面
+import ResetPasswordScreen from './resetpassword';
+import ProfileScreen from './vendorprofile'; // 确保文件名与此处完全一致
 
 export default function App() {
   // 初始设为 'order' 页面
@@ -36,8 +37,10 @@ export default function App() {
         return <HistoryOrderScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
       case 'operationstatus':
         return <OperationStatusScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
-      case 'resetpassword': // ✨ 新增：处理重置密码页面的路由分支
+      case 'resetpassword':
         return <ResetPasswordScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
+      case 'profile': // ✨ 新增：个人资料页面分支
+        return <ProfileScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
       default:
         return <MenuScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
     }
