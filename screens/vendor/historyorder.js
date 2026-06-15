@@ -36,20 +36,20 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
 
   // 2. 日历状态管理：默认定位到当前真实年、月
   const [viewYear, setViewYear] = useState(currentYear);
-  const [viewMonth, setViewMonth] = useState(currentMonth); 
-  
+  const [viewMonth, setViewMonth] = useState(currentMonth);
+
   // 3. 筛选模式：默认进入为 'D' (天)
-  const [filterType, setFilterType] = useState('D'); 
-  
+  const [filterType, setFilterType] = useState('D');
+
   // 4. 用户选中的具体日子：默认进入为当天 (几号)
-  const [selectedDay, setSelectedDay] = useState(currentDate); 
+  const [selectedDay, setSelectedDay] = useState(currentDate);
 
   // 5. 动态计算当前月份的日历矩阵 (标准日历：Sun - Sat)
   const calendarDays = useMemo(() => {
     const firstDayInstance = new Date(viewYear, viewMonth, 1);
-    const startDayOfWeek = firstDayInstance.getDay(); 
+    const startDayOfWeek = firstDayInstance.getDay();
     const totalDaysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    
+
     const daysArray = [];
     for (let i = 0; i < startDayOfWeek; i++) {
       daysArray.push(null);
@@ -63,11 +63,11 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   // 6. 获取当前选中的周区间 (Sun 到 Sat) 的精确起止时间戳
   const currentWeekRange = useMemo(() => {
     const selectedDateInstance = new Date(viewYear, viewMonth, selectedDay);
-    const selectedWeekDay = selectedDateInstance.getDay(); 
-    
+    const selectedWeekDay = selectedDateInstance.getDay();
+
     const sunday = new Date(viewYear, viewMonth, selectedDay - selectedWeekDay);
     sunday.setHours(0, 0, 0, 0);
-    
+
     const saturday = new Date(sunday.getTime() + 6 * 24 * 60 * 60 * 1000);
     saturday.setHours(23, 59, 59, 999);
 
@@ -108,9 +108,9 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   const isDayHighlighted = (day) => {
     if (!day) return false;
 
-    const isFuture = viewYear > currentYear || 
-                     (viewYear === currentYear && viewMonth > currentMonth) ||
-                     (viewYear === currentYear && viewMonth === currentMonth && day > currentDate);
+    const isFuture = viewYear > currentYear ||
+      (viewYear === currentYear && viewMonth > currentMonth) ||
+      (viewYear === currentYear && viewMonth === currentMonth && day > currentDate);
     if (isFuture) return false;
 
     if (filterType === 'M') {
@@ -145,7 +145,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       targetMonth = 11;
       targetYear = viewYear - 1;
     }
-    
+
     setViewMonth(targetMonth);
     setViewYear(targetYear);
 
@@ -194,13 +194,13 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
-      onBack(targetScreen); 
+      onBack(targetScreen);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
+
       {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
       <Modal
         transparent={true}
@@ -291,19 +291,19 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
 
       {/* ==================== D / W / M 切换标签 ==================== */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tabButton, filterType === 'D' ? styles.activeTab : styles.inactiveTab]}
           onPress={() => setFilterType('D')}
         >
           <Text style={[styles.tabText, filterType === 'D' && styles.activeTabText]}>D</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tabButton, filterType === 'W' ? styles.activeTab : styles.inactiveTab]}
           onPress={() => setFilterType('W')}
         >
           <Text style={[styles.tabText, filterType === 'W' && styles.activeTabText]}>W</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tabButton, filterType === 'M' ? styles.activeTab : styles.inactiveTab]}
           onPress={() => setFilterType('M')}
         >
@@ -314,7 +314,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
 
       {/* ==================== 主内容区 ==================== */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        
+
         {/* ==================== 动态日历面板 ==================== */}
         <View style={styles.googleCalendarCard}>
           <View style={styles.calendarHeader}>
@@ -323,8 +323,8 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
               <TouchableOpacity style={styles.arrowBtn} onPress={handlePrevMonth}>
                 <Ionicons name="chevron-back" size={18} color="#000" />
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.arrowBtn} 
+              <TouchableOpacity
+                style={styles.arrowBtn}
                 onPress={handleNextMonth}
                 disabled={isAtCurrentMonth}
               >
@@ -352,10 +352,10 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
               const isTargetClick = filterType !== 'M' && day === selectedDay && !isFuture;
 
               return (
-                <TouchableOpacity 
-                  key={idx} 
+                <TouchableOpacity
+                  key={idx}
                   style={[
-                    styles.dayBox, 
+                    styles.dayBox,
                     isHighlighted && styles.dayBoxActive,
                   ]}
                   onPress={() => {
@@ -423,10 +423,10 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
   scrollContainer: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 40 },
-  
+
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, 
+    paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35,
   },
   headerBackBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000' },
@@ -458,18 +458,18 @@ const styles = StyleSheet.create({
   calendarMonthText: { fontSize: 16, fontWeight: '600', color: '#3c4043' },
   arrowContainer: { flexDirection: 'row' },
   arrowBtn: { padding: 4, marginLeft: 16 },
-  
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  weekText: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11, fontWeight: '500', color: '#70757a' },
-  
+
+  weekRow: { flexDirection: 'row', marginBottom: 10 },
+  weekText: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '500', color: '#70757a' },
+
   daysGrid: { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
-  dayBox: { width: `${100 / 7}%`, aspectRatio: 1.1, justifyContent: 'center', alignItems: 'center', marginVertical: 2 },
-  dayBoxEmpty: { width: `${100 / 7}%`, aspectRatio: 1.1, marginVertical: 2 },
-  
+  dayBox: { flexBasis: '14.2857%', maxWidth: '14.2857%', aspectRatio: 1.1, justifyContent: 'center', alignItems: 'center', marginVertical: 2 },
+  dayBoxEmpty: { flexBasis: '14.2857%', maxWidth: '14.2857%', aspectRatio: 1.1, marginVertical: 2 },
+
   dayBoxActive: { backgroundColor: '#e8f0fe' },
   dayNumberContainer: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   dayNumberActive: { backgroundColor: '#1a73e8' },
-  
+
   dayText: { fontSize: 12, fontWeight: '400', color: '#3c4043' },
   dayTextActive: { color: '#fff', fontWeight: '600' },
   dayTextHighlightText: { color: '#1a73e8', fontWeight: '500' },
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: Dimensions.get('window').width * 0.75, 
+    width: Dimensions.get('window').width * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sidebarActiveItem: {
-    backgroundColor: '#A9A9A9', 
+    backgroundColor: '#A9A9A9',
   },
   sidebarItemText: {
     fontSize: 22,
@@ -573,6 +573,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
 });

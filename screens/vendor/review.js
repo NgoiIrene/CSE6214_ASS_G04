@@ -95,8 +95,8 @@ export default function ReviewScreen({ navigateToScreen }) {
     // 搜索词筛选（不区分大小写）
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
-      result = result.filter(review => 
-        review.content.toLowerCase().includes(query) || 
+      result = result.filter(review =>
+        review.content.toLowerCase().includes(query) ||
         review.customer.toLowerCase().includes(query)
       );
     }
@@ -139,7 +139,7 @@ export default function ReviewScreen({ navigateToScreen }) {
 
     return (
       <Text style={styles.reviewContentText}>
-        {parts.map((part, index) => 
+        {parts.map((part, index) =>
           part.toLowerCase() === highlight.toLowerCase() ? (
             <Text key={index} style={styles.highlightedText}>{part}</Text>
           ) : (
@@ -165,7 +165,7 @@ export default function ReviewScreen({ navigateToScreen }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
+
       {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
       <Modal
         transparent={true}
@@ -260,7 +260,7 @@ export default function ReviewScreen({ navigateToScreen }) {
                 <TouchableOpacity
                   key={star}
                   style={[
-                    styles.starBtn, 
+                    styles.starBtn,
                     isSelected && styles.starBtnActive,
                     idx === 4 && { borderRightWidth: 0 } // 👈 细节美化：最后一个格子的右框线去掉，更干净
                   ]}
@@ -299,9 +299,9 @@ export default function ReviewScreen({ navigateToScreen }) {
       <View style={styles.divider} />
 
       {/* ==================== 评价内容滚动列表 ==================== */}
-      <ScrollView 
-        style={{ flex: 1 }} 
-        contentContainerStyle={styles.scrollContainer} 
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
         {filteredReviews.length === 0 ? (
@@ -314,7 +314,7 @@ export default function ReviewScreen({ navigateToScreen }) {
               {/* 卡片头部：头像、名字、日期、星星 */}
               <View style={styles.cardHeader}>
                 <View style={styles.userInfoContainer}>
-                  <View style={styles.avatarCircle}>
+                  <View style={styles.commentAvatarCircle}>
                     <Ionicons name="person-outline" size={20} color="#000" />
                   </View>
                   <View style={styles.nameTimeContainer}>
@@ -345,12 +345,12 @@ const styles = StyleSheet.create({
 
   // 头部样式
   header: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 15, 
-    paddingBottom: 12, 
-    paddingTop: Platform.OS === 'ios' ? 15 : 35, 
+    paddingHorizontal: 15,
+    paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 15 : 35,
   },
   headerMenuBtn: {
     width: 32, justifyContent: 'center', alignItems: 'center',
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     borderRightColor: '#000',
   },
   starBtnActive: {
-    backgroundColor: '#8e8e8e', 
+    backgroundColor: '#8e8e8e',
   },
   starBtnText: {
     fontSize: 14,
@@ -459,15 +459,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  commentAvatarCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
   },
   nameTimeContainer: {
     justifyContent: 'center',
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     textAlign: 'justify',
   },
   highlightedText: {
-    color: '#d93025', 
+    color: '#d93025',
     fontWeight: '500',
   },
 
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: Dimensions.get('window').width * 0.75, 
+    width: Dimensions.get('window').width * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sidebarActiveItem: {
-    backgroundColor: '#A9A9A9', 
+    backgroundColor: '#A9A9A9',
   },
   sidebarItemText: {
     fontSize: 22,
@@ -590,6 +590,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
 });

@@ -27,19 +27,19 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
   // --- 状态控制 ---
   const [dateStart, setDateStart] = useState(new Date());
   const [dateEnd, setDateEnd] = useState(new Date());
-  
+
   const [showPickerStart, setShowPickerStart] = useState(false);
   const [showPickerEnd, setShowPickerEnd] = useState(false);
 
   // 日期文本状态
-  const [dateStartText, setDateStartText] = useState('2026-06-10'); 
-  const [dateEndText, setDateEndText] = useState('2026-06-10');
-  
+  const [dateStartText, setDateStartText] = useState('');
+  const [dateEndText, setDateEndText] = useState('');
+
   const [timeStartHour, setTimeStartHour] = useState('');
   const [timeStartMin, setTimeStartMin] = useState('');
   const [timeEndHour, setTimeEndHour] = useState('');
   const [timeEndMin, setTimeEndMin] = useState('');
-  
+
   const [status, setStatus] = useState('active');
 
   // 用于嵌入式显示时间格式提示或错误的状态
@@ -53,10 +53,17 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
     return today;
   };
 
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // 处理侧边栏导航点击
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false); // 先关闭侧边栏
-    
+
     // 如果点击的是当前页面，不需要跳转
     if (targetScreen === 'operationstatus') return;
 
@@ -64,20 +71,20 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
-      onBack(targetScreen); 
+      onBack(targetScreen);
     }
   };
 
   const onChangeDateStart = (event, selectedDate) => {
-    setShowPickerStart(Platform.OS === 'ios'); 
+    setShowPickerStart(Platform.OS === 'ios');
     if (selectedDate) {
       if (selectedDate < getTodayWithNoon()) {
         Alert.alert("Error", "Start date cannot be earlier than today!");
         return;
       }
-      
+
       setDateStart(selectedDate);
-      const formatted = selectedDate.toISOString().split('T')[0];
+      const formatted = formatDate(selectedDate);
       setDateStartText(formatted);
 
       if (dateEndText && selectedDate > dateEnd) {
@@ -92,15 +99,15 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
     if (selectedDate) {
       const compareDate = dateStartText ? dateStart : getTodayWithNoon();
       const targetCompare = new Date(compareDate);
-      targetCompare.setHours(0,0,0,0);
-      
+      targetCompare.setHours(0, 0, 0, 0);
+
       if (selectedDate < targetCompare) {
         Alert.alert("Error", "End date cannot be earlier than Start date!");
         return;
       }
 
       setDateEnd(selectedDate);
-      const formatted = selectedDate.toISOString().split('T')[0];
+      const formatted = formatDate(selectedDate);
       setDateEndText(formatted);
     }
   };
@@ -166,9 +173,9 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
       Alert.alert("Error", "End date cannot be earlier than Start date!");
       return;
     }
-    
+
     Alert.alert(
-      "Success", 
+      "Success",
       `Status updated successfully!\nStatus: ${status}\nDate: ${dateStartText} to ${dateEndText}\nTime: ${timeStartHour}:${timeStartMin} - ${timeEndHour}:${timeEndMin}`
     );
   };
@@ -265,12 +272,12 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          
+
           {/* 字段 1: Date Start */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Date Start:</Text>
-            <TouchableOpacity 
-              style={styles.dateBoxContainer} 
+            <TouchableOpacity
+              style={styles.dateBoxContainer}
               onPress={() => setShowPickerStart(true)}
             >
               {dateStartText ? (
@@ -294,8 +301,8 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
           {/* 字段 2: Date End */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Date End:</Text>
-            <TouchableOpacity 
-              style={styles.dateBoxContainer} 
+            <TouchableOpacity
+              style={styles.dateBoxContainer}
               onPress={() => setShowPickerEnd(true)}
             >
               {dateEndText ? (
@@ -312,7 +319,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
               mode="date"
               display={Platform.OS === 'ios' ? 'inline' : 'default'}
               onChange={onChangeDateEnd}
-              minimumDate={dateStartText ? dateStart : getTodayWithNoon()} 
+              minimumDate={dateStartText ? dateStart : getTodayWithNoon()}
             />
           )}
 
@@ -413,7 +420,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
   backButton: { justifyContent: 'center', alignItems: 'center', padding: 5 },
   headerTitle: { fontSize: 22, fontWeight: '600', color: '#000', textAlign: 'center' },
-  divider: { height: 1, backgroundColor: '#eee', width: '100%' },
+  divider: { height: 1, backgroundColor: '#000', width: '100%' },
   keyboardAvoid: { flex: 1 },
   scrollContainer: { paddingHorizontal: 28, paddingTop: 30, paddingBottom: 60 },
   inputGroupRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 18 },
@@ -423,21 +430,21 @@ const styles = StyleSheet.create({
   timeGroup: { flexDirection: 'row', alignItems: 'center' },
   timeInput: { borderWidth: 1, borderColor: '#000', borderRadius: 2, width: 70, height: 28, backgroundColor: '#fff', textAlign: 'center', fontSize: 13, padding: 0 },
   colon: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 8, color: '#000' },
-  
+
   noticeContainer: {
-    paddingLeft: 100, 
+    paddingLeft: 100,
     marginBottom: 18,
-    marginTop: -8,    
+    marginTop: -8,
   },
   noticeText: {
     fontSize: 12,
     fontWeight: '500',
   },
   noticeNormal: {
-    color: '#7f8c8d', 
+    color: '#7f8c8d',
   },
   noticeError: {
-    color: '#ff4d4d', 
+    color: '#ff4d4d',
   },
 
   radioGroup: { flexDirection: 'row', alignItems: 'center' },
@@ -454,7 +461,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: Dimensions.get('window').width * 0.75, 
+    width: Dimensions.get('window').width * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -497,7 +504,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sidebarActiveItem: {
-    backgroundColor: '#A9A9A9', 
+    backgroundColor: '#A9A9A9',
   },
   sidebarItemText: {
     fontSize: 22,
@@ -526,6 +533,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
 });
