@@ -1,6 +1,8 @@
 import { useNavigation } from '@react-navigation/native';
-
 import React, { useState } from 'react';
+import { useContext } from 'react';
+import { Image } from 'react-native'; // 确保引入了 Image
+import { RiderContext } from './RiderProvider'; // 确保路径正确
 import {
   Dimensions,
   Platform,
@@ -17,9 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 const { width, height } = Dimensions.get('window');
 
 export default function DeliveryMain() {
-    const navigation = useNavigation(); // 🌟 加上这一行
+  const navigation = useNavigation(); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+
+// 🌟 顺便把 riderName 也一起解构出来
+  const { avatarUri, riderName } = useContext(RiderContext);
 
   const [shifts, setShifts] = useState([
     { id: '1', date: '2/6/2026 (Tue)', time: '8.00AM - 10.30AM', duration: '2hrs 30min' },
@@ -75,7 +80,6 @@ export default function DeliveryMain() {
             </View>
           ))}
           
-          {/* 🌟 这里就是修复红屏的关键：使用了 ? : null 严格判断 */}
           {shifts.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="calendar-clear-outline" size={48} color="#CCC" />
@@ -110,51 +114,43 @@ export default function DeliveryMain() {
       </View>
 
       {/* ==================== 4. 侧边栏 (高级抽屉效果) ==================== */}
+      {/* ==================== 4. 侧边栏 (🌟 HOME 激活状态) ==================== */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
-          <TouchableOpacity 
-            style={styles.closeOverlay} 
-            activeOpacity={1} 
-            onPress={() => {setIsSidebarOpen(false); // 1. 先关掉菜单
-    navigation.navigate('Home'); // 2. 跳转到对应名字的页面} 
-            }}/>
-          
+          <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={36} color="#FFF" />
+              <View style={styles.profileAvatar}>
+                {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatarImageReal} /> : <Ionicons name="person" size={36} color="#FFF" />}
               </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>Irene</Text>
-                <Text style={styles.userRole}>Delivery Partner</Text>
-              </View>
+              <Text style={styles.profileName}>{riderName}</Text>
             </View>
 
             <ScrollView style={styles.menuList}>
-              <TouchableOpacity style={styles.menuItemActive}>
-                <Ionicons name="home" size={22} color="#00C853" style={styles.menuIconLeft} />
-                <Text style={styles.menuTextActive}>Home</Text>
+              <TouchableOpacity style={styles.menuItemActive} onPress={() => setIsSidebarOpen(false)}>
+                <Ionicons name="home" size={22} color="#424242" style={styles.menuIconLeft} />
+                <Text style={styles.menuTextActive}>HOME</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}>
                 <Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Profile</Text>
+                <Text style={styles.menuText}>PROFILE</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}>
                 <Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Working Shift</Text>
+                <Text style={styles.menuText}>WORKING SHIFT</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}>
                 <Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Earnings & History</Text>
+                <Text style={styles.menuText}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); Alert.alert("Notice", "Reset Password clicked"); }}>
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Reset Password</Text>
+                <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={() => { setIsSidebarOpen(false); Alert.alert("Logout", "Logging out..."); }}>
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
@@ -330,101 +326,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 0.5,
   },
-  sidebarOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    flexDirection: 'row',
-    zIndex: 100, 
-  },
-  closeOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)', 
-  },
-  sidebar: {
-    width: '75%', 
-    backgroundColor: '#FFF',
-    height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 5, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 15,
-  },
-  sidebarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 25,
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    backgroundColor: '#00C853', 
-  },
-  avatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userInfo: {
-    marginLeft: 15,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFF',
-  },
-  userRole: {
-    fontSize: 13,
-    color: '#E8F5E9',
-    marginTop: 2,
-  },
-  menuList: {
-    flex: 1,
-    paddingTop: 10,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 25,
-  },
-  menuItemActive: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 25,
-    backgroundColor: '#E8F5E9', 
-    borderLeftWidth: 4,
-    borderColor: '#00C853',
-  },
-  menuIconLeft: {
-    marginRight: 15,
-  },
-  menuText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-  },
-  menuTextActive: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#00C853',
-  },
-  sidebarFooter: {
-    borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#FFF',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    paddingVertical: 20,
-    paddingHorizontal: 25,
-    alignItems: 'center',
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#FF3B30',
-  }
+  // 🌟 统一的侧边栏样式表（完全同步自 workingshift 风格）
+  sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
+  closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },
+  sidebarHeader: { alignItems: 'center', padding: 25, paddingTop: Platform.OS === 'ios' ? 60 : 50, backgroundColor: '#424242' },
+  profileAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  avatarImageReal: { width: 60, height: 60, borderRadius: 30 },
+  profileName: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 2 },
+  menuList: { flex: 1, paddingTop: 10 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25 },
+  menuItemActive: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25, backgroundColor: '#F5F5F5', borderLeftWidth: 4, borderColor: '#424242' },
+  menuIconLeft: { marginRight: 15 },
+  menuText: { fontSize: 15, fontWeight: '600', color: '#333' },
+  menuTextActive: { fontSize: 15, fontWeight: 'bold', color: '#424242' },
+  sidebarFooter: { borderTopWidth: 1, borderColor: '#E0E0E0', backgroundColor: '#FFF' },
+  logoutButton: { flexDirection: 'row', paddingVertical: 20, paddingHorizontal: 25, alignItems: 'center' },
+  logoutText: { fontSize: 15, fontWeight: 'bold', color: '#FF3B30' }
 });

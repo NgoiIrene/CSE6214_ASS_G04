@@ -1,7 +1,8 @@
 import { useNavigation } from '@react-navigation/native';
-
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useContext } from 'react';
+import { Image } from 'react-native';
+import { RiderContext } from './RiderProvider';
 import {
   Alert,
   Platform,
@@ -15,7 +16,9 @@ import {
 import { Calendar } from 'react-native-calendars';
 
 export default function EarningsAndHistory() {
-  const navigation = useNavigation(); // 🌟 加上这一行
+  const navigation = useNavigation(); 
+  const { avatarUri, riderName } = useContext(RiderContext);
+  
   // ================= 1. 状态管理 =================
   const [activeTab, setActiveTab] = useState('Week'); 
   const [selectedDate, setSelectedDate] = useState('2026-05-17'); 
@@ -36,11 +39,11 @@ export default function EarningsAndHistory() {
     return `${year}-${month}-${day}`;
   };
 
-  // 🌟 核心算法 1：日历大面积涂色，颜色已改为蓝色 (#2196F3)
+  // 核心算法 1：日历大面积涂色
   const markedDates = useMemo(() => {
     const marks = {};
     const dateObj = new Date(selectedDate);
-    const themeBlue = '#2196F3'; // 统一使用的蓝色
+    const themeBlue = '#2196F3'; 
 
     if (activeTab === 'Day') {
       marks[selectedDate] = { color: themeBlue, textColor: 'white', startingDay: true, endingDay: true };
@@ -91,9 +94,9 @@ export default function EarningsAndHistory() {
     return filteredData.reduce((sum, item) => sum + item.earning, 0).toFixed(2);
   }, [filteredData]);
 
-  // 新增的返回事件
+  // 返回上一页
   const handleBack = () => {
-    Alert.alert("Navigated Back", "Simulating returning to previous screen...");
+    navigation.goBack(); 
   };
 
   // ================= 3. 界面渲染 =================
@@ -110,7 +113,6 @@ export default function EarningsAndHistory() {
         <View style={{ width: 40, marginLeft: 15 }} /> 
       </View>
 
-      {/* 🌟 修改点：Total Earnings Board 里加入了左侧悬浮的 Back Icon */}
       <View style={styles.totalEarningsBoard}>
         <TouchableOpacity onPress={handleBack} style={styles.backIconOutline}>
           <Ionicons name="arrow-back" size={20} color="black" />
@@ -123,7 +125,6 @@ export default function EarningsAndHistory() {
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         
-        {/* 🌟 选项卡：激活状态现已修改为暗黑色 */}
         <View style={styles.tabsContainer}>
           {['Day', 'Week', 'Month'].map((tab) => (
             <TouchableOpacity 
@@ -137,7 +138,6 @@ export default function EarningsAndHistory() {
           ))}
         </View>
 
-        {/* 日历组件 */}
         <View style={styles.calendarContainer}>
           <Calendar
             current={selectedDate}
@@ -145,7 +145,7 @@ export default function EarningsAndHistory() {
             markingType={'period'}
             markedDates={markedDates}
             theme={{
-              todayTextColor: '#2196F3', // 🌟 Today 颜色改成蓝色
+              todayTextColor: '#2196F3', 
               arrowColor: 'black',
               monthTextColor: 'black',
               textMonthFontWeight: 'bold',
@@ -185,9 +185,7 @@ export default function EarningsAndHistory() {
 
       </ScrollView>
 
-      {/* 🌟 移除了原本底部的 footer 按钮 */}
-
-      {/* 侧边栏 */}
+      {/* ================= 侧边栏 (🌟 已完美同步风格与点击响应) ================= */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity 
@@ -199,33 +197,66 @@ export default function EarningsAndHistory() {
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
               <View style={styles.profileAvatar}>
-                <Ionicons name="person" size={36} color="#FFF" />
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImageReal} />
+                ) : (
+                  <Ionicons name="person" size={36} color="#FFF" />
+                )}
               </View>
-              <Text style={styles.profileName}>Charlene</Text>
+              <Text style={styles.profileName}>{riderName}</Text>
             </View>
 
             <ScrollView style={styles.menuList}>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsSidebarOpen(false);
+                  navigation.navigate('Home');
+                }}
+              >
                 <Ionicons name="home-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Home</Text>
+                <Text style={styles.menuText}>HOME</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsSidebarOpen(false);
+                  navigation.navigate('Profile');
+                }}
+              >
                 <Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Profile</Text>
+                <Text style={styles.menuText}>PROFILE</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsSidebarOpen(false);
+                  navigation.navigate('WorkingShift');
+                }}
+              >
                 <Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Working Shift</Text>
+                <Text style={styles.menuText}>WORKING SHIFT</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.menuItemActive}>
+              <TouchableOpacity 
+                style={styles.menuItemActive}
+                onPress={() => setIsSidebarOpen(false)}
+              >
                 <Ionicons name="wallet" size={22} color="#424242" style={styles.menuIconLeft} />
-                <Text style={styles.menuTextActive}>Earnings & History</Text>
+                <Text style={styles.menuTextActive}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsSidebarOpen(false);
+                  Alert.alert("Notice", "Reset Password clicked");
+                }}
+              >
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Reset Password</Text>
+                <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
             </ScrollView>
 
@@ -254,66 +285,20 @@ export default function EarningsAndHistory() {
 // ================= 4. 专业级样式表 =================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 15, 
-    marginTop: 30, 
-    backgroundColor: '#FFF', 
-    borderBottomWidth: 1.5, 
-    borderBottomColor: '#E0E0E0' 
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, marginTop: 30, backgroundColor: '#FFF', borderBottomWidth: 1.5, borderBottomColor: '#E0E0E0' },
   menuIcon: { paddingHorizontal: 5 },
-  menuIconBorder: {
-    width: 40, 
-    height: 40, 
-    borderRadius: 8, 
-    borderWidth: 1.5, 
-    borderColor: '#000', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    backgroundColor: '#FFF'
-  },
+  menuIconBorder: { width: 40, height: 40, borderRadius: 8, borderWidth: 1.5, borderColor: '#000', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', letterSpacing: 1 },
-
-  // 🌟 修改了 Total Earnings 容器，融入了 absolute 绝对定位的 Back Icon
-  totalEarningsBoard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#F8F9FA', 
-    paddingVertical: 20, 
-    paddingHorizontal: 15, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#E0E0E0', 
-    position: 'relative' 
-  },
-  backIconOutline: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    borderWidth: 1, 
-    borderColor: '#D0D0D0', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    backgroundColor: '#FFF', 
-    position: 'absolute', 
-    left: 15, 
-    zIndex: 10 
-  },
+  totalEarningsBoard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', paddingVertical: 20, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', position: 'relative' },
+  backIconOutline: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#D0D0D0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', position: 'absolute', left: 15, zIndex: 10 },
   totalEarningsCenter: { flex: 1, alignItems: 'center' },
   totalLabel: { fontSize: 14, color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
-  totalAmount: { fontSize: 36, fontWeight: '900', color: '#00C853', marginTop: 5 }, // 金额我保留了象征收入的绿色
-  
+  totalAmount: { fontSize: 36, fontWeight: '900', color: '#00C853', marginTop: 5 }, 
   tabsContainer: { flexDirection: 'row', padding: 15, justifyContent: 'space-between' },
   tabButton: { flex: 1, paddingVertical: 10, borderWidth: 1.5, borderColor: '#000', alignItems: 'center', marginHorizontal: 4, borderRadius: 6, backgroundColor: '#FFF' },
-  
-  // 🌟 修改格子按钮的 Active 样式为暗黑模式
   tabButtonActive: { backgroundColor: '#424242', borderColor: '#424242' }, 
   tabText: { fontWeight: 'bold', fontSize: 14, color: '#000' },
   tabTextActive: { color: '#FFF' }, 
-  
   calendarContainer: { paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', paddingBottom: 10 },
   listHeader: { padding: 15, backgroundColor: '#F0F0F0', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   listHeaderText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
@@ -328,95 +313,20 @@ const styles = StyleSheet.create({
   earningText: { fontSize: 18, fontWeight: '900', color: '#000' },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
   emptyStateText: { marginTop: 10, color: '#999', fontSize: 14 },
-
-  sidebarOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    flexDirection: 'row',
-    zIndex: 100, 
-  },
-  closeOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)', 
-  },
-  sidebar: {
-    width: '75%', 
-    backgroundColor: '#FFF',
-    height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 5, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 15,
-  },
-  sidebarHeader: {
-    alignItems: 'center',
-    padding: 25,
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    backgroundColor: '#424242', 
-  },
-  profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFF',
-    marginBottom: 2,
-  },
-  menuList: {
-    flex: 1,
-    paddingTop: 10,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 25,
-  },
-  menuItemActive: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 25,
-    backgroundColor: '#F5F5F5', 
-    borderLeftWidth: 4,
-    borderColor: '#424242',
-  },
-  menuIconLeft: {
-    marginRight: 15,
-  },
-  menuText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-  },
-  menuTextActive: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#424242',
-  },
-  sidebarFooter: {
-    borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#FFF',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    paddingVertical: 20,
-    paddingHorizontal: 25,
-    alignItems: 'center',
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#FF3B30',
-  }
+  sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
+  closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },
+  sidebarHeader: { alignItems: 'center', padding: 25, paddingTop: Platform.OS === 'ios' ? 60 : 50, backgroundColor: '#424242' },
+  profileAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  avatarImageReal: { width: 60, height: 60, borderRadius: 30 }, // 🌟 新增：确保头像显示完美圆形
+  profileName: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 2 },
+  menuList: { flex: 1, paddingTop: 10 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25 },
+  menuItemActive: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25, backgroundColor: '#F5F5F5', borderLeftWidth: 4, borderColor: '#424242' },
+  menuIconLeft: { marginRight: 15 },
+  menuText: { fontSize: 15, fontWeight: '600', color: '#333' },
+  menuTextActive: { fontSize: 15, fontWeight: 'bold', color: '#424242' },
+  sidebarFooter: { borderTopWidth: 1, borderColor: '#E0E0E0', backgroundColor: '#FFF' },
+  logoutButton: { flexDirection: 'row', paddingVertical: 20, paddingHorizontal: 25, alignItems: 'center' },
+  logoutText: { fontSize: 15, fontWeight: 'bold', color: '#FF3B30' }
 });
