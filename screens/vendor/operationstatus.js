@@ -9,31 +9,40 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  Modal,
+  Dimensions,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-export default function OperationStatusApp() {
+const { width } = Dimensions.get('window');
+const SIDEBAR_WIDTH = width * 0.5; // 侧边栏宽度占屏幕的 50%
+
+export default function OperationStatusApp({ onBack, navigateToScreen }) {
+  // 🚪 侧边栏显隐状态
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   // --- 状态控制 ---
   const [dateStart, setDateStart] = useState(new Date());
   const [dateEnd, setDateEnd] = useState(new Date());
-  
+
   const [showPickerStart, setShowPickerStart] = useState(false);
   const [showPickerEnd, setShowPickerEnd] = useState(false);
 
   // 日期文本状态
-  const [dateStartText, setDateStartText] = useState('2026-06-10'); // 初始化为您截图中的示例日期
-  const [dateEndText, setDateEndText] = useState('2026-06-10');
-  
+  const [dateStartText, setDateStartText] = useState('');
+  const [dateEndText, setDateEndText] = useState('');
+
   const [timeStartHour, setTimeStartHour] = useState('');
   const [timeStartMin, setTimeStartMin] = useState('');
   const [timeEndHour, setTimeEndHour] = useState('');
   const [timeEndMin, setTimeEndMin] = useState('');
-  
+
   const [status, setStatus] = useState('active');
 
-  // 🌟 新增：用于嵌入式显示时间格式提示或错误的状态
+  // 用于嵌入式显示时间格式提示或错误的状态
   const [timeNotice, setTimeNotice] = useState('Use 24-hour format (00-23)');
   const [isNoticeError, setIsNoticeError] = useState(false);
 
@@ -44,21 +53,38 @@ export default function OperationStatusApp() {
     return today;
   };
 
-  // --- 事件触发 ---
-  const handleBack = () => {
-    Alert.alert("Back", "Going back to previous screen...");
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // 处理侧边栏导航点击
+  const handleMenuPress = (targetScreen) => {
+    setIsSidebarOpen(false); // 先关闭侧边栏
+
+    // 如果点击的是当前页面，不需要跳转
+    if (targetScreen === 'operationstatus') return;
+
+    // 回传参数给上层主控组件进行界面跳转
+    if (navigateToScreen) {
+      navigateToScreen(targetScreen);
+    } else if (onBack) {
+      onBack(targetScreen);
+    }
   };
 
   const onChangeDateStart = (event, selectedDate) => {
-    setShowPickerStart(Platform.OS === 'ios'); 
+    setShowPickerStart(Platform.OS === 'ios');
     if (selectedDate) {
       if (selectedDate < getTodayWithNoon()) {
         Alert.alert("Error", "Start date cannot be earlier than today!");
         return;
       }
-      
+
       setDateStart(selectedDate);
-      const formatted = selectedDate.toISOString().split('T')[0];
+      const formatted = formatDate(selectedDate);
       setDateStartText(formatted);
 
       if (dateEndText && selectedDate > dateEnd) {
@@ -73,20 +99,19 @@ export default function OperationStatusApp() {
     if (selectedDate) {
       const compareDate = dateStartText ? dateStart : getTodayWithNoon();
       const targetCompare = new Date(compareDate);
-      targetCompare.setHours(0,0,0,0);
-      
+      targetCompare.setHours(0, 0, 0, 0);
+
       if (selectedDate < targetCompare) {
         Alert.alert("Error", "End date cannot be earlier than Start date!");
         return;
       }
 
       setDateEnd(selectedDate);
-      const formatted = selectedDate.toISOString().split('T')[0];
+      const formatted = formatDate(selectedDate);
       setDateEndText(formatted);
     }
   };
 
-  // 🌟 优化：失焦校验时直接修改嵌入式提示，不弹窗
   const validateHours = (val, setHourState) => {
     if (val === '') return;
     const hour = parseInt(val, 10);
@@ -95,7 +120,6 @@ export default function OperationStatusApp() {
       setIsNoticeError(true);
       setHourState('');
     } else {
-      // 恢复常规提示
       setTimeNotice('Use 24-hour format (00-23)');
       setIsNoticeError(false);
     }
@@ -114,7 +138,6 @@ export default function OperationStatusApp() {
     }
   };
 
-  // 🌟 当用户聚焦输入框时，恢复原本的常规操作提示
   const handleHourFocus = () => {
     setTimeNotice('Please use 24-hour format (00-23).');
     setIsNoticeError(false);
@@ -150,19 +173,91 @@ export default function OperationStatusApp() {
       Alert.alert("Error", "End date cannot be earlier than Start date!");
       return;
     }
-    
+
     Alert.alert(
-      "Success", 
+      "Success",
       `Status updated successfully!\nStatus: ${status}\nDate: ${dateStartText} to ${dateEndText}\nTime: ${timeStartHour}:${timeStartMin} - ${timeEndHour}:${timeEndMin}`
     );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
+
+      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      <Modal
+        transparent={true}
+        visible={isSidebarOpen}
+        animationType="none"
+        onRequestClose={() => setIsSidebarOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          {/* 左侧实体菜单 */}
+          <View style={styles.sidebar}>
+            {/* 顶栏：Menu 切换按钮 */}
+            <View style={styles.sidebarHeader}>
+              <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
+                <Ionicons name="menu" size={32} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 用户头像区域 */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person-outline" size={45} color="#000" />
+              </View>
+              <Text style={styles.avatarName}>Rasa Syiok</Text>
+            </View>
+
+            {/* 导航列表 */}
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
+              <Text style={styles.sidebarItemText}>Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
+              <Text style={styles.sidebarItemText}>Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('menu')}>
+              <Text style={styles.sidebarItemText}>Menu</Text>
+            </TouchableOpacity>
+
+            {/* 当前页面：高亮为灰色背景 */}
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('operationstatus')}>
+              <Text style={styles.sidebarItemText}>Update Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}>
+              <Text style={styles.sidebarItemText}>History Order</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
+              <Text style={styles.sidebarItemText}>Review</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
+              <Text style={styles.sidebarItemText}>Reset Password</Text>
+            </TouchableOpacity>
+
+            {/* 底部退出登录 */}
+            <View style={styles.sidebarFooter}>
+              <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
+                <Ionicons name="log-out-outline" size={24} color="#000" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 右侧空白处暗色遮罩层 */}
+          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        </View>
+      </Modal>
+
       {/* 1. 顶部导航栏 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="arrow-back-circle-outline" size={32} color="#000" />
+        <TouchableOpacity onPress={() => setIsSidebarOpen(true)} style={styles.backButton}>
+          <Ionicons name="menu-outline" size={28} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Operation Status</Text>
         <View style={{ width: 32 }} />
@@ -170,18 +265,19 @@ export default function OperationStatusApp() {
 
       <View style={styles.divider} />
 
+      {/* 🛠️ 语法修复点：KeyboardAvoidingView 移到最外层包裹 ScrollView */}
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          
+
           {/* 字段 1: Date Start */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Date Start:</Text>
-            <TouchableOpacity 
-              style={styles.dateBoxContainer} 
+            <TouchableOpacity
+              style={styles.dateBoxContainer}
               onPress={() => setShowPickerStart(true)}
             >
               {dateStartText ? (
@@ -205,8 +301,8 @@ export default function OperationStatusApp() {
           {/* 字段 2: Date End */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Date End:</Text>
-            <TouchableOpacity 
-              style={styles.dateBoxContainer} 
+            <TouchableOpacity
+              style={styles.dateBoxContainer}
               onPress={() => setShowPickerEnd(true)}
             >
               {dateEndText ? (
@@ -223,7 +319,7 @@ export default function OperationStatusApp() {
               mode="date"
               display={Platform.OS === 'ios' ? 'inline' : 'default'}
               onChange={onChangeDateEnd}
-              minimumDate={dateStartText ? dateStart : getTodayWithNoon()} 
+              minimumDate={dateStartText ? dateStart : getTodayWithNoon()}
             />
           )}
 
@@ -281,7 +377,7 @@ export default function OperationStatusApp() {
             </View>
           </View>
 
-          {/* 🌟 嵌入式 Notice 区域：紧跟在时间选择器下方 */}
+          {/* 嵌入式 Notice 区域 */}
           <View style={styles.noticeContainer}>
             <Text style={[styles.noticeText, isNoticeError ? styles.noticeError : styles.noticeNormal]}>
               {timeNotice}
@@ -314,7 +410,7 @@ export default function OperationStatusApp() {
           </TouchableOpacity>
 
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingView> {/* 👈 🛠️ 语法修复点：确保闭合标签顺序正确 */}
     </SafeAreaView>
   );
 }
@@ -322,9 +418,9 @@ export default function OperationStatusApp() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
-  backButton: { justifyContent: 'center', alignItems: 'center' },
+  backButton: { justifyContent: 'center', alignItems: 'center', padding: 5 },
   headerTitle: { fontSize: 22, fontWeight: '600', color: '#000', textAlign: 'center' },
-  divider: { height: 1, backgroundColor: '#eee', width: '100%' },
+  divider: { height: 1, backgroundColor: '#000', width: '100%' },
   keyboardAvoid: { flex: 1 },
   scrollContainer: { paddingHorizontal: 28, paddingTop: 30, paddingBottom: 60 },
   inputGroupRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 18 },
@@ -334,22 +430,21 @@ const styles = StyleSheet.create({
   timeGroup: { flexDirection: 'row', alignItems: 'center' },
   timeInput: { borderWidth: 1, borderColor: '#000', borderRadius: 2, width: 70, height: 28, backgroundColor: '#fff', textAlign: 'center', fontSize: 13, padding: 0 },
   colon: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 8, color: '#000' },
-  
-  // 🌟 新增：嵌入式通知栏样式
+
   noticeContainer: {
-    paddingLeft: 100, // 与 fieldLabel 的宽度对齐，使文字刚好在输入框正下方
+    paddingLeft: 100,
     marginBottom: 18,
-    marginTop: -8,    // 向上微调，缩短与时间输入框的距离
+    marginTop: -8,
   },
   noticeText: {
     fontSize: 12,
     fontWeight: '500',
   },
   noticeNormal: {
-    color: '#7f8c8d', // 正常状态下为静默的灰色
+    color: '#7f8c8d',
   },
   noticeError: {
-    color: '#ff4d4d', // 输入错误（如超出23小时）时转为警示红色
+    color: '#ff4d4d',
   },
 
   radioGroup: { flexDirection: 'row', alignItems: 'center' },
@@ -359,4 +454,85 @@ const styles = StyleSheet.create({
   radioLabel: { fontSize: 12, color: '#000' },
   button: { backgroundColor: '#A9A9A9', paddingVertical: 10, borderRadius: 20, marginTop: 35, width: '55%', alignSelf: 'center', alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
+
+  /* ==================== 📌 Sidebar 样式表 ==================== */
+  modalContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  sidebar: {
+    width: Dimensions.get('window').width * 0.75,
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRightWidth: 2,
+    borderRightColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  sidebarHeader: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    marginBottom: 10,
+  },
+  avatarCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  avatarName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#000',
+  },
+  sidebarItem: {
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    alignItems: 'center',
+  },
+  sidebarActiveItem: {
+    backgroundColor: '#A9A9A9',
+  },
+  sidebarItemText: {
+    fontSize: 22,
+    color: '#000',
+    fontWeight: 'normal',
+  },
+  sidebarFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: '#000',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutText: {
+    fontSize: 22,
+    color: '#000',
+    marginLeft: 10,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
 });

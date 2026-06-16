@@ -1,47 +1,60 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-// 确保这里的路径指向你刚刚建好的 deliveryNavigator.js 文件
-import DeliveryNavigator from './screens/deliveryman/deliveryNavigator'; 
+import { View, StyleSheet, StatusBar } from 'react-native';
+import VendorNavigator from './screens/vendor/vendornavigetor';
 
 export default function App() {
   return (
-    <NavigationContainer>
-      {/* 这样一打开 App，就会直接进入你的 Delivery Man 导航系统 */}
-      <DeliveryNavigator />
-    </NavigationContainer>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <VendorNavigator />
+    </View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+});
+
+
 // import React from 'react';
 // // 引入你想看的那个 js 文件（这里以同级目录的 order.js 为例）
-// import OrderScreen from './review'; 
+// import OrderScreen from './vendorprofile'; 
 
 // export default function App() {
 //   // 直接在这里渲染你想看的页面
 //   return <OrderScreen />;
 // }
 
-// import React, { useState } from 'react';
+// import React, { useState, useEffect } from 'react';
 // import {
 //   StyleSheet,
 //   Text,
 //   View,
-//   TextInput,
-//   TouchableOpacity,
 //   SafeAreaView,
 //   ScrollView,
-//   KeyboardAvoidingView, //🌟 1. 引入键盘避让组件
-//   Platform,             //🌟 2. 引入平台判断（iOS/Android 机制不同）
-//   Alert
+//   TouchableOpacity,
+//   TextInput,
+//   Platform,
+//   Alert,
+//   ActivityIndicator,
+//   Dimensions,
+//   KeyboardAvoidingView
 // } from 'react-native';
-// // 导入小眼睛、返回键等图标
 // import { Ionicons } from '@expo/vector-icons';
-// // 导入下拉菜单
 // import { Picker } from '@react-native-picker/picker';
+// import emailjs from '@emailjs/react-native';
 
-// export default function App() {
-//   // 🌟 新增状态：控制当前显示 'signup' 还是 'login' 页面
-//   const [currentPage, setCurrentPage] = useState('login'); // 默认先看登录页
+// export default function AuthScreen({ navigateToScreen }) {
+//   // 🌟 核心页面流转状态：'login' | 'signup' | 'reset_step1' | 'reset_step2'
+//   const [currentPage, setCurrentPage] = useState('login'); 
+//   const [isLoading, setIsLoading] = useState(false);
+
+//   // --- 登录页面的状态 ---
+//   const [loginEmail, setLoginEmail] = useState('');
+//   const [loginPassword, setLoginPassword] = useState('');
 
 //   // --- 注册页面的状态 ---
 //   const [fullName, setFullName] = useState('');
@@ -52,16 +65,39 @@ export default function App() {
 //   const [age, setAge] = useState('');
 //   const [signUpPassword, setSignUpPassword] = useState('');
 //   const [confirmPassword, setConfirmPassword] = useState('');
-//   // 控制密码隐藏/显示的布尔状态
-//   const [secureSignUpPwd, setSecureSignUpPwd] = useState(true);
-//   const [secureConfirmPwd, setSecureConfirmPwd] = useState(true);
 
-//   // --- 登录页面的状态 ---
-//   const [loginEmail, setLoginEmail] = useState('');
-//   const [loginPassword, setLoginPassword] = useState('');
-//   const [secureLoginPwd, setSecureLoginPwd] = useState(true);
+//   // --- 忘记密码/重置密码状态 ---
+//   const [resetEmail, setResetEmail] = useState('');
+//   const [pin, setPin] = useState('');
+//   const [generatedPin, setGeneratedPin] = useState(''); 
+//   const [newPassword, setNewPassword] = useState('');
+//   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
-//   // 注册按钮触发
+//   // 🛠️ EmailJS 凭证配置
+//   const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
+//   const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
+//   const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
+//   const EMAILJS_PRIVATE_KEY = 'lgCg5nmv8BNjHdUMVH1Bp'; 
+
+//   useEffect(() => {
+//     emailjs.init({
+//       publicKey: EMAILJS_PUBLIC_KEY,
+//       privateKey: EMAILJS_PRIVATE_KEY, 
+//     });
+//   }, []);
+
+//   // ⚡ 登录按钮触发
+//   const handleLoginSubmit = () => {
+//     if (!loginEmail || !loginPassword) {
+//       Alert.alert("Error", "Please fill in all fields!");
+//       return;
+//     }
+//     Alert.alert("Success", "Logged in successfully!", [
+//       { text: "OK", onPress: () => { if (navigateToScreen) navigateToScreen('order'); } }
+//     ]);
+//   };
+
+//   // ⚡ 注册按钮触发
 //   const handleSignUpSubmit = () => {
 //     if (!fullName || !signUpEmail || !accountType || !phoneNumber || !gender || !age || !signUpPassword || !confirmPassword) {
 //       Alert.alert("Error", "Please fill in all fields!");
@@ -71,57 +107,137 @@ export default function App() {
 //       Alert.alert("Error", "The passwords you entered do not match!");
 //       return;
 //     }
-//     Alert.alert("LoggedIn ", `Welcome,${fullName}!`);
+//     Alert.alert("Success", `Welcome, ${fullName}! Account created.`);
+//     setCurrentPage('login');
 //   };
 
-//   // 登录按钮触发
-//   const handleLoginSubmit = () => {
-//     if (!loginEmail || !loginPassword) {
+//   // ⚡ 流程2：发送验证码邮件
+//   const handleVerifyEmail = async () => {
+//     const userEmail = resetEmail.trim();
+//     if (!userEmail) {
+//       Alert.alert("Error", "Please enter your email address first!");
+//       return;
+//     }
+
+//     const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+//     setGeneratedPin(randomPin); 
+//     setIsLoading(true);
+
+//     const templateParams = {
+//       email: userEmail,      
+//       reply_pin: randomPin,   
+//     };
+
+//     try {
+//       await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+//       Alert.alert(
+//         "Email Sent Successfully! 📩",
+//         `A verification email has been sent to:\n${userEmail}\n\nPlease check your inbox!`,
+//         [{ text: "OK" }]
+//       );
+//     } catch (error) {
+//       console.log('SDK Error:', error);
+//       Alert.alert("Mail Delivery Error", "Failed to send email. Please check your network.");
+//     } finally {
+//       setIsLoading(false); 
+//     }
+//   };
+
+//   // ⚡ 流程2：验证验证码并继续
+//   const handleContinueReset = () => {
+//     const enteredEmail = resetEmail.trim();
+//     const enteredPin = pin.trim();
+
+//     if (!enteredEmail || !enteredPin) {
+//       Alert.alert("Error", "Please fill in both Email and Verification PIN!");
+//       return;
+//     }
+
+//     if (!generatedPin || enteredPin !== generatedPin) {
+//       Alert.alert("Verification Failed ❌", "The PIN code you entered is incorrect.");
+//       return; 
+//     }
+//     setCurrentPage('reset_step2'); // 进入图3设置新密码阶段
+//   };
+
+//   // ⚡ 流程3：最终确认重置新密码
+//   const handleFinalReset = () => {
+//     if (!newPassword || !confirmNewPassword) {
 //       Alert.alert("Error", "Please fill in all fields!");
 //       return;
 //     }
-//     // 暂时先弹窗打印出数据，证明我们拿到了输入
-//     // Alert.alert("Success", `Welcome, ${fullName}! Your information is ready.`);
+//     if (newPassword !== confirmNewPassword) {
+//       Alert.alert("Error", "Passwords do not match!");
+//       return;
+//     }
+
+//     const strongPasswordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+//     if (!strongPasswordRegex.test(newPassword)) {
+//       Alert.alert(
+//         "Weak Password ❌",
+//         "Password must be at least 8 characters long and contain uppercase letters, numbers, and at least one special character!",
+//         [{ text: "OK" }]
+//       );
+//       return;
+//     }
+
+//     Alert.alert("Success ✅", "Password reset successful!", [
+//       { text: "OK", onPress: () => setCurrentPage('login') } 
+//     ]);
 //   };
 
-//   // 忘记密码触发
-//   const handleForgotPassword = () => {
-//     Alert.alert("Linked...", "Connecting to Reset Password page...");
+//   // 处理返回箭头动作
+//   const handleBackPress = () => {
+//     if (currentPage === 'reset_step1') {
+//       setCurrentPage('login');
+//     } else if (currentPage === 'reset_step2') {
+//       setCurrentPage('reset_step1');
+//     }
 //   };
 
-//   return ( /* 🌟 秘诀：我们两边都不放东西，或者放一个一模一样的空 View,标题就会自然在中间完美居中 */
+//   // 获取动态标题
+//   const getHeaderTitle = () => {
+//     if (currentPage === 'login') return 'Log In';
+//     if (currentPage === 'signup') return 'Sign Up';
+//     if (currentPage === 'reset_step1') return 'Email Verification';
+//     return 'Reset Password';
+//   };
+
+//   return (
 //     <SafeAreaView style={styles.safeArea}>
-//       {/* 1. 顶部导航栏 (代码完全没有改动) */}
+//       {/* ==================== 顶部导航栏 ==================== */}
 //       <View style={styles.header}>
-//         <View style={{ width: 32 }} />
-//         <Text style={styles.headerTitle}>{currentPage === 'login' ? 'Log In' : 'Sign Up'}</Text>
+//         {/* 如果是重置密码的分步页面，左侧显示返回箭头，否则留空保持居中占位 */}
+//         {['reset_step1', 'reset_step2'].includes(currentPage) ? (
+//           <TouchableOpacity style={styles.headerBackBtn} onPress={handleBackPress}>
+//             <Ionicons name="arrow-back-outline" size={24} color="#000" />
+//           </TouchableOpacity>
+//         ) : (
+//           <View style={{ width: 32 }} />
+//         )}
+        
+//         <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
 //         <View style={{ width: 32 }} />
 //       </View>
 
 //       <View style={styles.divider} />
 
-//       {/* 🌟 核心改动：用 KeyboardAvoidingView 包裹整个表单区域 */}
 //       <KeyboardAvoidingView
 //         style={styles.keyboardAvoid}
-//         // iOS 推荐用 padding，Android 推荐用 height 或者不设
 //         behavior={Platform.OS === "ios" ? "padding" : "height"}
-//         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20} // 微调弹起的高度偏移量
+//         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
 //       >
-//         {/* 使用 ScrollView 包裹中间所有内容，防止手机装不下内容 */}
 //         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-
-//           {/* ==================== 登录界面 UI ==================== */}
+          
+//           {/* ==================== 1. 登录界面 UI（对应图片左侧） ==================== */}
 //           {currentPage === 'login' && (
-//             <View style={{ width: '100%', alignItems: 'center' }}>
-
-//               {/* 登录字段 1: Email */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Email Address</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="mail-outline" size={18} color="#777" style={styles.icon} />
+//             <View style={styles.wireframeCard}>
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Email address:</Text>
 //                   <TextInput
-//                     style={styles.input}
-//                     placeholder="ailysmith@gmail.com"
+//                     style={styles.wireframeInputInline}
+//                     placeholder="example@gmail.com"
 //                     placeholderTextColor="#bbb"
 //                     keyboardType="email-address"
 //                     autoCapitalize="none"
@@ -131,215 +247,203 @@ export default function App() {
 //                 </View>
 //               </View>
 
-//               {/* 登录字段 2: Password (带小眼睛) */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Password</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="lock-closed-outline" size={18} color="#777" style={styles.icon} />
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Password:</Text>
 //                   <TextInput
-//                     style={styles.input}
-//                     placeholder="......"
+//                     style={styles.wireframeInputInline}
+//                     placeholder="••••••••"
 //                     placeholderTextColor="#bbb"
-//                     secureTextEntry={secureLoginPwd}
+//                     secureTextEntry={true}
 //                     value={loginPassword}
 //                     onChangeText={setLoginPassword}
 //                   />
-//                   {/* 点击小眼睛切换状态 */}
-//                   <TouchableOpacity onPress={() => setSecureLoginPwd(!secureLoginPwd)}>
-//                     <Ionicons
-//                       name={secureLoginPwd ? "eye-off-outline" : "eye-outline"}
-//                       size={18}
-//                       color="#777"
-//                       style={styles.rightIcon}
-//                     />
-//                   </TouchableOpacity>
 //                 </View>
+//               </View>
 
-//                 {/* 🌟 密码框右下角的 Forgot Password 蓝色小字 */}
-//                 <TouchableOpacity style={styles.forgotPasswordContainer} onPress={handleForgotPassword}>
-//                   <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+//               {/* 注册与忘记密码链接行 */}
+//               <View style={styles.linksRow}>
+//                 <TouchableOpacity onPress={() => setCurrentPage('signup')}>
+//                   <Text style={styles.linkTextUnderline}>Sign Up</Text>
+//                 </TouchableOpacity>
+//                 <TouchableOpacity onPress={() => setCurrentPage('reset_step1')}>
+//                   <Text style={styles.linkTextUnderline}>Forgot Password</Text>
 //                 </TouchableOpacity>
 //               </View>
 
-//               {/* LOGIN 按钮 */}
-//               <TouchableOpacity style={styles.button} onPress={handleLoginSubmit}>
-//                 <Text style={styles.buttonText}>Login</Text>
+//               <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleLoginSubmit}>
+//                 <Text style={styles.wireframeSubmitBtnText}>Login</Text>
 //               </TouchableOpacity>
-
-//               {/* 切换到注册页面的链接 */}
-//               <TouchableOpacity style={styles.switchContainer} onPress={() => setCurrentPage('signup')}>
-//                 <Text style={styles.switchText}>Don't have an account? <Text style={styles.switchHighlight}>Sign Up</Text></Text>
-//               </TouchableOpacity>
-
 //             </View>
 //           )}
 
-//           {/* ==================== 注册界面 UI ==================== */}
+//           {/* ==================== 2. 注册界面 UI ==================== */}
 //           {currentPage === 'signup' && (
-//             <View style={{ width: '100%', alignItems: 'center' }}>
-
-//               {/* 字段 1: Full Name */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Full Name</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="person-outline" size={18} color="#777" style={styles.icon} />
-//                   <TextInput
-//                     style={styles.input}
-//                     placeholder="John Doe"
-//                     placeholderTextColor="#bbb"
-//                     value={fullName}
-//                     onChangeText={setFullName}
-//                   />
+//             <View style={[styles.wireframeCard, { paddingVertical: 25 }]}>
+//               {/* Full Name */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Full Name:</Text>
+//                   <TextInput style={styles.wireframeInputInline} placeholder="John Doe" placeholderTextColor="#bbb" value={fullName} onChangeText={setFullName} />
 //                 </View>
 //               </View>
 
-//               {/* 字段 2: Email Address */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Email Address</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="mail-outline" size={18} color="#777" style={styles.icon} />
-//                   <TextInput
-//                     style={styles.input}
-//                     placeholder="johndoe@gmail.com"
-//                     placeholderTextColor="#bbb"
-//                     keyboardType="email-address"
+//               {/* Email */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Email:</Text>
+//                   <TextInput style={styles.wireframeInputInline} placeholder="johndoe@gmail.com" placeholderTextColor="#bbb" keyboardType="email-address" autoCapitalize="none" value={signUpEmail} onChangeText={setSignUpEmail} />
+//                 </View>
+//               </View>
+
+//               {/* Account Type */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Account Type:</Text>
+//                   <View style={styles.pickerContainerEdge}>
+//                     <Picker selectedValue={accountType} onValueChange={(v) => setAccountType(v)} style={styles.pickerBody}>
+//                       <Picker.Item label="--- SELECT ---" value="" color="#bbb" />
+//                       <Picker.Item label="Customer" value="customer" />
+//                       <Picker.Item label="Vendor" value="vendor" />
+//                       <Picker.Item label="Delivery Man" value="delivery" />
+//                     </Picker>
+//                   </View>
+//                 </View>
+//               </View>
+
+//               {/* Phone */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Phone:</Text>
+//                   <TextInput style={styles.wireframeInputInline} placeholder="012-3456789" placeholderTextColor="#bbb" keyboardType="phone-pad" value={phoneNumber} onChangeText={setPhoneNumber} />
+//                 </View>
+//               </View>
+
+//               {/* Gender */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Gender:</Text>
+//                   <View style={styles.pickerContainerEdge}>
+//                     <Picker selectedValue={gender} onValueChange={(v) => setGender(v)} style={styles.pickerBody}>
+//                       <Picker.Item label="--- SELECT ---" value="" color="#bbb" />
+//                       <Picker.Item label="Male" value="male" />
+//                       <Picker.Item label="Female" value="female" />
+//                     </Picker>
+//                   </View>
+//                 </View>
+//               </View>
+
+//               {/* Age */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Age:</Text>
+//                   <TextInput style={styles.wireframeInputInline} placeholder="20" placeholderTextColor="#bbb" keyboardType="numeric" value={age} onChangeText={setAge} />
+//                 </View>
+//               </View>
+
+//               {/* Password */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Password:</Text>
+//                   <TextInput style={styles.wireframeInputInline} secureTextEntry={true} placeholder="••••••••" placeholderTextColor="#bbb" value={signUpPassword} onChangeText={setSignUpPassword} />
+//                 </View>
+//               </View>
+
+//               {/* Confirm Password */}
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Confirm Pwd:</Text>
+//                   <TextInput style={styles.wireframeInputInline} secureTextEntry={true} placeholder="••••••••" placeholderTextColor="#bbb" value={confirmPassword} onChangeText={setConfirmPassword} />
+//                 </View>
+//               </View>
+
+//               <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleSignUpSubmit}>
+//                 <Text style={styles.wireframeSubmitBtnText}>Signup</Text>
+//               </TouchableOpacity>
+
+//               <TouchableOpacity style={{ marginTop: 15 }} onPress={() => setCurrentPage('login')}>
+//                 <Text style={[styles.linkTextUnderline, { textAlign: 'center' }]}>Already have an account? Log In</Text>
+//               </TouchableOpacity>
+//             </View>
+//           )}
+
+//           {/* ==================== 3. 忘记密码：邮箱验证（对应图片中间） ==================== */}
+//           {currentPage === 'reset_step1' && (
+//             <View style={styles.wireframeCard}>
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Email address:</Text>
+//                   <TextInput 
+//                     style={styles.wireframeInputInline} 
+//                     value={resetEmail}
+//                     onChangeText={setResetEmail}
 //                     autoCapitalize="none"
-//                     value={signUpEmail}
-//                     onChangeText={setSignUpEmail}
+//                     keyboardType="email-address"
+//                     placeholder="Enter email to verify"
+//                     placeholderTextColor="#999"
 //                   />
+//                   <TouchableOpacity style={styles.wireframeVerifyBtn} onPress={handleVerifyEmail} disabled={isLoading}>
+//                     {isLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.wireframeVerifyBtnText}>Verify</Text>}
+//                   </TouchableOpacity>
 //                 </View>
 //               </View>
 
-//               {/* 字段 3: Account Type (下拉选择) */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Account Type</Text>
-//                 <View style={styles.pickerBoxContainer}>
-//                   <Ionicons name="layers-outline" size={18} color="#777" style={styles.icon} />
-//                   <View style={styles.pickerWrapper}>
-//                     <Picker
-//                       selectedValue={accountType}
-//                       onValueChange={(itemValue) => setAccountType(itemValue)}
-//                       style={styles.picker}
-//                     >
-//                       <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{ fontSize: 13 }} />
-//                       <Picker.Item label="Customer" value="customer" style />
-//                       <Picker.Item label="Vendor" value="vendor" style />
-//                       <Picker.Item label="Delivery Man " value="delivery" />
-//                     </Picker>
-//                   </View>
-//                 </View>
-//               </View>
-
-//               {/* 字段 4: Phone Number */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Phone Number</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="call-outline" size={18} color="#777" style={styles.icon} />
-//                   <TextInput
-//                     style={styles.input}
-//                     placeholder="012-3456789"
-//                     placeholderTextColor="#bbb"
-//                     keyboardType="phone-pad"
-//                     value={phoneNumber}
-//                     onChangeText={setPhoneNumber}
-//                   />
-//                 </View>
-//               </View>
-
-//               {/* 字段 5: Gender (下拉选择) */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Gender</Text>
-//                 <View style={styles.pickerBoxContainer}>
-//                   <Ionicons name="male-female-outline" size={18} color="#777" style={styles.icon} />
-//                   <View style={styles.pickerWrapper}>
-//                     <Picker
-//                       selectedValue={gender}
-//                       onValueChange={(itemValue) => setGender(itemValue)}
-//                       style={styles.picker}
-//                     >
-//                       <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{ fontSize: 13 }} />
-//                       <Picker.Item label="Male" value="male" style={{ fontSize: 13 }} />
-//                       <Picker.Item label="Female" value="female" style={{ fontSize: 13 }} />
-//                     </Picker>
-//                   </View>
-//                 </View>
-//               </View>
-
-//               {/* 字段 6: Age */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Age</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="calendar-outline" size={18} color="#777" style={styles.icon} />
-//                   <TextInput
-//                     style={styles.input}
-//                     placeholder="20"
-//                     placeholderTextColor="#bbb"
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabel}>Verification Pin:</Text>
+//                   <TextInput 
+//                     style={styles.wireframeInputShort} 
+//                     value={pin}
+//                     onChangeText={setPin}
 //                     keyboardType="numeric"
-//                     value={age}
-//                     onChangeText={setAge}
+//                     maxLength={6}
+//                     placeholder="6-digit PIN"
+//                     placeholderTextColor="#999"
 //                   />
+//                   <View style={{ width: 68 }} /> {/* 右侧对称占位 */}
 //                 </View>
 //               </View>
 
-//               {/* 字段 7: Password (带小眼睛) */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Password</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="lock-closed-outline" size={18} color="#777" style={styles.icon} />
-//                   <TextInput
-//                     style={styles.input}
-//                     placeholder="......"
-//                     placeholderTextColor="#bbb"
-//                     secureTextEntry={secureSignUpPwd}
-//                     value={signUpPassword}
-//                     onChangeText={setSignUpPassword}
-//                   />
-//                   {/* 点击小眼睛切换状态 */}
-//                   <TouchableOpacity onPress={() => setSecureSignUpPwd(!secureSignUpPwd)}>
-//                     <Ionicons
-//                       name={secureSignUpPwd ? "eye-off-outline" : "eye-outline"}
-//                       size={18}
-//                       color="#777"
-//                       style={styles.rightIcon}
-//                     />
-//                   </TouchableOpacity>
-//                 </View>
-//               </View>
-
-//               {/* 字段 8: Confirm Password (带小眼睛) */}
-//               <View style={styles.inputGroup}>
-//                 <Text style={styles.fieldLabel}>Confirm Password</Text>
-//                 <View style={styles.inputBoxContainer}>
-//                   <Ionicons name="lock-closed-outline" size={18} color="#777" style={styles.icon} />
-//                   <TextInput
-//                     style={styles.input}
-//                     placeholder="......"
-//                     placeholderTextColor="#bbb"
-//                     secureTextEntry={secureConfirmPwd}
-//                     value={confirmPassword}
-//                     onChangeText={setConfirmPassword}
-//                   />
-//                   <TouchableOpacity onPress={() => setSecureConfirmPwd(!secureConfirmPwd)}>
-//                     <Ionicons
-//                       name={secureConfirmPwd ? "eye-off-outline" : "eye-outline"}
-//                       size={18}
-//                       color="#777"
-//                       style={styles.rightIcon}
-//                     />
-//                   </TouchableOpacity>
-//                 </View>
-//               </View>
-
-//               {/* 3. CONTINUE 按钮  */}
-//               <TouchableOpacity style={styles.button} onPress={handleSignUpSubmit}>
-//                 <Text style={styles.buttonText}>Signup</Text>
+//               <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleContinueReset}>
+//                 <Text style={styles.wireframeSubmitBtnText}>Continue</Text>
 //               </TouchableOpacity>
+//             </View>
+//           )}
 
-//               {/* 切换到登录页面的链接 */}
-//               <TouchableOpacity style={styles.switchContainer} onPress={() => setCurrentPage('login')}>
-//                 <Text style={styles.switchText}>Already have an account? <Text style={styles.switchHighlight}>Log In</Text></Text>
+//           {/* ==================== 4. 重置新密码界面（对应图片右侧） ==================== */}
+//           {currentPage === 'reset_step2' && (
+//             <View style={styles.wireframeCard}>
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabelLong}>Password:</Text>
+//                   <TextInput 
+//                     style={styles.wireframeInputLong} 
+//                     secureTextEntry={true} 
+//                     value={newPassword} 
+//                     onChangeText={setNewPassword}
+//                     placeholder="New password (8+ min)"
+//                     placeholderTextColor="#999"
+//                   />
+//                 </View>
+//               </View>
+
+//               <View style={styles.wireframeInputRow}>
+//                 <View style={styles.inlineFieldRow}>
+//                   <Text style={styles.wireframeLabelLong}>Confirm Password:</Text>
+//                   <TextInput 
+//                     style={styles.wireframeInputLong} 
+//                     secureTextEntry={true} 
+//                     value={confirmNewPassword} 
+//                     onChangeText={setConfirmNewPassword}
+//                     placeholder="Repeat new password"
+//                     placeholderTextColor="#999"
+//                   />
+//                 </View>
+//               </View>
+
+//               <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleFinalReset}>
+//                 <Text style={styles.wireframeSubmitBtnText}>Reset</Text>
 //               </TouchableOpacity>
-
 //             </View>
 //           )}
 
@@ -349,128 +453,133 @@ export default function App() {
 //   );
 // }
 
-// // 🎨 精致样式表
+// // ==================== 🎨 粗线框极简风格全新样式表 ====================
 // const styles = StyleSheet.create({
-//   safeArea: {
-//     flex: 1,
-//     backgroundColor: '#fff',
-//   },
-//   header: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
+//   safeArea: { flex: 1, backgroundColor: '#fff' },
+//   divider: { height: 2, backgroundColor: '#000', width: '100%' },
+//   keyboardAvoid: { flex: 1 },
+//   scrollContainer: { paddingHorizontal: 25, paddingTop: 20, paddingBottom: 40, alignItems: 'center' },
+  
+//   // 顶部标准导航
+//   header: { 
+//     flexDirection: 'row', 
+//     alignItems: 'center', 
 //     justifyContent: 'space-between',
-//     paddingHorizontal: 15,
+//     paddingHorizontal: 15, 
 //     paddingBottom: 12,
-//     // 🌟 核心修复：加大了顶部的间距，确保在绝大多数全面屏手机上，标题都能完美避开摄像头
 //     paddingTop: Platform.OS === 'ios' ? 15 : 35,
 //   },
-//   headerTitle: {
-//     fontSize: 22,
-//     fontWeight: '600',
-//     color: '#000',
-//     textAlign: 'center',
-//   },
-//   divider: {
-//     height: 1,
-//     backgroundColor: '#eee',
-//     width: '100%',
-//   },
-//   keyboardAvoid: {
-//     flex: 1,
-//   },
-//   scrollContainer: {
-//     paddingHorizontal: 28,
-//     paddingTop: 10, // 🌟 让登录内容更靠中间
-//     paddingBottom: 60,
-//     alignItems: 'center',
-//   },
-//   inputGroup: {
-//     width: '100%',
-//     marginBottom: 12,  //the space between each boxes(verticle)
-//   },
-//   fieldLabel: {
-//     fontSize: 13,
-//     fontWeight: '500',
-//     color: '#333',
-//     marginBottom: 4,
-//   },
-//   inputBoxContainer: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     borderWidth: 1,
-//     borderColor: '#e5e5e5',
+//   headerBackBtn: { 
+//     width: 32, 
+//     justifyContent: 'center', 
+//     alignItems: 'center', 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
 //     borderRadius: 6,
-//     height: 40,
-//     backgroundColor: '#fafafa',
-//     paddingHorizontal: 10,
+//     padding: 2
 //   },
-//   pickerBoxContainer: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     borderWidth: 1,
-//     borderColor: '#e5e5e5',
-//     borderRadius: 6,
-//     height: 40,
-//     backgroundColor: '#fafafa',
-//     paddingLeft: 10,
+//   headerTitle: { fontSize: 24, fontWeight: 'normal', color: '#000' },
+  
+//   // 核心粗框卡片组件
+//   wireframeCard: { 
+//     width: '100%', 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
+//     paddingHorizontal: 20, 
+//     paddingVertical: 45, 
+//     backgroundColor: '#fff', 
+//     marginTop: 20 
 //   },
-//   icon: {
-//     marginRight: 8,
+//   wireframeInputRow: { marginBottom: 20, width: '100%' },
+//   inlineFieldRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  
+//   // 标签宽度限制（实现黑白两端对齐效果）
+//   wireframeLabel: { fontSize: 13, fontWeight: 'bold', color: '#000', marginRight: 10, minWidth: 105 },
+//   wireframeLabelLong: { fontSize: 13, fontWeight: 'bold', color: '#000', marginRight: 10, minWidth: 125 },
+  
+//   // 各种粗线框输入框
+//   wireframeInputInline: { 
+//     flex: 1, 
+//     height: 40, 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
+//     paddingHorizontal: 10, 
+//     fontSize: 13, 
+//     color: '#000', 
+//     backgroundColor: '#fff',
 //   },
-//   rightIcon: {
-//     paddingHorizontal: 5,
+//   wireframeInputShort: { 
+//     width: 120, 
+//     height: 40, 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
+//     paddingHorizontal: 10, 
+//     fontSize: 13, 
+//     color: '#000', 
+//     backgroundColor: '#fff',
 //   },
-//   input: {
+//   wireframeInputLong: { 
+//     flex: 1, 
+//     height: 40, 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
+//     paddingHorizontal: 10, 
+//     fontSize: 13, 
+//     color: '#000', 
+//     backgroundColor: '#fff',
+//   },
+
+//   // 粗线框下拉选择器容器
+//   pickerContainerEdge: {
 //     flex: 1,
-//     height: '100%',
-//     fontSize: 13,
-//     color: '#333',
-//   },
-//   pickerWrapper: {
-//     flex: 1,
+//     height: 40,
+//     borderWidth: 1.5,
+//     borderColor: '#000',
+//     backgroundColor: '#fff',
 //     justifyContent: 'center',
 //   },
-//   picker: {
+//   pickerBody: {
 //     width: '100%',
-//     height: 50,
-//   },
-//   // 🌟 Forgot Password 文字容器（让它靠右对齐）
-//   forgotPasswordContainer: {
-//     alignSelf: 'flex-end',
-//     marginTop: 5,
-//   },
-//   forgotPasswordText: {
-//     fontSize: 12,
-//     color: '#0000EE', // 标准的链接浅蓝色
-//     textDecorationLine: 'underline', // 加上好看的下划线
-//   },
-//   button: {
-//     backgroundColor: '#A9A9A9',
-//     paddingVertical: 10,
-//     paddingHorizontal: 35,
-//     borderRadius: 20,
-//     marginTop: 20,
-//     width: '55%',
-//     alignItems: 'center',
-//   },
-//   buttonText: {
-//     color: '#fff',
-//     fontSize: 16,
-//     fontWeight: 'bold',
-//     letterSpacing: 0.5,
-//   },
-//   // 底部页面切换链接样式
-//   switchContainer: {
-//     marginTop: 20,
-//     padding: 10,
-//   },
-//   switchText: {
-//     fontSize: 13,
-//     color: '#666',
-//   },
-//   switchHighlight: {
 //     color: '#000',
-//     fontWeight: 'bold',
+//   },
+  
+//   // 登录界面的超链接布局
+//   linksRow: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     width: '100%',
+//     marginTop: 5,
+//     marginBottom: 20,
+//     paddingHorizontal: 2,
+//   },
+//   linkTextUnderline: {
+//     fontSize: 12,
+//     color: '#000',
 //     textDecorationLine: 'underline',
 //   },
+
+//   // 独立小 Verify 按钮
+//   wireframeVerifyBtn: { 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
+//     width: 60, 
+//     height: 40, 
+//     justifyContent: 'center', 
+//     alignItems: 'center', 
+//     marginLeft: 8, 
+//     backgroundColor: '#fff' 
+//   },
+//   wireframeVerifyBtnText: { fontSize: 13, color: '#000', fontWeight: 'bold' },
+  
+//   // 底部提交大按钮
+//   wireframeSubmitBtn: { 
+//     borderWidth: 1.5, 
+//     borderColor: '#000', 
+//     paddingVertical: 8, 
+//     paddingHorizontal: 35, 
+//     alignSelf: 'center', 
+//     marginTop: 10, 
+//     backgroundColor: '#fff' 
+//   },
+//   wireframeSubmitBtnText: { fontSize: 15, color: '#000', fontWeight: 'bold' },
 // });

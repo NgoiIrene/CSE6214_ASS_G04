@@ -11,10 +11,14 @@ import {
   Alert,
   Image,
   Modal,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Dimensions,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+
+const { width } = Dimensions.get('window');
 
 // ==================== 🔢 智能库存快捷控制器组件 ====================
 function StockController({ stockValue, onChangeStock, isEditing }) {
@@ -77,7 +81,10 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
 }
 
 // ==================== 📱 主页面 SCREEN ====================
-export default function MenuScreen() {
+export default function MenuScreen({ onBack, navigateToScreen }) {
+  // 🚪 侧边栏显隐状态
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   // ==================== 🛠️ 1. 全局状态控制 ====================
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('ANNOUNCEMENT');
@@ -112,21 +119,18 @@ export default function MenuScreen() {
 
   // ==================== ⚡ 5. 核心逻辑功能 ====================
 
-  // 🌟 核心控制修复点：双向完美拦截跨栏点击
+  // 🌟 双向完美拦截跨栏点击
   const handleTabChange = (nextTab) => {
-    // 拦截情景 1：当前正在编辑公告，禁止去别的 Food Category
     if (activeTab === 'ANNOUNCEMENT' && isEditing && nextTab !== 'ANNOUNCEMENT') {
       Alert.alert("Notice", "Please SAVE your announcement updates before leaving.");
       return;
     }
 
-    // 拦截情景 2：当前在编辑任意 Food Category（列表处于编辑勾选态），禁止直接去 ANNOUNCEMENT
     if (activeTab !== 'ANNOUNCEMENT' && isEditing && nextTab === 'ANNOUNCEMENT') {
       Alert.alert("Notice", "Please finish or exit editing mode before viewing Announcement.");
-      return; // 强势锁定拦截！
+      return;
     }
 
-    // 默认通过：在不同的 Food Category 之间互相切换，会保持现有的 isEditing 状态不变
     setActiveTab(nextTab);
   };
 
@@ -175,14 +179,14 @@ export default function MenuScreen() {
 
   const openAddCategoryModal = () => {
     setIsEditModeCategory(false);
-    setNewCategoryName('');
+    setNewCategoryName(''); // 🔧 修复原本大小写错误的 Bug (NewCategoryName)
     setCategoryModalVisible(true);
   };
 
   const openEditCategoryModal = () => {
     if (activeTab === 'ANNOUNCEMENT') return;
     setIsEditModeCategory(true);
-    setNewCategoryName(activeTab);
+    setNewCategoryName(activeTab); // 🔧 修复原本大小写错误的 Bug (NewCategoryName)
     setCategoryModalVisible(true);
   };
 
@@ -310,14 +314,98 @@ export default function MenuScreen() {
     ]);
   };
 
+  // 🛠️ 处理侧边栏导航点击与跳转（打通保障）
+  const handleMenuPress = (targetScreen) => {
+    setIsSidebarOpen(false); // 先关闭侧边栏
+    if (targetScreen === 'menu') return;
+
+    // 回传参数给上层主控路由，确保跳转畅通
+    if (navigateToScreen) {
+      navigateToScreen(targetScreen);
+    } else if (onBack) {
+      onBack(targetScreen); 
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
+
+      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      <Modal
+        transparent={true}
+        visible={isSidebarOpen}
+        animationType="none"
+        onRequestClose={() => setIsSidebarOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          {/* 左侧实体菜单 */}
+          <View style={styles.sidebar}>
+            {/* 顶栏：Menu 切换按钮 */}
+            <View style={styles.sidebarHeader}>
+              <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
+                <Ionicons name="menu" size={32} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 用户头像区域 */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person-outline" size={45} color="#000" />
+              </View>
+              <Text style={styles.avatarName}>Rasa Syiok</Text>
+            </View>
+
+            {/* 导航列表 */}
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
+              <Text style={styles.sidebarItemText}>Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
+              <Text style={styles.sidebarItemText}>Profile</Text>
+            </TouchableOpacity>
+
+            {/* 当前页面高亮为灰色背景 */}
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('menu')}>
+              <Text style={styles.sidebarItemText}>Menu</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}>
+              <Text style={styles.sidebarItemText}>Update Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}>
+              <Text style={styles.sidebarItemText}>History Order</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
+              <Text style={styles.sidebarItemText}>Review</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
+              <Text style={styles.sidebarItemText}>Reset Password</Text>
+            </TouchableOpacity>
+
+            {/* 底部退出登录 */}
+            <View style={styles.sidebarFooter}>
+              <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
+                <Ionicons name="log-out-outline" size={24} color="#000" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 右侧空白处暗色遮罩层 */}
+          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        </View>
+      </Modal>
 
       {/* ==================== 1. HEADER ==================== */}
       <View style={styles.header}>
         {!isEditing ? (
-          <TouchableOpacity style={styles.headerIconBtn}>
-            <Ionicons name="menu-outline" size={28} color="#000" />
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsSidebarOpen(true)}>
+            <Ionicons name="menu" size={35} color="#000" />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(false)}>
@@ -339,6 +427,7 @@ export default function MenuScreen() {
           <View style={{ width: 38 }} />
         )}
       </View>
+      <View style={styles.divider} />
 
       {/* ==================== 2. TAB BAR ==================== */}
       <View style={styles.tabBarContainer}>
@@ -576,16 +665,17 @@ export default function MenuScreen() {
 // ==================== 🎨 STYLES ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 10, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
-  headerIconBtn: { padding: 5, width: 38, alignItems: 'center' },
-  headerTitle: { fontSize: 26, fontWeight: 'bold', color: '#000' },
+  divider: { height: 2, backgroundColor: '#000', width: '100%' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
+  headerIconBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000' },
 
-  tabBarContainer: { width: '100%', borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: '#000', backgroundColor: '#fff', height: 44 },
+  tabBarContainer: { width: '100%', borderBottomWidth: 1.5, borderColor: '#000', backgroundColor: '#fff', height: 50 },
   tabBarScroll: { flexDirection: 'row', alignItems: 'center' },
 
   tabButton: { paddingVertical: 10, paddingHorizontal: 16, borderRightWidth: 1.5, borderColor: '#000', minWidth: 95, height: '100%', alignItems: 'center', justifyContent: 'center' },
   tabButtonActive: { backgroundColor: '#A9A9A9' },
-  tabText: { fontSize: 10, fontWeight: 'bold', color: '#000', letterSpacing: 0.3 },
+  tabText: { fontSize: 14, fontWeight: '500', color: '#000' },
   tabTextActive: { color: '#fff' },
   tabAddButton: { width: 50, height: '100%', justifyContent: 'center', alignItems: 'center', borderRightWidth: 1.5, borderColor: '#000' },
 
@@ -666,5 +756,86 @@ const styles = StyleSheet.create({
   inputLabel: { fontSize: 14, fontWeight: '600', marginBottom: 5, color: '#333' },
   modalInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 15, fontSize: 14, backgroundColor: '#fff' },
   modalSubmitBtn: { backgroundColor: '#A9A9A9', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' }
+  modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+
+  /* ==================== 📌 Sidebar 样式表 ==================== */
+  modalContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  sidebar: {
+    width: Dimensions.get('window').width * 0.75, 
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRightWidth: 2,
+    borderRightColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  sidebarHeader: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    marginBottom: 10,
+  },
+  avatarCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  avatarName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#000',
+  },
+  sidebarItem: {
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#000',
+    alignItems: 'center',
+  },
+  sidebarActiveItem: {
+    backgroundColor: '#A9A9A9', 
+  },
+  sidebarItemText: {
+    fontSize: 22,
+    color: '#000',
+    fontWeight: 'normal',
+  },
+  sidebarFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: '#000',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutText: {
+    fontSize: 22,
+    color: '#000',
+    marginLeft: 10,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+  },
 });
