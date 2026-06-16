@@ -9,12 +9,26 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@emailjs/react-native": "^5.1.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-picker/picker": "2.11.1",
+    "@react-navigation/native": "^7.3.1",
+    "@react-navigation/native-stack": "^7.17.3",
     "expo": "~54.0.34",
+    "expo-document-picker": "~14.0.8",
+    "expo-image-picker": "~17.0.11",
+    "expo-mail-composer": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
+<<<<<<< HEAD
     "react-native-safe-area-context": "~5.6.0"
+=======
+    "react-native-calendars": "^1.1314.0",
+    "react-native-maps": "1.20.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0"
+>>>>>>> efa947dce0d3c90ba9228f5540866c7eb5a1c784
   },
   "private": true
 }
