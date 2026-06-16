@@ -1,10 +1,11 @@
 import { useNavigation } from '@react-navigation/native';
-
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react'; 
+import { RiderContext } from './RiderProvider'; 
 import {
   Alert,
+  Image,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -15,7 +16,10 @@ import {
 } from 'react-native';
 
 export default function WorkingShift() {
-  const navigation = useNavigation(); // 🌟 加上这一行
+  const navigation = useNavigation();
+  // 🌟 顺便把 riderName 也一起解构出来
+  const { avatarUri, riderName } = useContext(RiderContext);
+  
   // ================= 1. 动态状态管理 (State) =================
   const getToday = () => {
     const today = new Date();
@@ -144,12 +148,12 @@ export default function WorkingShift() {
           { 
             text: "Yes, Discard", 
             style: "destructive", 
-            onPress: () => navigation.goBack() // 🌟 确认丢弃后，直接退回上一页
+            onPress: () => navigation.goBack() 
           }
         ]
       );
     } else {
-      navigation.goBack(); // 🌟 如果没有未保存的更改，直接退回上一页
+      navigation.goBack(); 
     }
   };
 
@@ -276,59 +280,43 @@ export default function WorkingShift() {
         />
       )}
 
-      {/* ================= 侧边栏 ================= */}
+      {/* ================= 侧边栏 (🌟 WORKING SHIFT 激活状态) ================= */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
-          <TouchableOpacity 
-            style={styles.closeOverlay} 
-            activeOpacity={1} 
-            onPress={() => {setIsSidebarOpen(false); // 1. 先关掉菜单
-    navigation.navigate('Home'); // 2. 跳转到对应名字的页面
-  }}
-          />
-          
+          <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
               <View style={styles.profileAvatar}>
-                <Ionicons name="person" size={36} color="#FFF" />
+                {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatarImageReal} /> : <Ionicons name="person" size={36} color="#FFF" />}
               </View>
-              <Text style={styles.profileName}>Charlene</Text>
+              <Text style={styles.profileName}>{riderName}</Text>
             </View>
 
             <ScrollView style={styles.menuList}>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Home'); }}>
                 <Ionicons name="home-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Home</Text>
+                <Text style={styles.menuText}>HOME</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}>
                 <Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Profile</Text>
+                <Text style={styles.menuText}>PROFILE</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.menuItemActive}>
+              <TouchableOpacity style={styles.menuItemActive} onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="calendar" size={22} color="#424242" style={styles.menuIconLeft} />
-                <Text style={styles.menuTextActive}>Working Shift</Text>
+                <Text style={styles.menuTextActive}>WORKING SHIFT</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}>
                 <Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Earnings & History</Text>
+                <Text style={styles.menuText}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); Alert.alert("Notice", "Reset Password clicked"); }}>
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>Reset Password</Text>
+                <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity 
-                style={styles.logoutButton} 
-                activeOpacity={0.7}
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                  Alert.alert("Logout", "Logging out...");
-                }}
-              >
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={() => { setIsSidebarOpen(false); Alert.alert("Logout", "Logging out..."); }}>
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
@@ -342,11 +330,8 @@ export default function WorkingShift() {
   );
 }
 
-// ================= 6. 专业级样式表 (CSS) =================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  
-  /* 更新了 header 的 borderBottomWidth，从 1 变成了 1.5 */
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -354,10 +339,9 @@ const styles = StyleSheet.create({
     padding: 15, 
     marginTop: 30, 
     backgroundColor: '#FFF', 
-    borderBottomWidth: 1.5, // 与 menuIconBorder 的粗度保持一致
+    borderBottomWidth: 1.5, 
     borderBottomColor: '#E0E0E0' 
   },
-  
   menuIcon: { paddingHorizontal: 5 },
   menuIconBorder: {
     width: 40, 
@@ -369,11 +353,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFF'
   },
-  
   headerTitle: { fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
-
   monthNavRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 15, backgroundColor: '#FFF' },
-  
   iconButtonOutline: { 
     width: 40, 
     height: 40, 
@@ -384,31 +365,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFF'
   },
-  
   monthSelector: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   monthText: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 15, textAlign: 'center' },
   arrowBtn: { padding: 5 },
-
   weekStrip: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   dayBlock: { width: 45, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: '#F0F0F0' },
-  
   dayBlockActive: { backgroundColor: '#424242', elevation: 4, shadowColor: '#424242', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
   dayBlockPast: { backgroundColor: '#E8E8E8' },
   dayName: { color: '#666', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   dayDate: { color: '#333', fontSize: 16, fontWeight: 'bold' },
   dayTextActive: { color: '#FFF' },
   dayTextPast: { color: '#A0A0A0' },
-
   listContainer: { flex: 1, padding: 20 },
   listHeader: { fontWeight: 'bold', fontSize: 14, color: '#666', marginBottom: 15, textTransform: 'uppercase', letterSpacing: 0.5 },
-  
   shiftCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: 15, marginBottom: 12, borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 1, borderColor: '#FFF' },
   shiftCardSelected: { borderColor: '#424242', backgroundColor: '#F5F5F5' },
   shiftInfo: { flexDirection: 'row', alignItems: 'flex-start' },
   shiftTime: { fontWeight: 'bold', fontSize: 15, color: '#000' },
   textDisabled: { color: '#A0A0A0' },
   shiftDuration: { color: '#888', fontSize: 13, marginTop: 4 },
-  
   actionBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1.5 },
   actionBtnText: { fontWeight: 'bold', fontSize: 13 },
   btnAvailable: { backgroundColor: '#FFF', borderColor: '#000' },
@@ -417,102 +392,28 @@ const styles = StyleSheet.create({
   btnTextSelected: { color: '#FFF' },
   btnTaken: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   btnTextTaken: { color: '#A0A0A0' },
-
   footerRow: { flexDirection: 'row', padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
   saveBtn: { flex: 1, paddingVertical: 15, borderRadius: 10, backgroundColor: '#424242', alignItems: 'center', elevation: 3, shadowColor: '#424242', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
   saveBtnText: { fontWeight: 'bold', fontSize: 16, color: '#FFF' },
-
-  sidebarOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    flexDirection: 'row',
-    zIndex: 100, 
-  },
-  closeOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)', 
-  },
-  sidebar: {
-    width: '75%', 
-    backgroundColor: '#FFF',
-    height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 5, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 15,
-  },
-  sidebarHeader: {
-    alignItems: 'center',
-    padding: 25,
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    backgroundColor: '#424242', 
-  },
-  profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  userInfo: {
-    alignItems: 'center',
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFF',
-    marginBottom: 2,
-  },
-  menuList: {
-    flex: 1,
-    paddingTop: 10,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 25,
-  },
-  menuItemActive: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 25,
-    backgroundColor: '#F5F5F5', 
-    borderLeftWidth: 4,
-    borderColor: '#424242',
-  },
-  menuIconLeft: {
-    marginRight: 15,
-  },
-  menuText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-  },
-  menuTextActive: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#424242',
-  },
-  sidebarFooter: {
-    borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#FFF',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    paddingVertical: 20,
-    paddingHorizontal: 25,
-    alignItems: 'center',
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#FF3B30',
-  }
+  
+  // 🌟 侧边栏样式
+  sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
+  closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },
+  sidebarHeader: { alignItems: 'center', padding: 25, paddingTop: Platform.OS === 'ios' ? 60 : 50, backgroundColor: '#424242' },
+  profileAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  
+  // 🌟 这里就是刚才缺失的关键一行！加了这行，照片就显示出来了：
+  avatarImageReal: { width: 60, height: 60, borderRadius: 30 },
+  
+  profileName: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 2 },
+  menuList: { flex: 1, paddingTop: 10 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25 },
+  menuItemActive: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25, backgroundColor: '#F5F5F5', borderLeftWidth: 4, borderColor: '#424242' },
+  menuIconLeft: { marginRight: 15 },
+  menuText: { fontSize: 15, fontWeight: '600', color: '#333' },
+  menuTextActive: { fontSize: 15, fontWeight: 'bold', color: '#424242' },
+  sidebarFooter: { borderTopWidth: 1, borderColor: '#E0E0E0', backgroundColor: '#FFF' },
+  logoutButton: { flexDirection: 'row', paddingVertical: 20, paddingHorizontal: 25, alignItems: 'center' },
+  logoutText: { fontSize: 15, fontWeight: 'bold', color: '#FF3B30' }
 });

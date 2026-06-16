@@ -1,11 +1,25 @@
 import React from 'react';
-// 引入你想看的那个 js 文件（这里以同级目录的 order.js 为例）
-import OrderScreen from './review'; 
+import { NavigationContainer } from '@react-navigation/native';
+// 确保这里的路径指向你刚刚建好的 deliveryNavigator.js 文件
+import DeliveryNavigator from './screens/deliveryman/deliveryNavigator'; 
 
 export default function App() {
-  // 直接在这里渲染你想看的页面
-  return <OrderScreen />;
+  return (
+    <NavigationContainer>
+      {/* 这样一打开 App，就会直接进入你的 Delivery Man 导航系统 */}
+      <DeliveryNavigator />
+    </NavigationContainer>
+  );
 }
+
+// import React from 'react';
+// // 引入你想看的那个 js 文件（这里以同级目录的 order.js 为例）
+// import OrderScreen from './review'; 
+
+// export default function App() {
+//   // 直接在这里渲染你想看的页面
+//   return <OrderScreen />;
+// }
 
 // import React, { useState } from 'react';
 // import {
