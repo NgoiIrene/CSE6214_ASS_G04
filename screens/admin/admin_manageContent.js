@@ -3,16 +3,13 @@ import {
   StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, 
   Platform, Dimensions, KeyboardAvoidingView, Alert, Modal, Image
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+//import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SIDEBAR_WIDTH = 260;
 
 export default function ManageMenuContent() {
-  // ==================== 1. 基础页面与导航状态 ====================
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+  // ==================== 1. 基础页面状态 ====================
   // 主分类筛选: 'menu' (看商家菜单) 或 'review' (看用户评论)
   const [mainCategory, setMainCategory] = useState('menu'); 
   const [isMainDropdownOpen, setIsMainDropdownOpen] = useState(false);
@@ -37,7 +34,7 @@ export default function ManageMenuContent() {
   
   const [reviews, setReviews] = useState([
     { id: 'r1', userAccount: 'ali_123', vendor: 'Vendor A', rating: 5, date: '2026-06-10', comment: 'The food is very delicious and hot!' },
-    { id: 'r2', userAccount: 'angry_bird', vendor: 'Vendor B', rating: 1, date: '2026-06-11', comment: 'Stupid food! Taste like rubbish! 🤬' }, // 模拟违规评论
+    { id: 'r2', userAccount: 'angry_bird', vendor: 'Vendor B', rating: 1, date: '2026-06-11', comment: 'Stupid food! Taste like rubbish! 🤬' }, 
     { id: 'r3', userAccount: 'jason_wong', vendor: 'Vendor C', rating: 4, date: '2026-06-12', comment: 'Good portion, but delivery was a bit slow.' },
     { id: 'r4', userAccount: 'sweet_girl', vendor: 'Vendor A', rating: 5, date: '2026-06-13', comment: 'Best Nasi Lemak in campus!' },
   ]);
@@ -50,7 +47,7 @@ export default function ManageMenuContent() {
   );
 
   const openEditModal = (item) => {
-    setEditingItem({ ...item }); // 复制一份数据到表单
+    setEditingItem({ ...item }); 
     setIsEditModalVisible(true);
   };
 
@@ -59,7 +56,6 @@ export default function ManageMenuContent() {
       Alert.alert("Validation Error", "Item name and price cannot be empty.");
       return;
     }
-    // 更新 Database (State)
     setMenuItems(menuItems.map(item => item.id === editingItem.id ? editingItem : item));
     setIsEditModalVisible(false);
     Alert.alert("Success", "Menu item updated successfully in the database.");
@@ -90,49 +86,9 @@ export default function ManageMenuContent() {
     ]);
   };
 
-  // ==================== 5. 导航逻辑 ====================
-  const handleMenuClick = (moduleName) => { Alert.alert("Navigation", `Connecting to ${moduleName} module...`); setIsSidebarOpen(false); };
-  const handleLogout = () => { Alert.alert("Logout", "You have been logged out successfully."); setIsSidebarOpen(false); };
-  const renderOverlay = () => isSidebarOpen ? <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} /> : null;
-
   // ==================== 渲染页面 ====================
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {renderOverlay()}
-
-      {/* ==================== LEFT SIDEBAR ==================== */}
-      <View style={[styles.sidebar, isSidebarOpen ? styles.sidebarOpen : styles.sidebarClosed]}>
-        <View style={styles.sidebarHeader}><TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(false)}><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /></TouchableOpacity></View>
-        <View style={styles.userSection}><View style={styles.avatarCircle}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View><Text style={styles.username}>Charlene</Text></View>
-        <ScrollView style={styles.menuList} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Home')}><Text style={styles.menuItemText}>Home</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Profile')}><Text style={styles.menuItemText}>Profile</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Accounts')}><Text style={styles.menuItemText}>Manage Accounts</Text></TouchableOpacity>
-          
-          {/* 🌟 停留在 Manage Menu & Content */}
-          <TouchableOpacity style={[styles.menuItem, { backgroundColor: '#f0f0f0' }]} onPress={() => setIsSidebarOpen(false)}>
-            <Text style={styles.menuItemText}>Manage Menu & Content</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Generate Reports')}><Text style={styles.menuItemText}>Generate Reports</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Configure System Settings')}><Text style={styles.menuItemText}>Configure System Settings</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Advertising Board')}><Text style={styles.menuItemText}>Manage Advertising Board</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Process Application Approval')}><Text style={styles.menuItemText}>Process Application Approval</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 2 }]} onPress={() => handleMenuClick('Reset Password')}><Text style={styles.menuItemText}>Reset Password</Text></TouchableOpacity>
-        </ScrollView>
-        <TouchableOpacity style={styles.logoutBox} onPress={handleLogout}><Ionicons name="arrow-forward-outline" size={16} color="#000" /><Text style={styles.logoutText}>Logout</Text></TouchableOpacity>
-      </View>
-
-      {/* ==================== TOP HEADER ==================== */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Menu & Content</Text>
-        <View style={{ width: 35, marginRight: 15 }} />
-      </View>
-      <View style={styles.headerDivider} />
-
+    <>
       {/* ==================== MAIN CONTENT ==================== */}
       <KeyboardAvoidingView style={styles.keyboardAvoid} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -296,35 +252,13 @@ export default function ManageMenuContent() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </>
   );
 }
 
 // ==================== 🎨 STYLESHEET ====================
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, backgroundColor: '#ffffff', zIndex: 10 },
-  hamburgerBtn: { width: 35, height: 30, borderWidth: 2, borderColor: '#000', borderRadius: 4, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 4, marginRight: 15 },
-  hamburgerLine: { width: 20, height: 2, backgroundColor: '#000' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' },
-  headerDivider: { height: 2, backgroundColor: '#000', width: '100%' },
-  keyboardAvoid: { flex: 1 },
-  
-  // Sidebar
-  sidebar: { position: 'absolute', top: Platform.OS === 'ios' ? 44 : 40, height: '100%', width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100 },
-  sidebarOpen: { left: 0 }, sidebarClosed: { left: -SIDEBAR_WIDTH - 10 },
-  sidebarHeader: { height: 65, justifyContent: 'center', paddingLeft: 15, paddingTop: Platform.OS === 'ios' ? 0 : 20 },
-  userSection: { alignItems: 'center', paddingVertical: 15 },
-  avatarCircle: { width: 55, height: 55, borderRadius: 27.5, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 5 },
-  avatarHead: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#000', marginTop: 4 },
-  avatarBody: { width: 34, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginBottom: -8 },
-  username: { fontSize: 16, fontWeight: 'bold', color: '#000' },
-  menuList: { flex: 1 },
-  menuItem: { width: '100%', paddingVertical: 12, borderTopWidth: 1, borderColor: '#000', backgroundColor: '#fff' },
-  menuItemText: { fontSize: 14, fontWeight: 'bold', textAlign: 'left', color: '#000', paddingLeft: 30 },
-  logoutBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingBottom: Platform.OS === 'ios' ? 20 : 15, borderTopWidth: 2, borderColor: '#0f100f', backgroundColor: '#fff', marginBottom: Platform.OS === 'ios' ? 10 : 5 },
-  logoutText: { fontSize: 16, fontWeight: 'bold', color: '#070707', marginLeft: 8 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', zIndex: 90 },
+  keyboardAvoid: { flex: 1, backgroundColor: '#ffffff' },
   
   // Content General
   scrollContent: { paddingTop: 15, paddingBottom: 40, paddingHorizontal: 16 },

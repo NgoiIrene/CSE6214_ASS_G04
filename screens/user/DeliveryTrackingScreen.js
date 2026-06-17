@@ -52,7 +52,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
             { text: "No", style: "cancel" },
             {
                 text: "Yes", onPress: () => {
-                    Alert.alert("Order Cancelled", "Dear customer, order is successfully cancelled, please wait for 3 working days for refund.",
+                    Alert.alert("Order Cancelled", "Dear user, order is successfully cancelled, please wait for 3 working days for refund.",
                         [{ text: "OK", onPress: () => navigation.navigate('Home') }]);
                 }
             }

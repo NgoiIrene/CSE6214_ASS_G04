@@ -26,14 +26,14 @@ export default function UpdateDeliveryProgress() {
   const mapRef = useRef(null);
 
   // 坐标定义 (完美模拟动态位置)
-  const starbeesCoords = { latitude: 2.9278, longitude: 101.6415 }; 
-  const customerCoords = { latitude: 2.9305, longitude: 101.6440 };  
-  
+  const starbeesCoords = { latitude: 2.9278, longitude: 101.6415 };
+  const customerCoords = { latitude: 2.9305, longitude: 101.6440 };
+
   // 🌟 核心逻辑：骑手当前的位置是动态的
   // Stage 1: 骑手在餐厅等 (坐标和餐厅重合)
   // Stage 2: 骑手开始送餐 (模拟他正在前往顾客的路上，坐标微调)
-  const currentRiderCoords = stage === 1 
-    ? { latitude: 2.9278, longitude: 101.6415 } 
+  const currentRiderCoords = stage === 1
+    ? { latitude: 2.9278, longitude: 101.6415 }
     : { latitude: 2.9290, longitude: 101.6425 };
 
   // ================= 2. 交互与流转逻辑 =================
@@ -74,13 +74,13 @@ export default function UpdateDeliveryProgress() {
 
   const handleConfirmDelivered = () => {
     Alert.alert("Delivery Completed!", "Order moved to delivery history.", [
-      { 
-        text: "OK", 
+      {
+        text: "OK",
         onPress: () => {
           setStage(1);
           setVendorReady(false);
           setPhotoUri(null);
-        } 
+        }
       }
     ]);
   };
@@ -88,7 +88,7 @@ export default function UpdateDeliveryProgress() {
   // ================= 3. 界面渲染 UI =================
   return (
     <SafeAreaView style={styles.container}>
-      
+
       {/* 🌟 统一的 Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIcon} onPress={() => setIsSidebarOpen(true)}>
@@ -101,7 +101,7 @@ export default function UpdateDeliveryProgress() {
       </View>
 
       <ScrollView style={{ flex: 1 }} bounces={false} showsVerticalScrollIndicator={false}>
-        
+
         {/* 商家状态横幅 (Stage 1 特有) */}
         {stage === 1 && (
           <View style={[styles.vendorStatusBanner, vendorReady ? styles.vendorReadyBg : styles.vendorWaitingBg]}>
@@ -120,13 +120,13 @@ export default function UpdateDeliveryProgress() {
 
         {/* 动态全屏地图 (复用专业样式) */}
         <View style={styles.mapContainer}>
-          <MapView 
+          <MapView
             ref={mapRef}
             style={styles.realMap}
             initialRegion={{
-              latitude: 2.9290, 
+              latitude: 2.9290,
               longitude: 101.6425,
-              latitudeDelta: 0.008, 
+              latitudeDelta: 0.008,
               longitudeDelta: 0.008,
             }}
           >
@@ -147,7 +147,7 @@ export default function UpdateDeliveryProgress() {
                 <Ionicons name="home" size={18} color="white" />
               </View>
             </Marker>
-            
+
             {stage === 2 && (
               <Polyline coordinates={[currentRiderCoords, customerCoords]} strokeColor="#00C853" strokeWidth={4} lineDashPattern={[5, 5]} />
             )}
@@ -205,7 +205,7 @@ export default function UpdateDeliveryProgress() {
             <View style={styles.remarksRow}>
               <Ionicons name="document-text-outline" size={20} color="#F57C00" style={{ marginTop: 2 }} />
               <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={styles.remarksLabel}>Customer Remarks:</Text>
+                <Text style={styles.remarksLabel}>User Remarks:</Text>
                 <Text style={styles.remarksText}>Please put the order on the white table outside the lobby. Thank you so much!</Text>
               </View>
             </View>
@@ -217,7 +217,7 @@ export default function UpdateDeliveryProgress() {
                 <Text style={styles.proofHeaderText}>Proof of Delivered (POD)</Text>
               </View>
               <Text style={styles.proofSubText}>Add a photo as proof of delivered</Text>
-              
+
               {!photoUri ? (
                 <View style={styles.photoOptionsRow}>
                   <TouchableOpacity style={styles.optionBtn} onPress={handleLaunchCamera}>
@@ -242,9 +242,9 @@ export default function UpdateDeliveryProgress() {
       {/* 底部操作区 */}
       <View style={styles.footerActionArea}>
         {stage === 1 ? (
-          <TouchableOpacity 
-            style={[styles.acceptBtn, !vendorReady && styles.btnDisabled]} 
-            onPress={handlePickedUp} 
+          <TouchableOpacity
+            style={[styles.acceptBtn, !vendorReady && styles.btnDisabled]}
+            onPress={handlePickedUp}
             disabled={!vendorReady}
             activeOpacity={0.8}
           >
@@ -253,10 +253,10 @@ export default function UpdateDeliveryProgress() {
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            style={[styles.acceptBtn, !photoUri && styles.btnDisabled]} 
+          <TouchableOpacity
+            style={[styles.acceptBtn, !photoUri && styles.btnDisabled]}
             onPress={handleConfirmDelivered}
-            disabled={!photoUri} 
+            disabled={!photoUri}
             activeOpacity={0.8}
           >
             <Text style={[styles.acceptBtnText, !photoUri && styles.btnTextDisabled]}>Confirmed Delivered</Text>
@@ -267,12 +267,12 @@ export default function UpdateDeliveryProgress() {
       {/* 🌟 侧边栏完全照搬 Working Shift */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
-          <TouchableOpacity 
-            style={styles.closeOverlay} 
-            activeOpacity={1} 
-            onPress={() => setIsSidebarOpen(false)} 
+          <TouchableOpacity
+            style={styles.closeOverlay}
+            activeOpacity={1}
+            onPress={() => setIsSidebarOpen(false)}
           />
-          
+
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
               <View style={styles.profileAvatar}>
@@ -305,8 +305,8 @@ export default function UpdateDeliveryProgress() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity 
-                style={styles.logoutButton} 
+              <TouchableOpacity
+                style={styles.logoutButton}
                 activeOpacity={0.7}
                 onPress={() => {
                   setIsSidebarOpen(false);
@@ -329,31 +329,31 @@ export default function UpdateDeliveryProgress() {
 // ================= 4. 专业统一级样式表 (CSS) =================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  
+
   // 🌟 Header 更新：同步边框和排版
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 15, 
-    marginTop: 30, 
-    backgroundColor: '#FFF', 
-    borderBottomWidth: 1.5, 
-    borderBottomColor: '#E0E0E0' 
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 15,
+    marginTop: 30,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E0E0E0'
   },
   menuIcon: { paddingHorizontal: 5 },
   menuIconBorder: {
-    width: 40, 
-    height: 40, 
-    borderRadius: 8, 
-    borderWidth: 1.5, 
-    borderColor: '#000', 
-    alignItems: 'center', 
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF'
   },
   headerTitle: { fontSize: 18, fontWeight: 'bold', letterSpacing: 1 },
-  
+
   // 商家状态横幅
   vendorStatusBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderColor: '#E0E0E0' },
   vendorWaitingBg: { backgroundColor: '#FFF3E0' },
@@ -366,22 +366,22 @@ const styles = StyleSheet.create({
   mapContainer: { height: 220, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   realMap: { width: '100%', height: '100%' },
   customMarkerContainer: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFFFF', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
-  
+
   // 统一的布局
   locationRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  iconWrapper: { width: 35, alignItems: 'flex-start' }, 
+  iconWrapper: { width: 35, alignItems: 'flex-start' },
   locationTextContainer: { flex: 1, paddingLeft: 5 },
   locationTitle: { fontWeight: 'bold', fontSize: 16 },
   locationSub: { fontSize: 13, color: '#666', marginTop: 2 },
   timeEst: { fontWeight: 'bold', fontSize: 14 },
-  
+
   orderSummaryRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: '#F8F9FA' },
   orderId: { fontWeight: 'bold', fontSize: 14 },
   customerName: { fontSize: 12, color: '#888', marginTop: 2 },
-  
+
   orderDetailsContainer: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   foodItemRow: { flexDirection: 'row', marginBottom: 15 },
-  foodQty: { fontWeight: 'bold', fontSize: 14, width: 30, color: '#00C853' }, 
+  foodQty: { fontWeight: 'bold', fontSize: 14, width: 30, color: '#00C853' },
   foodName: { fontWeight: 'bold', fontSize: 14 },
   foodRemarks: { fontSize: 12, color: '#888', marginTop: 2 },
   foodPrice: { fontWeight: 'bold', fontSize: 14 },
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   footerActionArea: { padding: 20, backgroundColor: '#FFF', paddingBottom: 40, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 5 },
   acceptBtn: { backgroundColor: '#00C853', paddingVertical: 16, borderRadius: 12, alignItems: 'center', shadowColor: '#00C853', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 6 },
   acceptBtnText: { fontWeight: 'bold', fontSize: 18, color: '#FFFFFF', letterSpacing: 0.5 },
-  
+
   // 禁用的灰色状态
   btnDisabled: { backgroundColor: '#E0E0E0', shadowOpacity: 0, elevation: 0 },
   btnTextDisabled: { color: '#9E9E9E' },
@@ -417,15 +417,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
     flexDirection: 'row',
-    zIndex: 100, 
+    zIndex: 100,
   },
   closeOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)', 
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sidebar: {
-    width: '75%', 
+    width: '75%',
     backgroundColor: '#FFF',
     height: '100%',
     shadowColor: '#000',
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 25,
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    backgroundColor: '#424242', 
+    backgroundColor: '#424242',
   },
   profileAvatar: {
     width: 60,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 25,
-    backgroundColor: '#F5F5F5', 
+    backgroundColor: '#F5F5F5',
     borderLeftWidth: 4,
     borderColor: '#424242',
   },
