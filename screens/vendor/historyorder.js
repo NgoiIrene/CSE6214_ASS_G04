@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,24 +9,27 @@ import {
   Dimensions,
   Platform,
   Modal,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  ActivityIndicator,
+  Image // 🎯 确保导入了 Image 组件用于显示头像
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// 🎯 引入 Supabase 客户端实例 (根据你的项目结构，路径保持与 resetpassword 相同)
+import { supabase } from '../../supabaseClient';
 
-const { width } = Dimensions.get('window');
-
-// ==================== 🛠️ 模拟订单数据源 ====================
-const MOCK_ORDERS = [
-  { id: '1', date: '2026-06-10', time: '13:40', orderNo: '1330', customer: 'Cindy', price: 30 },
-  { id: '2', date: '2026-06-10', time: '15:20', orderNo: '1331', customer: 'Alex', price: 45 },
-  { id: '3', date: '2026-06-12', time: '09:15', orderNo: '1332', customer: 'Ben', price: 15 },
-  { id: '4', date: '2026-06-01', time: '18:00', orderNo: '1320', customer: 'David', price: 60 },
-  { id: '5', date: '2026-05-28', time: '11:30', orderNo: '1299', customer: 'Eva', price: 25 },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   // 🚪 侧边栏显隐状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+
+  // 👤 Supabase 用户资料状态（Sidebar 动态展示使用）
+  const [profileName, setProfileName] = useState('Loading...');
+  const [avatarUrl, setAvatarUrl] = useState(null);
+
+  // 📦 真实订单数据源
+  const [orders, setOrders] = useState([]);
 
   // 1. 获取今天的真实系统时间
   const today = useMemo(() => new Date(), []);
@@ -44,7 +47,78 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   // 4. 用户选中的具体日子：默认进入为当天 (几号)
   const [selectedDay, setSelectedDay] = useState(currentDate);
 
-  // 5. 动态计算当前月份的日历矩阵 (标准日历：Sun - Sat)
+  // ==================== 👤 副作用 1：动态拉取当前登录用户的 profiles 数据 ====================
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          setProfileName('Guest');
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        if (profile) {
+          if (profile.full_name) setProfileName(profile.full_name);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+        }
+      } catch (error) {
+        console.log('Fetch profile error:', error.message);
+        setProfileName('User');
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  // ==================== 📦 副作用 2：动态拉取当前 Vendor 对应的所有订单 ====================
+  useEffect(() => {
+    const fetchVendorOrders = async () => {
+      try {
+        setIsLoadingOrders(true);
+        // 1. 获取当前登录的 Vendor 用户
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) return;
+
+        // 2. 🎯 拿着用户 ID 去名为 'vendor_order' 的表内拉取属于当前 Vendor 的已完成单子
+        const { data: orderData, error: orderError } = await supabase
+          .from('vendor_order')
+          .select('id, date, time, order_no, customer, price, profit') 
+          .eq('vendor_id', user.id); 
+
+        if (orderError) throw orderError;
+
+        if (orderData) {
+          // 格式规范化转换
+          const formattedOrders = orderData.map(o => ({
+            id: String(o.id),
+            date: o.date,       // 必须为 'YYYY-MM-DD' 格式
+            time: o.time ? o.time.substring(0, 5) : '', // 截取 'HH:MM'
+            orderNo: o.order_no || String(o.id),
+            customer: o.customer || 'Customer',
+            price: Number(o.price || 0),
+            profit: Number(o.profit || 0) // 注入数据库内的单单利润
+          }));
+          setOrders(formattedOrders);
+        }
+      } catch (error) {
+        console.log('Fetch orders error:', error.message);
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    };
+
+    fetchVendorOrders();
+  }, []);
+
+  // 5. 动态计算当前月份的日历矩阵
   const calendarDays = useMemo(() => {
     const firstDayInstance = new Date(viewYear, viewMonth, 1);
     const startDayOfWeek = firstDayInstance.getDay();
@@ -60,7 +134,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return daysArray;
   }, [viewYear, viewMonth]);
 
-  // 6. 获取当前选中的周区间 (Sun 到 Sat) 的精确起止时间戳
+  // 6. 获取当前选中的周区间精确定位时间戳
   const currentWeekRange = useMemo(() => {
     const selectedDateInstance = new Date(viewYear, viewMonth, selectedDay);
     const selectedWeekDay = selectedDateInstance.getDay();
@@ -74,9 +148,9 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return { start: sunday.getTime(), end: saturday.getTime() };
   }, [viewYear, viewMonth, selectedDay]);
 
-  // 🚀 核心过滤：根据日历选择动态过滤订单
+  // 🚀 核心过滤：根据选择过滤对应周期的订单数据
   const filteredOrders = useMemo(() => {
-    return MOCK_ORDERS.filter(order => {
+    return orders.filter(order => {
       const orderDate = new Date(order.date);
       const oYear = orderDate.getFullYear();
       const oMonth = orderDate.getMonth();
@@ -97,11 +171,11 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
 
       return false;
     });
-  }, [filterType, viewYear, viewMonth, selectedDay, currentWeekRange]);
+  }, [orders, filterType, viewYear, viewMonth, selectedDay, currentWeekRange]);
 
-  // 💰 动态累加筛选后的总营业额
-  const totalAmount = useMemo(() => {
-    return filteredOrders.reduce((sum, order) => sum + order.price, 0);
+  // 💰 动态累加筛选后的总利润 (Total Profit)
+  const totalProfitAmount = useMemo(() => {
+    return filteredOrders.reduce((sum, order) => sum + order.profit, 0);
   }, [filteredOrders]);
 
   // 7. 核心高亮逻辑：判断某一天是否应该亮起
@@ -113,13 +187,9 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       (viewYear === currentYear && viewMonth === currentMonth && day > currentDate);
     if (isFuture) return false;
 
-    if (filterType === 'M') {
-      return true;
-    }
+    if (filterType === 'M') return true;
 
-    if (filterType === 'D') {
-      return day === selectedDay;
-    }
+    if (filterType === 'D') return day === selectedDay;
 
     if (filterType === 'W') {
       const thisDayTime = new Date(viewYear, viewMonth, day).getTime();
@@ -129,7 +199,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return false;
   };
 
-  // 8. 判定某个格子是否属于未来日期（用于置灰）
+  // 8. 判定某个格子是否属于未来日期
   const isFutureDay = (day) => {
     if (!day) return false;
     if (viewYear > currentYear) return true;
@@ -137,7 +207,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return viewYear === currentYear && viewMonth === currentMonth && day > currentDate;
   };
 
-  // 9. 月份切换处理函数（智能体验修正）
+  // 9. 月份切换处理函数
   const handlePrevMonth = () => {
     let targetMonth = viewMonth - 1;
     let targetYear = viewYear;
@@ -145,10 +215,8 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       targetMonth = 11;
       targetYear = viewYear - 1;
     }
-
     setViewMonth(targetMonth);
     setViewYear(targetYear);
-
     if (targetYear === currentYear && targetMonth === currentMonth) {
       setSelectedDay(currentDate);
     } else {
@@ -165,10 +233,8 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       targetMonth = 0;
       targetYear = viewYear + 1;
     }
-
     setViewMonth(targetMonth);
     setViewYear(targetYear);
-
     if (targetYear === currentYear && targetMonth === currentMonth) {
       setSelectedDay(currentDate);
     } else {
@@ -181,16 +247,16 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
 
   // 辅助函数：将 YYYY-MM-DD 转换为 D/M/YYYY
   const formatDateStr = (dateStr) => {
+    if (!dateStr) return '';
     const [y, m, d] = dateStr.split('-');
     return `${parseInt(d)}/${parseInt(m)}/${y}`;
   };
 
-  // ⚙️ 核心打通：处理侧边栏导航点击与跳转
+  // ⚙️ 处理侧边栏导航点击与跳转
   const handleMenuPress = (targetScreen) => {
-    setIsSidebarOpen(false); // 1. 先平滑关闭侧边栏弹窗
-    if (targetScreen === 'historyorder') return; // 如果已经是当前页，则不进行操作
+    setIsSidebarOpen(false);
+    if (targetScreen === 'historyorder') return;
 
-    // 2. 双重保障触发外部路由机制
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
@@ -209,9 +275,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
         onRequestClose={() => setIsSidebarOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* 左侧实体菜单 */}
           <View style={styles.sidebar}>
-            {/* 顶栏：Menu 切换按钮 */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
@@ -221,43 +285,41 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
             {/* 用户头像区域 */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                <Ionicons name="person-outline" size={45} color="#000" />
+                {avatarUrl ? (
+                  <Image 
+                    source={{ uri: avatarUrl }} 
+                    style={{ width: 68, height: 68, borderRadius: 34 }} 
+                  />
+                ) : (
+                  <Ionicons name="person-outline" size={45} color="#000" />
+                )}
               </View>
-              <Text style={styles.avatarName}>Rasa Syiok</Text>
+              <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
             {/* 导航列表 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
               <Text style={styles.sidebarItemText}>Profile</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('menu')}>
               <Text style={styles.sidebarItemText}>Menu</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}>
               <Text style={styles.sidebarItemText}>Update Status</Text>
             </TouchableOpacity>
-
-            {/* 当前页面高亮为灰色背景 */}
             <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('historyorder')}>
               <Text style={styles.sidebarItemText}>History Order</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
-
-            {/* 🛠️ 重置密码跳转入口（已确认完美通车） */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
-            {/* 底部退出登录 */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -266,7 +328,6 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* 右侧空白处暗色遮罩层 */}
           <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
             <View style={styles.backdrop} />
           </TouchableWithoutFeedback>
@@ -283,9 +344,9 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 营业额总计 ==================== */}
+      {/* ==================== 营业总计：显示计算后的总利润 (Total Profit) ==================== */}
       <View style={styles.totalContainer}>
-        <Text style={styles.totalText}>TOTAL : RM {totalAmount.toFixed(2)}</Text>
+        <Text style={styles.totalText}>TOTAL PROFIT : RM {totalProfitAmount.toFixed(2)}</Text>
       </View>
       <View style={styles.divider} />
 
@@ -333,14 +394,12 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* 星期表头 */}
           <View style={styles.weekRow}>
             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((w, idx) => (
               <Text key={idx} style={styles.weekText}>{w}</Text>
             ))}
           </View>
 
-          {/* 日期格子网格 */}
           <View style={styles.daysGrid}>
             {calendarDays.map((day, idx) => {
               if (day === null) {
@@ -387,7 +446,11 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
           <Text style={styles.resultBarText}>{filteredOrders.length} Found:</Text>
         </View>
 
-        {filteredOrders.length === 0 ? (
+        {isLoadingOrders ? (
+          <View style={styles.emptyContainer}>
+            <ActivityIndicator size="large" color="#000" />
+          </View>
+        ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No orders found for this period.</Text>
           </View>
@@ -403,10 +466,13 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
                   <View style={styles.itemsContainer}>
                     <Text style={styles.orderNoText}>Delivery #{order.orderNo}</Text>
                     <Text style={styles.customerNameText}>{order.customer}</Text>
+                    <Text style={styles.orderPriceSubText}>Total Price: RM {order.price.toFixed(2)}</Text>
                   </View>
                 </View>
+                {/* 右侧区域：高亮渲染该笔订单为当前 Vendor 产生的真实 Profit (利润) */}
                 <View style={styles.cardRightContent}>
-                  <Text style={styles.priceText}>RM {order.price.toFixed(2)}</Text>
+                  <Text style={styles.profitLabelText}>PROFIT</Text>
+                  <Text style={styles.priceText}>RM {order.profit.toFixed(2)}</Text>
                 </View>
               </View>
             </View>
@@ -432,7 +498,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000' },
 
   totalContainer: { width: '100%', paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  totalText: { fontSize: 28, color: '#000' },
+  totalText: { fontSize: 24, fontWeight: 'bold', color: '#000' },
 
   tabContainer: { flexDirection: 'row', width: '100%', height: 50 },
   tabButton: { flex: 1, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1.5, borderRightColor: '#000' },
@@ -489,8 +555,10 @@ const styles = StyleSheet.create({
   itemsContainer: { marginTop: 2 },
   orderNoText: { fontSize: 14, fontWeight: 'bold', color: '#000', lineHeight: 18 },
   customerNameText: { fontSize: 13, color: '#555', lineHeight: 16 },
+  orderPriceSubText: { fontSize: 12, color: '#999', marginTop: 2 },
   cardRightContent: { justifyContent: 'center', alignItems: 'flex-end', marginLeft: 10 },
-  priceText: { fontSize: 28, fontWeight: '500', color: '#000' },
+  profitLabelText: { fontSize: 10, fontWeight: 'bold', color: '#555', marginBottom: -2 },
+  priceText: { fontSize: 24, fontWeight: 'bold', color: '#000' },
 
   emptyContainer: { padding: 30, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: '#999', fontSize: 14 },
@@ -501,7 +569,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: Dimensions.get('window').width * 0.75,
+    width: SCREEN_WIDTH * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -529,11 +597,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
+    overflow: 'hidden', 
   },
   avatarName: {
     fontSize: 12,
     fontWeight: '500',
     color: '#000',
+    marginTop: 5,
   },
   sidebarItem: {
     width: '100%',
