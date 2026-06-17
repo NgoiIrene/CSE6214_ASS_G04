@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,71 +10,15 @@ import {
   Platform,
   Modal,
   Dimensions,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  ActivityIndicator,
+  Image // 🎯 确保导入了 Image 组件用于显示侧边栏头像
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// 🎯 引入你的 Supabase 客户端实例
+import { supabase } from '../../supabaseClient'; 
 
-const { width } = Dimensions.get('window');
-
-// ==================== 🛠️ 模拟评价数据源 ====================
-const MOCK_REVIEWS = [
-  {
-    id: '1',
-    customer: 'Cindy',
-    date: '13/5/2026',
-    time: '16:20',
-    stars: 1,
-    content: 'I honestly have no idea how this place is still in business. The staff were extremely rude and completely ignored us from the moment we walked in. When we asked a simple question, they acted like we were bothering them and literally rolled their eyes. I am paying for a service, not to be treated with such disrespect. Zero stars if I could. Save your money and go somewhere else!'
-  },
-  {
-    id: '2',
-    customer: 'Amir',
-    date: '13/5/2026',
-    time: '15:20',
-    stars: 5,
-    content: 'I had a wonderful experience here! The food was absolutely delicious, bursting with flavor, and served piping hot. The staff were incredibly friendly, attentive, and made us feel welcome the entire time. The ambiance was also great—perfect for hanging out with friends. It’s rare to find a place that nails both food and service perfectly. Worth every penny, will definitely be coming back soon!'
-  },
-  {
-    id: '3',
-    customer: 'Ali',
-    date: '13/5/2026',
-    time: '15:10',
-    stars: 3,
-    content: 'The food itself was actually quite good and met my expectations in terms of taste. However, the experience was dragged down by the service. We had to wait for nearly [40 minutes] just for our food to arrive, and the staff seemed a bit disorganized and overwhelmed. It’s a decent place if you’re not in a rush, but don’t come here if you’re starving. Might give it another chance during off-peak hours.'
-  },
-  {
-    id: '4',
-    customer: 'Findy',
-    date: '13/5/2026',
-    time: '15:00',
-    stars: 4,
-    content: 'I came here with high expectations because of the social media hype, but it turned out to be just average. The food wasn’t bad, but it wasn’t mind-blowing either—just your standard [burger/pasta/rice dish]. The portion size was a bit small for the price they charge. The service was decent and the place was clean, but honestly, there are better and cheaper alternatives nearby. Okay to try once, but probably won’t rush back.'
-  },
-  {
-    id: '5',
-    customer: 'Candy',
-    date: '13/5/2026',
-    time: '14:20',
-    stars: 2,
-    content: 'The cleanliness of this place is deeply concerning. The tables and chairs were sticky, and there were visible grease stains on the utensils. To make matters worse, I found a [hair / insect / foreign object] in my order. When I pointed it out to the staff, they just gave a half-hearted apology with zero sincerity. Hygiene is the bare minimum for any establishment, and they failed miserably. My stomach feels upset after eating here. Never again.'
-  },
-  {
-    id: '6',
-    customer: 'Lala',
-    date: '13/5/2026',
-    time: '13:40',
-    stars: 5,
-    content: 'This place is a hidden gem! The portions are generous, and the prices are very reasonable, especially for students. I ordered the [insert dish name], and it exceeded my expectations. The service was fast, and the environment was clean and cozy. If you’re looking for good food that won’t break the bank, this is the place to go. 10/10 recommendation!'
-  },
-  {
-    id: '7',
-    customer: 'Lili',
-    date: '13/5/2026',
-    time: '13:05',
-    stars: 3,
-    content: 'I came here with high expectations because of the social media hype, but it turned out to be just average. The food wasn’t bad, but it wasn’t mind-blowing either—just your standard [burger/pasta/rice dish]. The portion size was a bit small for the price they charge. The service was decent and the place was clean, but honestly, there are better and cheaper alternatives nearby.'
-  }
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ReviewScreen({ navigateToScreen }) {
   // 1. 状态管理
@@ -83,9 +27,73 @@ export default function ReviewScreen({ navigateToScreen }) {
   const [isAscending, setIsAscending] = useState(false);   // 排序：默认按时间降序（最新的在上）
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 🚪 侧边栏显隐状态
 
-  // 2. 核心过滤与排序逻辑
+  // 👤 新增：Supabase 用户资料状态（Sidebar 动态展示使用）
+  const [profileName, setProfileName] = useState('Loading...');
+  const [avatarUrl, setAvatarUrl] = useState(null);
+
+  // 📊 新增：从数据库读取的真实评价数据状态
+  const [dbReviews, setDbReviews] = useState([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(true);
+
+  // ⚙️ 副作用 1：动态拉取当前登录用户的 profiles 数据来展示在 Sidebar 上
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          setProfileName('Guest');
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        if (profile) {
+          if (profile.full_name) setProfileName(profile.full_name);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+        }
+      } catch (error) {
+        console.log('Fetch profile error:', error.message);
+        setProfileName('User'); // 出错或无数据时的默认降级显示
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  // ⚙️ 副作用 2：从 Supabase 数据库拉取真实的 Reviews 数据
+  useEffect(() => {
+    const fetchReviewsFromDB = async () => {
+      try {
+        setIsReviewsLoading(true);
+        // 🎯 从你的 reviews 表中捞取所有评价数据
+        const { data, error } = await supabase
+          .from('reviews')
+          .select('*');
+
+        if (error) throw error;
+        if (data) {
+          setDbReviews(data);
+        }
+      } catch (error) {
+        console.log('Fetch reviews error:', error.message);
+      } finally {
+        setIsReviewsLoading(false);
+      }
+    };
+
+    fetchReviewsFromDB();
+  }, []);
+
+
+  // 2. 核心过滤与排序逻辑 (基于从数据库获取的 dbReviews)
   const filteredReviews = useMemo(() => {
-    let result = [...MOCK_REVIEWS];
+    let result = [...dbReviews];
 
     // 星级筛选
     if (selectedStar !== null) {
@@ -96,20 +104,20 @@ export default function ReviewScreen({ navigateToScreen }) {
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       result = result.filter(review =>
-        review.content.toLowerCase().includes(query) ||
-        review.customer.toLowerCase().includes(query)
+        (review.content && review.content.toLowerCase().includes(query)) ||
+        (review.customer && review.customer.toLowerCase().includes(query))
       );
     }
 
     // 时间排序 (格式 hh:mm)
     result.sort((a, b) => {
-      const timeA = a.time.replace(':', '');
-      const timeB = b.time.replace(':', '');
+      const timeA = a.time ? a.time.replace(':', '') : '0000';
+      const timeB = b.time ? b.time.replace(':', '') : '0000';
       return isAscending ? timeA.localeCompare(timeB) : timeB.localeCompare(timeA);
     });
 
     return result;
-  }, [selectedStar, searchQuery, isAscending]);
+  }, [dbReviews, selectedStar, searchQuery, isAscending]);
 
   // 3. 处理星级按钮点击
   const handleStarPress = (star) => {
@@ -123,7 +131,7 @@ export default function ReviewScreen({ navigateToScreen }) {
   // 4. 处理侧边栏跳转逻辑
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false); // 关闭侧边栏
-    if (targetScreen === 'review') return; // 如果已经是当前评价页面则不重复跳转
+    if (targetScreen === 'review') return; 
 
     if (navigateToScreen) {
       navigateToScreen(targetScreen); // 触发外部主路由层路由跳转
@@ -132,6 +140,7 @@ export default function ReviewScreen({ navigateToScreen }) {
 
   // 5. 文本高亮渲染函数
   const renderHighlightedContent = (text, highlight) => {
+    if (!text) return null;
     if (!highlight.trim()) return <Text style={styles.reviewContentText}>{text}</Text>;
 
     const regex = new RegExp(`(${highlight})`, 'gi');
@@ -183,12 +192,20 @@ export default function ReviewScreen({ navigateToScreen }) {
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 */}
+            {/* 用户头像区域 (🎯 已成功对接 Supabase 个人资料数据进行动态渲染) */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                <Ionicons name="person-outline" size={45} color="#000" />
+                {avatarUrl ? (
+                  <Image 
+                    source={{ uri: avatarUrl }} 
+                    style={{ width: 68, height: 68, borderRadius: 34 }} 
+                  />
+                ) : (
+                  <Ionicons name="person-outline" size={45} color="#000" />
+                )}
               </View>
-              <Text style={styles.avatarName}>Rasa Syiok</Text>
+              {/* 动态绑定全名 */}
+              <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
             {/* 导航列表 */}
@@ -213,11 +230,11 @@ export default function ReviewScreen({ navigateToScreen }) {
             </TouchableOpacity>
 
             {/* 当前在 Review 页面：高亮显示 */}
-            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('review')}>
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => setIsSidebarOpen(false)}>
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
 
-            {/* 🛠️ 已经为您彻底打通并配置了修改密码页面的跳转入口 */}
+            {/* 修改密码页面的跳转入口 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
@@ -262,7 +279,7 @@ export default function ReviewScreen({ navigateToScreen }) {
                   style={[
                     styles.starBtn,
                     isSelected && styles.starBtnActive,
-                    idx === 4 && { borderRightWidth: 0 } // 👈 细节美化：最后一个格子的右框线去掉，更干净
+                    idx === 4 && { borderRightWidth: 0 } 
                   ]}
                   onPress={() => handleStarPress(star)}
                 >
@@ -304,7 +321,13 @@ export default function ReviewScreen({ navigateToScreen }) {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {filteredReviews.length === 0 ? (
+        {isReviewsLoading ? (
+          /* 加载状态指示器 */
+          <View style={styles.emptyContainer}>
+            <ActivityIndicator size="large" color="#000" />
+            <Text style={[styles.emptyText, { marginTop: 10 }]}>Loading reviews from database...</Text>
+          </View>
+        ) : filteredReviews.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No reviews found.</Text>
           </View>
@@ -325,7 +348,7 @@ export default function ReviewScreen({ navigateToScreen }) {
                 {renderStars(review.stars)}
               </View>
 
-              {/* 卡片主体评论内容（带高亮） */}
+              {/* 卡片主体评论内容（带高亮功能） */}
               <View style={styles.cardBody}>
                 {renderHighlightedContent(review.content, searchQuery)}
               </View>
@@ -501,7 +524,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // 空白页处理
+  // 空白页与加载处理
   emptyContainer: {
     padding: 50,
     alignItems: 'center',
@@ -518,7 +541,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: Dimensions.get('window').width * 0.75,
+    width: SCREEN_WIDTH * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -546,11 +569,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
+    overflow: 'hidden' // 确保加载出来的图片不会超出圆圈范围
   },
   avatarName: {
     fontSize: 12,
     fontWeight: '500',
     color: '#000',
+    marginTop: 5
   },
   sidebarItem: {
     width: '100%',
