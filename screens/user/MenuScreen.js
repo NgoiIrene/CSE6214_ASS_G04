@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function MenuScreen({ onOpenMenu }) { 
+export default function MenuScreen({ onOpenMenu }) {
   // 🌟 完全拉回 11 个分类标签
   const tags = [
     { id: '0', name: 'All' }, { id: '1', name: 'Healthy' }, { id: '2', name: 'Nut-free' },
@@ -34,7 +34,7 @@ export default function MenuScreen({ onOpenMenu }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
-      
+
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.hamburgerBtn} onPress={onOpenMenu}>
           <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
