@@ -17,6 +17,9 @@ const SIDEBAR_WIDTH = 260;
 export default function App() {
     const [currentPage, setCurrentPage] = useState('Home');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    // 🌟 精准新增：用来暂存从购物车传出来的食物数据和备注
+    const [checkoutData, setCheckoutData] = useState({ items: [], remarks: '' });
+
 
     const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -54,11 +57,40 @@ export default function App() {
         const props = { onOpenMenu: () => toggleSidebar(true) };
         switch (currentPage) {
             case 'Home':
-                return <HomeScreen {...props} />;
+                return (
+                    <HomeScreen
+                        {...props}
+                        autoOpenCart={checkoutData.autoOpenCart} //  把暗号传给 HomeScreen
+                        checkoutData={checkoutData}
+                        clearAutoOpenCart={() => setCheckoutData(prev => ({ ...prev, autoOpenCart: false }))} // 👈 用完清空的方法
+                        navigateToCheckout={(items, remarks) => {
+                            setCheckoutData({ items, remarks, autoOpenCart: false }); // 下单去结算时默认先关掉
+                            setCurrentPage('Checkout');
+                        }}
+                    />
+                );
             case 'Menu':
                 return <MenuScreen {...props} />;
             case 'Order History':
                 return <OrderHistoryScreen {...props} />;
+
+            case 'Checkout':
+                const CheckoutScreen = require('./CheckoutScreen').default;
+                return (
+                    <CheckoutScreen
+                        route={{ params: { items: checkoutData.items, remarks: checkoutData.remarks } }}
+                        navigation={{
+                            // 🌟 核心修改：返回时，不仅把页面切回 Home，还把刚才暂存的购物车标志位设为自动打开
+                            goBack: () => {
+                                setCheckoutData(prev => ({ ...prev, autoOpenCart: true })); // 👈 埋下重新开车的暗号
+                                setCurrentPage('Home');
+                            },
+                            navigate: (pageName) => setCurrentPage(pageName)
+                        }}
+                    />
+                );
+
+
             case 'Profile':
             case 'Reset Password':
                 return (

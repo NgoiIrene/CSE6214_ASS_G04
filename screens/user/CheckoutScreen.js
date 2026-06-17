@@ -31,7 +31,7 @@ export default function CheckoutScreen({ route, navigation }) {
 
   const isOperating = isWithinOperationTime(); // 布尔值：当前食堂是否在营业
 
-  // 【核心新增】根据你要求的 8:30 AM 至 6:00 PM，生成每半小时一档的 Time Slots 列表
+  // 根据你要求的 8:30 AM 至 6:00 PM，生成每半小时一档的 Time Slots 列表
   const timeSlots = [
     "08:30 AM", "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
     "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM", "03:00 PM",
@@ -56,14 +56,45 @@ export default function CheckoutScreen({ route, navigation }) {
     return now; // 6:00 PM 之前，今天依旧可选
   };
 
+  // 🌟 核心提前：将校验函数放在状态初始化之前，防止变量找不到报错
+  const isSlotExpiredByDate = (slotString, targetDate) => {
+    const now = getNowDate();
+    if (targetDate.toDateString() !== now.toDateString()) {
+      return false;
+    }
+
+    const [time, modifier] = slotString.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    const slotTotalMinutes = hours * 60 + minutes;
+    const currentTotalMinutes = currentHour * 60 + currentMinute;
+
+    return slotTotalMinutes <= currentTotalMinutes;
+  };
+
   // 3. 日期与自定义 Time Slot 选择器状态
-  // 【核心修复】使用智能日期函数初始化，如果晚上打开，默认直接显示明天
   const [date, setDate] = useState(getPreorderMinDate());
-  const [selectedSlot, setSelectedSlot] = useState(timeSlots[0]); // 默认选中 08:30 AM
+
+  // 🌟 闭盘绝杀：这里让初始化默认选择今天第一个未过期的时间段！
+  const [selectedSlot, setSelectedSlot] = useState(() => {
+    const initialDate = getPreorderMinDate();
+    const firstValidSlot = timeSlots.find(slot => !isSlotExpiredByDate(slot, initialDate));
+    return firstValidSlot || timeSlots[0];
+  });
   // ======================================================================
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showSlotPicker, setShowSlotPicker] = useState(false); // 控制下拉 Slots 区域展示
+
+  const isSlotExpired = (slotString) => {
+    return isSlotExpiredByDate(slotString, date);
+  };
 
   // 格式化当前时间展示
   const formatCurrentTime = () => {
@@ -78,7 +109,12 @@ export default function CheckoutScreen({ route, navigation }) {
 
   const onDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
-    if (selectedDate) setDate(selectedDate);
+    if (selectedDate) {
+      setDate(selectedDate);
+      // 当用户手动切换日期时，如果切回今天导致原本选中的时间段已经过期，自动重置为可用的第一个最早时段！
+      const firstValid = timeSlots.find(slot => !isSlotExpiredByDate(slot, selectedDate));
+      if (firstValid) setSelectedSlot(firstValid);
+    }
   };
 
   // 模拟固定数据
@@ -86,15 +122,14 @@ export default function CheckoutScreen({ route, navigation }) {
   const [vendorAddress, setVendorAddress] = useState("MMU Campus Cafeteria - Vendor Stall 2 (Malay Cuisine)");
 
   // 4. 金额计算逻辑
-  const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 31.00);
+  const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const tax = itemsTotal * 0.05;
   const subtotalWithTax = itemsTotal + tax;
   const deliveryFee = orderType === 'Delivery' ? 5.00 : 0.00;
   const totalPayment = subtotalWithTax + deliveryFee;
 
-  // ==================== 【完美修复：下单时电子钱包余额精准校验与充值引导】 ====================
+  // 下单时电子钱包余额精准校验与充值引导
   const handlePlaceOrder = () => {
-    // 1. 余额不足拦截逻辑 (保持之前的代码)
     if (walletBalance < totalPayment) {
       const shortAmount = totalPayment - walletBalance;
       Alert.alert(
@@ -109,12 +144,10 @@ export default function CheckoutScreen({ route, navigation }) {
       return;
     }
 
-    // 2. 余额充足，执行下单成功后的弹窗与导航逻辑
-    // 计算剩余余额 (假设扣款已生效)
     const newBalance = walletBalance - totalPayment;
 
     Alert.alert(
-      "Payment Successful! 🎉", // 更吸引人的标题
+      "Payment Successful! 🎉",
       `Your order has been placed!\n\n` +
       `📅 Date: ${formatDate(date)}\n` +
       `⏰ Time: ${timingSelection === 'Order Now' ? 'ASAP' : selectedSlot}\n` +
@@ -124,8 +157,6 @@ export default function CheckoutScreen({ route, navigation }) {
         {
           text: "View Order Status",
           onPress: () => {
-            // 【导航核心】在这里跳转到你的 Order Tracking 页面
-            // 确保你的导航栈里有 'OrderTracking' 这个名字，如果没有，请根据你的代码修改
             navigation.navigate('OrderTracking', {
               orderDate: formatDate(date),
               orderTime: timingSelection === 'Order Now' ? 'ASAP' : selectedSlot
@@ -135,7 +166,6 @@ export default function CheckoutScreen({ route, navigation }) {
       ]
     );
   };
-  // ======================================================================
 
   return (
     <View style={styles.container}>
@@ -157,18 +187,23 @@ export default function CheckoutScreen({ route, navigation }) {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>Order Summary</Text>
-            <View style={styles.badge}><Text style={styles.badgeText}>{items.length || 2} Items</Text></View>
+            <View style={styles.badge}><Text style={styles.badgeText}>{items.length} Items</Text></View>
           </View>
-          <View style={styles.itemRow}>
-            <Text style={styles.itemQty}>1x</Text>
-            <Text style={styles.itemName}>Nasi Lemak with Fried Chicken</Text>
-            <Text style={styles.itemPrice}>RM 15.00</Text>
-          </View>
-          <View style={styles.itemRow}>
-            <Text style={styles.itemQty}>1x</Text>
-            <Text style={styles.itemName}>Kampung Fried Rice with Fried Chicken</Text>
-            <Text style={styles.itemPrice}>RM 16.00</Text>
-          </View>
+
+          {/* 🌟 核心修改：用 map 动态渲染购物车里真实的食物数据，彻底打通连接！ */}
+          {items && items.length > 0 ? (
+            items.map((item, index) => (
+              <View style={styles.itemRow} key={index}>
+                <Text style={styles.itemQty}>{item.quantity}x</Text>
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemPrice}>RM {(item.price * item.quantity).toFixed(2)}</Text>
+              </View>
+            ))
+          ) : (
+            // 安全退路：如果没有数据传过来，显示一个提示
+            <Text style={{ color: '#999', fontSize: 14, marginVertical: 10 }}>No items in order</Text>
+          )}
+
           <View style={styles.dashedDivider} />
           <Text style={styles.remarkLabel}>Special Remarks:</Text>
           <Text style={styles.remarkValue}>{remarks}</Text>
@@ -217,27 +252,24 @@ export default function CheckoutScreen({ route, navigation }) {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>Timing Selection</Text>
-            {/* 【新增点】在界面明显处清晰直观地向用户显示开业时间 */}
             <View style={styles.operationBadge}>
               <Text style={styles.operationBadgeText}>Open: 8:00 AM - 6:00 PM</Text>
             </View>
           </View>
 
           <View style={styles.segmentedControl}>
-            {/* Order Now 选项按钮 */}
             <TouchableOpacity
               style={[
                 styles.segmentOption,
                 timingSelection === 'Order Now' && styles.segmentOptionActive,
-                !isOperating && { opacity: 0.4 } // 如果打烊了，按钮变淡提示不可点
+                !isOperating && { opacity: 0.4 }
               ]}
-              disabled={!isOperating} // 打烊时直接锁死该按钮
+              disabled={!isOperating}
               onPress={() => setTimingSelection('Order Now')}
             >
               <Text style={[styles.segmentText, timingSelection === 'Order Now' && styles.segmentTextActive]}>Order Now</Text>
             </TouchableOpacity>
 
-            {/* Preorder 选项按钮（永远可点，实现闭店后订明天的逻辑） */}
             <TouchableOpacity
               style={[styles.segmentOption, timingSelection === 'Preorder' && styles.segmentOptionActive]}
               onPress={() => setTimingSelection('Preorder')}
@@ -246,17 +278,14 @@ export default function CheckoutScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* 条件切换控制渲染内容 */}
           {timingSelection === 'Order Now' ? (
             <View style={styles.asapInfoBox}>
               <Ionicons name="time" size={18} color="#FF8C32" style={{ marginRight: 6 }} />
               <Text style={styles.asapText}>Current Time: {formatCurrentTime()}</Text>
             </View>
           ) : (
-            // Preorder 渲染区块
             <View>
               <View style={styles.dateTimeContainer}>
-                {/* 1. 日期选择按钮 */}
                 <TouchableOpacity style={styles.dateTimeBlock} onPress={() => setShowDatePicker(true)}>
                   <Text style={styles.dateTimeLabel}>Select Date</Text>
                   <View style={styles.dateTimeValueRow}>
@@ -265,7 +294,6 @@ export default function CheckoutScreen({ route, navigation }) {
                   </View>
                 </TouchableOpacity>
 
-                {/* 2. 【做法B】全新的 Time Slot 下拉展示按钮 */}
                 <TouchableOpacity style={styles.dateTimeBlock} onPress={() => setShowSlotPicker(!showSlotPicker)}>
                   <Text style={styles.dateTimeLabel}>Select Time</Text>
                   <View style={styles.dateTimeValueRow}>
@@ -276,32 +304,42 @@ export default function CheckoutScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* 【做法B核心】向下展开的可划动Time Slots选择列表 */}
               {showSlotPicker && (
                 <View style={styles.slotsDropdownContainer}>
                   <Text style={styles.slotsHeading}>Available Time Slots (8:30 AM - 6:00 PM)</Text>
                   <ScrollView nestedScrollEnabled={true} style={styles.slotsScrollView} showsVerticalScrollIndicator={true}>
                     <View style={styles.slotsGrid}>
-                      {timeSlots.map((slot, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={[styles.slotItemBtn, selectedSlot === slot && styles.slotItemBtnActive]}
-                          onPress={() => {
-                            setSelectedSlot(slot);
-                            setShowSlotPicker(false); // 选完自动收起
-                          }}
-                        >
-                          <Text style={[styles.slotItemText, selectedSlot === slot && styles.slotItemTextActive]}>
-                            {slot}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                      {timeSlots.map((slot, index) => {
+                        const expired = isSlotExpired(slot);
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            disabled={expired}
+                            style={[
+                              styles.slotItemBtn,
+                              selectedSlot === slot && styles.slotItemBtnActive,
+                              expired && { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0', opacity: 0.5 }
+                            ]}
+                            onPress={() => {
+                              setSelectedSlot(slot);
+                              setShowSlotPicker(false);
+                            }}
+                          >
+                            <Text style={[
+                              styles.slotItemText,
+                              selectedSlot === slot && styles.slotItemTextActive,
+                              expired && { color: '#A0A0A0', fontWeight: 'normal' }
+                            ]}>
+                              {slot}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   </ScrollView>
                 </View>
               )}
 
-              {/* 如果现在是打烊状态，贴心提示一句：您当前正在进行预订下单 */}
               {!isOperating && (
                 <View style={styles.closedNoticeBox}>
                   <Ionicons name="information-circle-outline" size={16} color="#A0521D" style={{ marginRight: 6 }} />
@@ -311,13 +349,11 @@ export default function CheckoutScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* Android 原生日期选择组件 */}
           {showDatePicker && (
             <DateTimePicker
               value={date}
               mode="date"
               display="calendar"
-              // 【核心修复】让日历弹窗也实时跟从智能判断，晚上7:55打开时，日历里的“今天”会变灰锁死
               minimumDate={getPreorderMinDate()}
               onChange={onDateChange}
             />
@@ -357,15 +393,14 @@ export default function CheckoutScreen({ route, navigation }) {
         </View>
 
         {/* ==================== 6. IN-LINE ACTION BAR (跟随滚动) ==================== */}
-        <View style={styles.inlineActionBar}>
-          <View style={styles.totalPaymentBox}>
+        <View style={styles.inlineActionBarVertical}>
+          <View style={styles.totalRowSplit}>
             <Text style={styles.totalStickyLabel}>Total Payment</Text>
             <Text style={styles.totalStickyPrice}>RM {totalPayment.toFixed(2)}</Text>
           </View>
-          {/* 无论什么时候，只要是Preorder或在营业时间内的Order Now，这个下单按钮就永远保持高亮可用 */}
-          <TouchableOpacity style={styles.placeOrderBtn} activeOpacity={0.8} onPress={handlePlaceOrder}>
+          <TouchableOpacity style={styles.placeOrderCenterBtn} activeOpacity={0.8} onPress={handlePlaceOrder}>
             <Text style={styles.placeOrderText}>Place Order</Text>
-            <Ionicons name="arrow-forward-circle" size={24} color="#fff" style={{ marginLeft: 6 }} />
+            <Ionicons name="arrow-forward-circle" size={24} color="#ffffff" style={{ marginLeft: 8 }} />
           </TouchableOpacity>
         </View>
 
@@ -385,17 +420,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderColor: '#EAEAEA',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 24,
-    height: Platform.OS === 'android' ? 56 + StatusBar.currentHeight : 80,
+    borderBottomWidth: 2,
+    borderColor: '#000000',
+    paddingTop: StatusBar.currentHeight - 35,
+    height: 20 + StatusBar.currentHeight,
   },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#111', letterSpacing: 0.3 },
 
   scrollPadding: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 15,
+    paddingTop: 19,
     paddingBottom: 100
   },
 
@@ -415,7 +450,6 @@ const styles = StyleSheet.create({
   badge: { backgroundColor: '#FFF0E5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { color: '#FF8C32', fontSize: 12, fontWeight: '700' },
 
-  // 新增：营业时间显示标签
   operationBadge: { backgroundColor: '#F0F4FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   operationBadgeText: { color: '#2B6CB0', fontSize: 11, fontWeight: '700' },
 
@@ -425,7 +459,7 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: 14, fontWeight: '600', color: '#111' },
   dashedDivider: { height: 1, borderStyle: 'dashed', borderWidth: 0.6, borderColor: '#DDD', marginVertical: 12 },
   remarkLabel: { fontSize: 12, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginBottom: 2 },
-  remarkValue: { fontSize: 14, color: '#444', fontStyle: 'italic' },
+  remarkValue: { fontSize: 14, color: '#444', fontStyle: 'italic', lineHeight: 20, marginTop: 2 },
 
   toggleContainer: { flexDirection: 'row', backgroundColor: '#EFEFEF', borderRadius: 25, padding: 4, marginBottom: 14 },
   toggleBtn: { flex: 1, flexDirection: 'row', height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
@@ -461,7 +495,6 @@ const styles = StyleSheet.create({
   asapInfoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF6F0', padding: 12, borderRadius: 10, marginTop: 4 },
   asapText: { fontSize: 13, color: '#A0521D', flex: 1, fontWeight: '500' },
 
-  // 新增：做法B的向下展开 Time Slot 选择区样式
   slotsDropdownContainer: {
     backgroundColor: '#FAFAFA',
     borderWidth: 1.5,
@@ -471,7 +504,7 @@ const styles = StyleSheet.create({
     marginTop: 10
   },
   slotsHeading: { fontSize: 12, fontWeight: '700', color: '#666', marginBottom: 8, textTransform: 'uppercase' },
-  slotsScrollView: { maxHeight: 150 }, // 限制最大可见高度，超过自动可向下滑动查看更多
+  slotsScrollView: { maxHeight: 150 },
   slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   slotItemBtn: {
     width: '48%',
@@ -499,32 +532,56 @@ const styles = StyleSheet.create({
   balanceValue: { fontSize: 15, fontWeight: '800', color: '#2E7D32', marginTop: 2 },
 
   priceDetailRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 5 },
-  priceDetailLabel: { fontSize: 14, color: '#666' },
+  priceDetailLabel: { fontSize: 15, color: '#000000' },
   priceDetailValue: { fontSize: 14, fontWeight: '600', color: '#222' },
 
-  inlineActionBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  inlineActionBarVertical: {
+    width: '100%',
     paddingHorizontal: 16,
-    marginTop: 6,
+    marginTop: 15,
+    marginBottom: 20,
   },
-  totalPaymentBox: { justifyContent: 'center' },
-  totalStickyLabel: { fontSize: 12, fontWeight: '600', color: '#666' },
-  totalStickyPrice: { fontSize: 22, fontWeight: '900', color: '#111', marginTop: 2 },
-  placeOrderBtn: {
-    backgroundColor: '#FF8C32',
+  totalRowSplit: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    height: 48,
-    borderRadius: 24,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16, // 与下方按钮拉开舒适的间距
+  },
+
+  totalStickyLabel: { 
+  fontSize: 16,          
+  fontWeight: '600', 
+  color: '#666' 
+},
+totalStickyPrice: { 
+  fontSize: 18,          
+  fontWeight: '800', 
+  color: '#111', 
+  marginTop: 2 
+},
+
+
+
+  placeOrderCenterBtn: {
+    backgroundColor: '#1a1611d4',
+    flexDirection: 'row',
+    width: '100%',         // 撑满容器，保持长方形在中心
+    height: 52,            // 稍微加高，让长方形按钮更大气
+    borderRadius: 14,      //  复刻图三硬核圆边长方形的关键（12 - 14 最佳）
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF8C32',
+    shadowColor: '#454542',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 4,
   },
-  placeOrderText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 }
+
+  placeOrderText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3
+  }
 });

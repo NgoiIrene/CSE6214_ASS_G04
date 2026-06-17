@@ -12,10 +12,13 @@ import {
   ActivityIndicator,
   Dimensions,
   Modal,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Image // 🎯 确保导入了 Image 组件用于显示头像
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import emailjs from '@emailjs/react-native';
+// 🎯 已经配对成功的相对路径，成功引入 Supabase 客户端实例
+import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -31,16 +34,53 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // 👤 新增：Supabase 用户资料状态（Sidebar 动态展示使用）
+  const [profileName, setProfileName] = useState('Loading...');
+  const [avatarUrl, setAvatarUrl] = useState(null);
+
   // 🛠️ EmailJS 凭证
   const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
   const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
   const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
 
+  // ⚙️ 副作用 1：初始化 EmailJS
   useEffect(() => {
-    // 💡 警告：React Native 前端千万不要初始化 privateKey，有重大安全隐患
     emailjs.init({
       publicKey: EMAILJS_PUBLIC_KEY,
     });
+  }, []);
+
+  // 👤 副作用 2：动态拉取当前登录用户的 profiles 数据来展示在 Sidebar 上
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        // 1. 从官方 Auth 拿到当前会话的用户 UID
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          setProfileName('Guest');
+          return;
+        }
+
+        // 2. 拿着 UID 去你的 profiles 表查 full_name 和 avatar_url
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id) // 🎯 这里的 'id' 对应你 profiles 表中关联用户的字段名
+          .single();
+
+        if (profileError) throw profileError;
+
+        if (profile) {
+          if (profile.full_name) setProfileName(profile.full_name);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+        }
+      } catch (error) {
+        console.log('Fetch profile error:', error.message);
+        setProfileName('User'); // 出错或无数据时的默认降级显示
+      }
+    };
+
+    fetchUserProfile();
   }, []);
 
   // 清空所有状态的辅助函数
@@ -53,7 +93,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
     setConfirmPassword('');
   };
 
-  // ⚡ 发送验证码邮件
+  // ⚡ 1. 发送验证码邮件 (保持使用你配置好的 EmailJS)
   const handleVerify = async () => {
     const userEmail = email.trim();
     if (!userEmail) {
@@ -61,6 +101,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       return;
     }
 
+    // 生成 6 位随机验证码并临时保存在本地内存中
     const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPin(randomPin); 
     setIsLoading(true);
@@ -78,14 +119,14 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
         [{ text: "OK" }]
       );
     } catch (error) {
-      console.log('SDK Error:', error);
+      console.log('EmailJS Error:', error);
       Alert.alert("Mail Delivery Error", "Failed to send email. Please check your network.");
     } finally {
       setIsLoading(false); 
     }
   };
 
-  // ⚡ Continue 拦截检查
+  // ⚡ 2. Continue 拦截检查 (纯前端 PIN 码安全对比，通过后证明账号归属)
   const handleContinue = () => {
     const enteredEmail = email.trim();
     const enteredPin = pin.trim();
@@ -95,6 +136,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       return;
     }
 
+    // 比对输入和刚刚发送出去的 PIN
     if (!generatedPin || enteredPin !== generatedPin) {
       Alert.alert(
         "Verification Failed ❌",
@@ -103,11 +145,13 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       );
       return; 
     }
+    
+    // 成功自证身份，放行进入 Step 2 修改新密码
     setStep(2); 
   };
 
-  // ⚡ 重置密码并返回首页
-  const handleReset = () => {
+  // ⚡ 3. 重置密码 (联动调用 Supabase 中你成功创建的自定义 RPC 数据库函数)
+  const handleReset = async () => {
     if (!password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields!");
       return;
@@ -127,18 +171,39 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       return;
     }
 
-    // 🎯 核心修改点：成功后清空数据，并安全跳转回 order (Home) 页面
-    Alert.alert("Success ✅", "Password reset successful!", [
-      { 
-        text: "OK", 
-        onPress: () => { 
-          resetAllFields(); // 1. 重置所有表单状态和 Step 状态
-          if (navigateToScreen) {
-            navigateToScreen('order'); // 2. 执行父级跳转，回到 home 页面
+    setIsLoading(true);
+
+    try {
+      // 🎯 核心调用：唤醒你在 SQL Editor 成功运行过的特殊权限修改函数
+      const { data, error } = await supabase.rpc('reset_user_password_by_email', {
+        target_email: email.trim(),
+        new_password: password
+      });
+
+      if (error) throw error;
+
+      if (data === 'Success') {
+        Alert.alert("Success ✅", "Password reset successful!", [
+          { 
+            text: "OK", 
+            onPress: () => { 
+              resetAllFields(); 
+              if (navigateToScreen) {
+                navigateToScreen('order'); // 成功后安全跳回主页
+              } 
+            } 
           } 
-        } 
-      } 
-    ]);
+        ]);
+      } else {
+        Alert.alert("Error ❌", data || "User reset failed.");
+      }
+
+    } catch (error) {
+      console.log('Supabase RPC Error:', error.message);
+      Alert.alert("Error ❌", error.message || "Failed to update password.");
+    } finally {
+      setIsLoading(false); 
+    }
   };
 
   // ⚡ 顶部左侧按钮点击逻辑
@@ -153,7 +218,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
   // ⚡ 侧边栏菜单项点击跳转逻辑
   const handleMenuSelect = (screenName) => {
     setIsSidebarOpen(false); 
-    resetAllFields(); // 离开当前页面前全面清空，防止数据残留
+    resetAllFields(); 
 
     if (screenName === 'resetpassword') return;
 
@@ -182,12 +247,20 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 */}
+            {/* 用户头像区域 (已经改为根据 Supabase 数据进行动态渲染) */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                <Ionicons name="person-outline" size={45} color="#000" />
+                {avatarUrl ? (
+                  <Image 
+                    source={{ uri: avatarUrl }} 
+                    style={{ width: 68, height: 68, borderRadius: 34 }} 
+                  />
+                ) : (
+                  <Ionicons name="person-outline" size={45} color="#000" />
+                )}
               </View>
-              <Text style={styles.avatarName}>Rasa Syiok</Text>
+              {/* 动态绑定全名 */}
+              <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
             {/* 导航列表 */}
@@ -328,8 +401,8 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
                   />
                 </View>
               </View>
-              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleReset}>
-                <Text style={styles.wireframeSubmitBtnText}>Reset</Text>
+              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleReset} disabled={isLoading}>
+                {isLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.wireframeSubmitBtnText}>Reset</Text>}
               </TouchableOpacity>
             </View>
           )}
@@ -443,11 +516,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
+    overflow: 'hidden' // 确保加载出来的图片不会超出边框范围
   },
   avatarName: {
     fontSize: 12,
     fontWeight: '500',
     color: '#000',
+    marginTop: 5
   },
   sidebarItem: {
     width: '100%',
