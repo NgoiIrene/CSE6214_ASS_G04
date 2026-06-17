@@ -1,7 +1,7 @@
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState, useContext } from 'react';
-import { Image } from 'react-native';
+import React, { useMemo, useState, useContext, useCallback } from 'react';
+import { Image, ActivityIndicator } from 'react-native';
 import { RiderContext } from './RiderProvider';
 import { supabase } from '../../supabaseClient';
 import {
@@ -20,18 +20,54 @@ export default function EarningsAndHistory() {
   const navigation = useNavigation();
   const { avatarUri, riderName } = useContext(RiderContext);
 
+  // 获取今天的日期 (YYYY-MM-DD 格式)
+  const getTodayStr = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // ================= 1. 状态管理 =================
   const [activeTab, setActiveTab] = useState('Week');
-  const [selectedDate, setSelectedDate] = useState('2026-05-17');
+  const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // 🌟 从数据库拉取的真实历史数据
+  const [historyData, setHistoryData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 模拟历史订单
-  const historyData = [
-    { id: '1', date: '2026-05-17', time: '12.30PM - 1.00PM', orderId: 'x4cs-b789q', ref: '#8680', customer: 'Cindy Kiki', earning: 5.00 },
-    { id: '2', date: '2026-05-18', time: '1.15PM - 1.45PM', orderId: 'b69p-x32e3', ref: '#3009', customer: 'Nur Alida', earning: 6.00 },
-    { id: '3', date: '2026-05-20', time: '6.00PM - 6.30PM', orderId: 'z4cf-8yc42', ref: '#6528', customer: 'Kendrick Liona', earning: 8.00 },
-    { id: '4', date: '2026-05-25', time: '10.00AM - 10.30AM', orderId: 'a1bc-9xy11', ref: '#1122', customer: 'John Doe', earning: 4.50 },
-  ];
+  // 🌟 每次进入此页面，自动从 Supabase 拉取外卖员的已完成订单
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistory();
+    }, [])
+  );
+
+  const fetchHistory = async () => {
+    setIsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { data, error } = await supabase
+        .from('delivery_history')
+        .select('*')
+        .eq('rider_id', session.user.id)
+        .order('date', { ascending: false }); // 最新的排在最上面
+
+      if (error) {
+        Alert.alert("Fetch Error", error.message);
+      } else if (data) {
+        setHistoryData(data);
+      }
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const formatDate = (date) => {
     const year = date.getFullYear();
@@ -40,7 +76,7 @@ export default function EarningsAndHistory() {
     return `${year}-${month}-${day}`;
   };
 
-  // 核心算法 1：日历大面积涂色
+  // 核心算法：日历大面积涂色
   const markedDates = useMemo(() => {
     const marks = {};
     const dateObj = new Date(selectedDate);
@@ -86,21 +122,20 @@ export default function EarningsAndHistory() {
     return marks;
   }, [selectedDate, activeTab]);
 
+  // 根据日历选中的区间，过滤显示数据库里的订单
   const filteredData = useMemo(() => {
     const activeMarkedDates = Object.keys(markedDates);
     return historyData.filter(item => activeMarkedDates.includes(item.date));
   }, [markedDates, historyData]);
 
+  // 计算所选区间的总收入
   const totalEarnings = useMemo(() => {
-    return filteredData.reduce((sum, item) => sum + item.earning, 0).toFixed(2);
+    return filteredData.reduce((sum, item) => sum + (Number(item.earning) || 0), 0).toFixed(2);
   }, [filteredData]);
 
-  // 返回上一页
-  const handleBack = () => {
-    navigation.goBack();
-  };
+  const handleBack = () => navigation.goBack();
 
-  // ================= 3. 界面渲染 =================
+  // ================= 2. 界面渲染 =================
   return (
     <SafeAreaView style={styles.container}>
 
@@ -159,24 +194,36 @@ export default function EarningsAndHistory() {
         </View>
 
         <View style={styles.listContainer}>
-          {filteredData.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.historyCard} activeOpacity={0.7}>
-              <View style={styles.cardLeft}>
-                <Text style={styles.timeText}>{item.date} ({item.time})</Text>
-                <Text style={styles.orderIdText}>{item.orderId} ({item.ref})</Text>
-                <View style={styles.customerRow}>
-                  <Ionicons name="person" size={12} color="#666" />
-                  <Text style={styles.customerText}>{item.customer}</Text>
-                </View>
-              </View>
-              <View style={styles.cardRight}>
-                <Text style={styles.earningText}>RM {item.earning.toFixed(2)}</Text>
-                <Ionicons name="chevron-forward" size={16} color="#CCC" style={{ marginLeft: 5 }} />
-              </View>
-            </TouchableOpacity>
-          ))}
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#000" style={{ marginTop: 40 }} />
+          ) : (
+            filteredData.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.historyCard} activeOpacity={0.7}>
+                <View style={styles.cardLeft}>
+                  <Text style={styles.timeText}>{item.date} ({item.time_window})</Text>
+                  <Text style={styles.orderIdText}>{item.order_id} ({item.order_ref})</Text>
+                  
+                  <View style={styles.customerRow}>
+                    <Ionicons name="person" size={12} color="#666" />
+                    <Text style={styles.customerText}>{item.customer_name}</Text>
+                  </View>
+                  
+                  {/* 🌟 新增：食物详细信息展示 */}
+                  <View style={styles.foodRow}>
+                    <Ionicons name="restaurant-outline" size={12} color="#888" />
+                    <Text style={styles.foodText} numberOfLines={1}>{item.food_details}</Text>
+                  </View>
 
-          {filteredData.length === 0 ? (
+                </View>
+                <View style={styles.cardRight}>
+                  <Text style={styles.earningText}>RM {Number(item.earning).toFixed(2)}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#CCC" style={{ marginLeft: 5 }} />
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+
+          {!isLoading && filteredData.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="receipt-outline" size={40} color="#CCC" />
               <Text style={styles.emptyStateText}>No deliveries found for this period.</Text>
@@ -186,7 +233,7 @@ export default function EarningsAndHistory() {
 
       </ScrollView>
 
-      {/* ================= 侧边栏 (🌟 已完美同步风格与点击响应) ================= */}
+      {/* 侧边栏 */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity
@@ -208,43 +255,22 @@ export default function EarningsAndHistory() {
             </View>
 
             <ScrollView style={styles.menuList}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                  navigation.navigate('Home');
-                }}
-              >
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Home'); }}>
                 <Ionicons name="home-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>HOME</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                  navigation.navigate('Profile');
-                }}
-              >
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}>
                 <Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>PROFILE</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                  navigation.navigate('WorkingShift');
-                }}
-              >
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}>
                 <Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>WORKING SHIFT</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItemActive}
-                onPress={() => setIsSidebarOpen(false)}
-              >
+              <TouchableOpacity style={styles.menuItemActive} onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="wallet" size={22} color="#424242" style={styles.menuIconLeft} />
                 <Text style={styles.menuTextActive}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
@@ -262,9 +288,7 @@ export default function EarningsAndHistory() {
                 onPress={async () => {
                   setIsSidebarOpen(false);
                   const { error } = await supabase.auth.signOut();
-                  if (error) {
-                    return Alert.alert('Logout failed', error.message || 'Please try again.');
-                  }
+                  if (error) return Alert.alert('Logout failed', error.message || 'Please try again.');
                 }}
               >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
@@ -280,7 +304,6 @@ export default function EarningsAndHistory() {
   );
 }
 
-// ================= 4. 专业级样式表 =================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, marginTop: 30, backgroundColor: '#FFF', borderBottomWidth: 1.5, borderBottomColor: '#E0E0E0' },
@@ -302,11 +325,13 @@ const styles = StyleSheet.create({
   listHeaderText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
   listContainer: { paddingBottom: 20 },
   historyCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: '#FFF' },
-  cardLeft: { flex: 1 },
+  cardLeft: { flex: 1, paddingRight: 10 },
   timeText: { fontSize: 13, fontWeight: 'bold', color: '#333', marginBottom: 4 },
-  orderIdText: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 4 },
-  customerRow: { flexDirection: 'row', alignItems: 'center' },
-  customerText: { fontSize: 12, color: '#666', marginLeft: 4 },
+  orderIdText: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 6 },
+  customerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  customerText: { fontSize: 12, color: '#666', marginLeft: 6 },
+  foodRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  foodText: { fontSize: 12, color: '#888', marginLeft: 6, flex: 1 },
   cardRight: { flexDirection: 'row', alignItems: 'center' },
   earningText: { fontSize: 18, fontWeight: '900', color: '#000' },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
@@ -316,7 +341,7 @@ const styles = StyleSheet.create({
   sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },
   sidebarHeader: { alignItems: 'center', padding: 25, paddingTop: Platform.OS === 'ios' ? 60 : 50, backgroundColor: '#424242' },
   profileAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
-  avatarImageReal: { width: 60, height: 60, borderRadius: 30 }, // 🌟 新增：确保头像显示完美圆形
+  avatarImageReal: { width: 60, height: 60, borderRadius: 30 },
   profileName: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 2 },
   menuList: { flex: 1, paddingTop: 10 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25 },
