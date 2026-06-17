@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, Image,
   Dimensions, FlatList, Modal, TextInput, Alert
@@ -9,7 +9,8 @@ const { width, height } = Dimensions.get('window');
 const cardWidth = (width - 46) / 3;
 const BANNER_WIDTH = width - 40;
 
-export default function HomeScreen({ onOpenMenu }) {
+{/* ✅ 精准修改为（加上 checkoutData）：*/ }
+export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCart, clearAutoOpenCart, checkoutData }) {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const bannerRef = useRef(null);
 
@@ -20,6 +21,18 @@ export default function HomeScreen({ onOpenMenu }) {
   const [remarks, setRemarks] = useState("");
 
   const totalCartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  {/* 🌟 完美修复：不仅自动开包，还把之前传出去的食物和备注 100% 灌回来！*/ }
+
+  useEffect(() => {
+    if (autoOpenCart) {
+      if (checkoutData && checkoutData.items) {
+        setCartItems(checkoutData.items);
+      }
+      setIsCartVisible(true);
+      clearAutoOpenCart();
+    }
+  }, [autoOpenCart]);
 
   const handleAddToCart = (item) => {
     setCartItems(prevItems => {
@@ -52,7 +65,7 @@ export default function HomeScreen({ onOpenMenu }) {
     { id: 'b3', image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=600' },
   ];
 
-  // 🌟 完全复原的 6 项今日精选
+  {/* 完全复原的 6 项今日精选*/ }
   const todaysPicks = [
     { id: '1', name: 'Vegan Salad with Mayo', price: 'RM 8.50', ingredient: 'broccoli, lettuce, cherry tomato, vegan mayo', allergen: 'none', calories: '320 kcal', status: null, image: 'https://atelizabethstable.com/wp-content/uploads/2023/07/vegan-broccoli-salad-with-vegan-mayonnaise.jpg' },
     { id: '2', name: 'Avocado Toast', price: 'RM 11.00', ingredient: 'avocado, sourdough bread, poached egg, pepper', allergen: 'wheat, egg', calories: '450 kcal', status: null, image: 'https://recipesmoms.com/wp-content/uploads/2024/11/Avocado-Toast-Recipe.jpeg' },
@@ -62,7 +75,7 @@ export default function HomeScreen({ onOpenMenu }) {
     { id: '6', name: 'Kampung Fried Rice with Fried Chicken', price: 'RM 16.00', ingredient: 'rice, water spinach, anchovies, fried chicken, egg', allergen: 'spicy, seafood', calories: '790 kcal', status: null, image: 'https://papparich.my/cdn/shop/files/R11KampungFriedRicewithEgg_FriedChickenWings_6f67f371-0b31-4eb5-8844-d93cbe804d03.jpg?v=1702382146&width=1445' },
   ];
 
-  // 🌟 完全复原的 3 项新品
+  {/* 完全复原的 3 项新品*/ }
   const newItems = [
     { id: '7', name: 'Roti Cannai with Fish Curry', price: 'RM 6.00', ingredient: 'flour, butter, milk, fish curry gravy', allergen: 'wheat, milk, spicy', calories: '480 kcal', status: 'new', image: 'https://thumbs.dreamstime.com/b/traditional-roti-canai-curry-dhal-served-banana-leaf-delicious-authentic-serving-roti-canai-popular-400619434.jpg' },
     { id: '8', name: 'Chicken Burger with Cheese', price: 'RM 12.50', ingredient: 'chicken patty, cheddar cheese, burger bun, lettuce', allergen: 'wheat, milk', calories: '610 kcal', status: 'new', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=300' },
@@ -137,7 +150,7 @@ export default function HomeScreen({ onOpenMenu }) {
         <View style={styles.gridContainer}>{newItems.map((item) => <FoodCard key={item.id} item={item} />)}</View>
       </ScrollView>
 
-      {/* 🌟 100% 还原详情 Modal 里的布局（包含所有警告和描述） */}
+      {/* 100% 还原详情 Modal 里的布局（包含所有警告和描述） */}
       <Modal animationType="fade" transparent visible={isDetailModalVisible} onRequestClose={() => setIsDetailModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropCloser} activeOpacity={1} onPress={() => setIsDetailModalVisible(false)} />
@@ -168,14 +181,25 @@ export default function HomeScreen({ onOpenMenu }) {
       </Modal>
 
       <Modal animationType="slide" transparent={false} visible={isCartVisible} onRequestClose={() => setIsCartVisible(false)}>
-        <ShoppingCartView cartItems={cartItems} remarks={remarks} setRemarks={setRemarks} increaseQuantity={increaseQuantity} decreaseQuantity={decreaseQuantity} removeItemFromCart={removeItemFromCart} onClose={() => setIsCartVisible(false)} />
+        <ShoppingCartView
+          cartItems={cartItems}
+          remarks={remarks}
+          setRemarks={setRemarks}
+          increaseQuantity={increaseQuantity}
+          decreaseQuantity={decreaseQuantity}
+          removeItemFromCart={removeItemFromCart}
+          onClose={() => setIsCartVisible(false)}
+          onGoToCheckout={(items, remarks) => {
+            setIsCartVisible(false);
+            navigateToCheckout(items, remarks);
+          }} />
       </Modal>
     </View>
   );
 }
 
-// 🌟 完全复原的硬核购物车 UI组件
-function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, decreaseQuantity, removeItemFromCart, onClose }) {
+// 完全复原的硬核购物车 UI组件
+function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, decreaseQuantity, removeItemFromCart, onClose, onGoToCheckout }) {
   const [isRemoveModalVisible, setIsRemoveModalVisible] = useState(false);
   const [itemToIdToRemove, setItemToIdToRemove] = useState(null);
   const [itemNameToRemove, setItemNameToRemove] = useState("");
@@ -203,7 +227,7 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
         {cartItems.length === 0 ? (
           <View style={cartStyles.emptyContainer}><Ionicons name="cart-outline" size={64} color="#cccccc" /><Text style={cartStyles.emptyText}>Your cart is empty</Text></View>
         ) : (
-          // 🌟 只需要替换 ShoppingCartView 内部的这部分 map 循环
+
           cartItems.map((item) => (
             <View key={item.id} style={cartStyles.cartCard}>
               <Image source={{ uri: item.image }} style={cartStyles.cartItemImage} />
@@ -242,8 +266,18 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
           <Text style={cartStyles.totalPriceText}>{calculateSubtotal()}</Text>
         </View>
       </ScrollView>
+
       <View style={cartStyles.fixedFooter}>
-        <TouchableOpacity style={[cartStyles.checkoutButton, cartItems.length === 0 && cartStyles.checkoutButtonDisabled]} disabled={cartItems.length === 0} onPress={() => Alert.alert("Checkout", "Proceeding...")}><Text style={cartStyles.checkoutButtonText}>Go to Checkout</Text></TouchableOpacity>
+        <TouchableOpacity
+          style={[cartStyles.checkoutButton, cartItems.length === 0 && cartStyles.checkoutButtonDisabled]}
+          disabled={cartItems.length === 0}
+          onPress={() => {
+            onGoToCheckout(cartItems, remarks); // 🌟 触发传递并跳转
+          }}
+        >
+          <Text style={cartStyles.checkoutButtonText}>Go to Checkout</Text>
+        </TouchableOpacity>
+
       </View>
       <Modal animationType="fade" transparent visible={isRemoveModalVisible}>
         <View style={cartStyles.modalOverlay}>
@@ -290,7 +324,6 @@ const styles = StyleSheet.create({
   foodNameWrapper: { width: '100%', height: 68, marginBottom: 2 },
   foodName: { fontSize: 12, fontWeight: '700', color: '#000000', lineHeight: 15 },
   plusButton: { backgroundColor: '#FF8C32', width: 28, height: 28, borderRadius: 20, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 6, right: 6 },
-  // 👈 🌟 就是这里！把下面这 3 行补上：
   foodNameWrapperTmp: {
     width: '100%',
     flex: 1,

@@ -7,7 +7,7 @@ import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
-export default function OrderHistoryScreen({ onOpenMenu }) { 
+export default function OrderHistoryScreen({ onOpenMenu }) {
   const [activeTab, setActiveTab] = useState('Active');
   const [isModalVisible, setModalVisible] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState('');

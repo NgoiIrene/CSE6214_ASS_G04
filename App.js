@@ -268,7 +268,7 @@ const AuthScreen = () => {
                   <Picker.Item label="--- Select ---" value="" color="#999" />
                   <Picker.Item label="User(Customer)" value="user(customer)" />
                   <Picker.Item label="Vendor" value="vendor" />
-                  <Picker.Item label="Delivery Man" value="delivery" />
+                  <Picker.Item label="DeliveryMan" value="delivery" />
                 </Picker>
               </View>
 
@@ -397,12 +397,27 @@ export default function App() {
   const fetchUserRole = async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('account_type')
+      .select('account_type,status')
       .eq('id', userId)
       .single();
 
     if (!error && data) {
-      setUserRole(data.account_type);
+      const dbStatus = data.status ? data.status.toLowerCase().trim() : 'active';
+      const dbRole = data.account_type ? data.account_type.toLowerCase().trim() : '';
+
+      // 2. 状态判断：【把 Blocked 和 Deleted 分开】
+      if (dbStatus === 'blocked') {
+        setUserRole('BLOCKED');
+      } else if (dbStatus === 'deleted') {
+        setUserRole('DELETED');
+      } else {
+        // 3. 智能兼容角色名
+        if (dbRole === 'user' || dbRole === 'customer') {
+          setUserRole('user(customer)');
+        } else {
+          setUserRole(dbRole);
+        }
+      }
     }
     setIsAppLoading(false);
   };
@@ -439,10 +454,73 @@ export default function App() {
 
             {!['delivery', 'user(customer)', 'vendor', 'admin'].includes(userRole) && (
               <Stack.Screen name="Error">
+/*             
+{/* 🌟 拦截情况 1：账号被 Block 了 */}
+            {userRole === 'BLOCKED' && (
+              <Stack.Screen name="Blocked">
                 {() => (
                   <View style={styles.centerContainer}>
-                    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>Error: Invalid Role.</Text>
-                    <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={() => supabase.auth.signOut()}>
+                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18, textAlign: 'center', paddingHorizontal: 20 }}>
+                      Error: your account have been blocked within 30 days
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.wireframeSubmitBtn} 
+                      onPress={async () => {
+                        await supabase.auth.signOut();
+                        setSession(null);
+                        setUserRole(null);
+                      }}
+                    >
+                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </Stack.Screen>
+            )}
+
+            {/* 🌟 拦截情况 2：账号被 Delete 了 */}
+            {userRole === 'DELETED' && (
+              <Stack.Screen name="Deleted">
+                {() => (
+                  <View style={styles.centerContainer}>
+                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18, textAlign: 'center', paddingHorizontal: 20 }}>
+                      Error: your account have been deleted
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.wireframeSubmitBtn} 
+                      onPress={async () => {
+                        await supabase.auth.signOut();
+                        setSession(null);
+                        setUserRole(null);
+                      }}
+                    >
+                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </Stack.Screen>
+            )}
+
+            {/* 🌟 拦截情况 3：账号没被 Block 也没被 Delete，但是角色填错了 */}
+            {userRole !== 'BLOCKED' && userRole !== 'DELETED' && !['delivery', 'user(customer)', 'vendor', 'admin'].includes(userRole) && (
+              <Stack.Screen name="InvalidRole">
+*/
+                {() => (
+                  <View style={styles.centerContainer}>
+                    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>
+                      Error: Invalid Role ({userRole})
+                    </Text>
+                    <Text style={{ marginTop: 10, paddingHorizontal: 30, textAlign: 'center', color: '#666' }}>
+                      System doesn't recognize this role. Please ask Admin to edit this account's role to: user(customer), vendor, delivery, or admin.
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.wireframeSubmitBtn} 
+                      onPress={async () => {
+                        await supabase.auth.signOut();
+                        setSession(null);
+                        setUserRole(null);
+                      }}
+                    >
                       <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
                     </TouchableOpacity>
                   </View>
