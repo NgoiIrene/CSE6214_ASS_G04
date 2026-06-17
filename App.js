@@ -22,15 +22,12 @@ let isSigningUpFlag = false;
 
 // ==================== 1. 登录与注册页面 (Auth Screen) ====================
 const AuthScreen = () => {
-  // 🌟 页面流转状态: 'login' | 'signup' | 'reset_step1' | 'reset_step2'
   const [currentPage, setCurrentPage] = useState('login');
   const [isLoading, setIsLoading] = useState(false);
 
-  // --- 登录状态 ---
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // --- 注册状态 ---
   const [fullName, setFullName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [accountType, setAccountType] = useState('');
@@ -40,43 +37,30 @@ const AuthScreen = () => {
   const [signUpPassword, setSignUpPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // --- 忘记密码状态 ---
   const [resetEmail, setResetEmail] = useState('');
   const [pin, setPin] = useState('');
   const [generatedPin, setGeneratedPin] = useState(''); 
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
-  // 🛠️ EmailJS 凭证
   const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
   const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
   const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
 
   useEffect(() => {
-    emailjs.init({
-      publicKey: EMAILJS_PUBLIC_KEY,
-    });
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
   }, []);
 
-  // 🌟 核心修复点：智能清空状态保护
   useEffect(() => {
     if (currentPage === 'login' || currentPage === 'signup') {
-      setResetEmail('');
-      setPin('');
-      setGeneratedPin('');
-      setNewPassword('');
-      setConfirmNewPassword('');
+      setResetEmail(''); setPin(''); setGeneratedPin(''); setNewPassword(''); setConfirmNewPassword('');
     }
-    
     if (currentPage === 'login') {
       setFullName(''); setSignUpEmail(''); setAccountType(''); setPhoneNumber('');
       setGender(''); setAge(''); setSignUpPassword(''); setConfirmPassword('');
     }
   }, [currentPage]);
 
-  // ==================== 逻辑处理 ====================
-
-  // ⚡ 注册逻辑
   const handleSignUpSubmit = async () => {
     if (!fullName || !signUpEmail || !accountType || !phoneNumber || !gender || !age || !signUpPassword || !confirmPassword) {
       return Alert.alert("Error", "Please fill in all fields!");
@@ -96,13 +80,8 @@ const AuthScreen = () => {
 
     if (data.user) {
       const { error: dbError } = await supabase.from('profiles').insert([{
-        id: data.user.id,
-        email: signUpEmail,
-        full_name: fullName,
-        account_type: accountType,
-        phone_number: phoneNumber,
-        gender: gender,
-        age: parseInt(age) || 0
+        id: data.user.id, email: signUpEmail, full_name: fullName, account_type: accountType,
+        phone_number: phoneNumber, gender: gender, age: parseInt(age) || 0
       }]);
 
       if (dbError) {
@@ -119,7 +98,6 @@ const AuthScreen = () => {
     setCurrentPage('login');
   };
 
-  // ⚡ 登录逻辑
   const handleLoginSubmit = async () => {
     if (!loginEmail || !loginPassword) return Alert.alert("Error", "Please enter email and password!");
     
@@ -127,12 +105,9 @@ const AuthScreen = () => {
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
     setIsLoading(false);
 
-    if (error) {
-      Alert.alert("Login Failed", error.message);
-    }
+    if (error) Alert.alert("Login Failed", error.message);
   };
 
-  // ⚡ 忘记密码 - 步骤 1：发送验证码
   const handleVerifyEmail = async () => {
     const userEmail = resetEmail.trim();
     if (!userEmail) return Alert.alert("Error", "Please enter your email address first!");
@@ -141,20 +116,16 @@ const AuthScreen = () => {
     setGeneratedPin(randomPin); 
     setIsLoading(true);
 
-    const templateParams = { email: userEmail, reply_pin: randomPin };
-
     try {
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { email: userEmail, reply_pin: randomPin });
       Alert.alert("Email Sent! 📩", `A verification email has been sent to:\n${userEmail}`);
     } catch (error) {
-      console.log('EmailJS Error:', error);
       Alert.alert("Error", "Failed to send email. Please check your network.");
     } finally {
       setIsLoading(false); 
     }
   };
 
-  // ⚡ 忘记密码 - 步骤 2：验证 PIN 码
   const handleContinueReset = () => {
     const enteredEmail = resetEmail.trim();
     const enteredPin = pin.trim();
@@ -165,7 +136,6 @@ const AuthScreen = () => {
     setCurrentPage('reset_step2'); 
   };
 
-  // ⚡ 忘记密码 - 步骤 3：重置密码
   const handleFinalReset = async () => {
     if (!newPassword || !confirmNewPassword) return Alert.alert("Error", "Please fill in all fields!");
     if (newPassword !== confirmNewPassword) return Alert.alert("Error", "Passwords do not match!");
@@ -179,8 +149,7 @@ const AuthScreen = () => {
 
     try {
       const { data, error } = await supabase.rpc('reset_user_password_by_email', {
-        target_email: resetEmail.trim(),
-        new_password: newPassword
+        target_email: resetEmail.trim(), new_password: newPassword
       });
 
       if (error) throw error;
@@ -193,7 +162,6 @@ const AuthScreen = () => {
         Alert.alert("Error ❌", data || "User reset failed.");
       }
     } catch (error) {
-      console.log('Supabase RPC Error:', error.message);
       Alert.alert("Error ❌", error.message || "Failed to update password.");
     } finally {
       setIsLoading(false); 
@@ -210,14 +178,11 @@ const AuthScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        {/* 🌟 核心修改点：只在 reset_step2 (输入新密码那页) 才显示返回箭头，其余情况留白 */}
         {currentPage === 'reset_step2' ? (
           <TouchableOpacity style={styles.headerBackBtn} onPress={() => setCurrentPage('reset_step1')}>
             <Ionicons name="arrow-back-outline" size={24} color="#000" />
           </TouchableOpacity>
-        ) : (
-           <View style={{ width: 32 }} />
-        )}
+        ) : <View style={{ width: 32 }} />}
         <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
         <View style={{ width: 32 }} />
       </View>
@@ -226,7 +191,6 @@ const AuthScreen = () => {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
 
-          {/* ==================== 1. LOGIN UI ==================== */}
           {currentPage === 'login' && (
             <View style={styles.wireframeCard}>
               <View style={styles.wireframeInputRow}>
@@ -243,35 +207,27 @@ const AuthScreen = () => {
               </TouchableOpacity>
 
               <View style={styles.linksRow}>
-                <TouchableOpacity onPress={() => setCurrentPage('reset_step1')}>
-                  <Text style={styles.linkTextUnderline}>Forgot Password</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setCurrentPage('signup')}>
-                  <Text style={styles.linkTextUnderline}>Sign Up</Text>
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setCurrentPage('reset_step1')}><Text style={styles.linkTextUnderline}>Forgot Password</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setCurrentPage('signup')}><Text style={styles.linkTextUnderline}>Sign Up</Text></TouchableOpacity>
               </View>
             </View>
           )}
 
-          {/* ==================== 2. SIGNUP UI ==================== */}
           {currentPage === 'signup' && (
             <View style={styles.wireframeCard}>
               <Text style={styles.wireframeLabel}>Full Name:</Text>
               <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-
               <Text style={styles.wireframeLabel}>Email:</Text>
               <TextInput style={styles.input} value={signUpEmail} onChangeText={setSignUpEmail} autoCapitalize="none" keyboardType="email-address" />
-
               <Text style={styles.wireframeLabel}>Account Type:</Text>
               <View style={styles.pickerContainerEdge}>
                 <Picker selectedValue={accountType} onValueChange={setAccountType}>
                   <Picker.Item label="--- Select ---" value="" color="#999" />
                   <Picker.Item label="User(Customer)" value="user(customer)" />
                   <Picker.Item label="Vendor" value="vendor" />
-                  <Picker.Item label="DeliveryMan" value="delivery" />
+                  <Picker.Item label="Delivery Man" value="delivery" />
                 </Picker>
               </View>
-
               <Text style={styles.wireframeLabel}>Gender:</Text>
               <View style={{ flexDirection: 'row', marginBottom: 15 }}>
                 {['male', 'female'].map((item) => (
@@ -283,16 +239,12 @@ const AuthScreen = () => {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <Text style={styles.wireframeLabel}>Phone Number:</Text>
               <TextInput style={styles.input} value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" />
-
               <Text style={styles.wireframeLabel}>Age:</Text>
               <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" />
-
               <Text style={styles.wireframeLabel}>Password:</Text>
               <TextInput style={styles.input} value={signUpPassword} onChangeText={setSignUpPassword} secureTextEntry />
-
               <Text style={styles.wireframeLabel}>Confirm Password:</Text>
               <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
 
@@ -305,53 +257,33 @@ const AuthScreen = () => {
             </View>
           )}
 
-          {/* ==================== 3. RESET PASSWORD (STEP 1) UI ==================== */}
           {currentPage === 'reset_step1' && (
             <View style={styles.wireframeCard}>
               <Text style={styles.wireframeLabel}>Email address:</Text>
               <View style={styles.verifyRow}>
-                <TextInput 
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]} 
-                  value={resetEmail} onChangeText={setResetEmail} 
-                  autoCapitalize="none" keyboardType="email-address"
-                />
+                <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={resetEmail} onChangeText={setResetEmail} autoCapitalize="none" keyboardType="email-address" />
                 <TouchableOpacity style={styles.wireframeVerifyBtn} onPress={handleVerifyEmail} disabled={isLoading}>
                   {isLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.wireframeVerifyBtnText}>Verify</Text>}
                 </TouchableOpacity>
               </View>
-
               <Text style={[styles.wireframeLabel, { marginTop: 18 }]}>Verification Pin:</Text>
-              <TextInput 
-                style={[styles.input, { width: 140 }]} 
-                value={pin} onChangeText={setPin} 
-                keyboardType="numeric" maxLength={6} placeholder="6-digit"
-              />
+              <TextInput style={[styles.input, { width: 140 }]} value={pin} onChangeText={setPin} keyboardType="numeric" maxLength={6} placeholder="6-digit" />
 
               <TouchableOpacity style={[styles.wireframeSubmitBtn, { marginTop: 10 }]} onPress={handleContinueReset}>
                 <Text style={styles.wireframeSubmitBtnText}>Continue</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity onPress={() => setCurrentPage('login')} style={{ marginTop: 20 }}>
                 <Text style={[styles.linkTextUnderline, { textAlign: 'center' }]}>Back to Login</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* ==================== 4. RESET PASSWORD (STEP 2) UI ==================== */}
           {currentPage === 'reset_step2' && (
             <View style={styles.wireframeCard}>
               <Text style={styles.wireframeLabel}>New Password:</Text>
-              <TextInput 
-                style={styles.input} secureTextEntry={true} 
-                value={newPassword} onChangeText={setNewPassword}
-                placeholder="Upper + Num + Symbol" placeholderTextColor="#999"
-              />
-
+              <TextInput style={styles.input} secureTextEntry={true} value={newPassword} onChangeText={setNewPassword} placeholder="Upper + Num + Symbol" placeholderTextColor="#999" />
               <Text style={styles.wireframeLabel}>Confirm Password:</Text>
-              <TextInput 
-                style={styles.input} secureTextEntry={true} 
-                value={confirmNewPassword} onChangeText={setConfirmNewPassword}
-              />
+              <TextInput style={styles.input} secureTextEntry={true} value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
 
               <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleFinalReset} disabled={isLoading}>
                 {isLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.wireframeSubmitBtnText}>Reset Password</Text>}
@@ -365,7 +297,24 @@ const AuthScreen = () => {
   );
 };
 
-// ==================== 2. ROOT NAVIGATOR ====================
+// ==================== 🌟 2. 独立出来的加载和错误组件 ====================
+const RoleCheckScreen = () => (
+  <View style={styles.centerContainer}>
+    <ActivityIndicator size="large" color="#000" />
+    <Text style={{ marginTop: 15, fontWeight: 'bold', fontSize: 16 }}>Verifying Account...</Text>
+  </View>
+);
+
+const ErrorScreen = () => (
+  <View style={styles.centerContainer}>
+    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>Error: Invalid Role.</Text>
+    <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={() => supabase.auth.signOut()}>
+      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+// ==================== 3. ROOT NAVIGATOR ====================
 export default function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -380,7 +329,6 @@ export default function App() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (isSigningUpFlag) return;
-
       setSession(session);
       if (session) {
         setIsAppLoading(true);
@@ -397,27 +345,12 @@ export default function App() {
   const fetchUserRole = async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('account_type,status')
+      .select('account_type')
       .eq('id', userId)
       .single();
 
     if (!error && data) {
-      const dbStatus = data.status ? data.status.toLowerCase().trim() : 'active';
-      const dbRole = data.account_type ? data.account_type.toLowerCase().trim() : '';
-
-      // 2. 状态判断：【把 Blocked 和 Deleted 分开】
-      if (dbStatus === 'blocked') {
-        setUserRole('BLOCKED');
-      } else if (dbStatus === 'deleted') {
-        setUserRole('DELETED');
-      } else {
-        // 3. 智能兼容角色名
-        if (dbRole === 'user' || dbRole === 'customer') {
-          setUserRole('user(customer)');
-        } else {
-          setUserRole(dbRole);
-        }
-      }
+      setUserRole(data.account_type);
     }
     setIsAppLoading(false);
   };
@@ -431,20 +364,14 @@ export default function App() {
     );
   }
 
+  // 🌟 干净整洁，绝对不会报语法错误的 Navigator
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : !userRole ? (
-          <Stack.Screen name="RoleCheck">
-            {() => (
-              <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#000" />
-                <Text style={{ marginTop: 15, fontWeight: 'bold', fontSize: 16 }}>Verifying Account...</Text>
-              </View>
-            )}
-          </Stack.Screen>
+          <Stack.Screen name="RoleCheck" component={RoleCheckScreen} />
         ) : (
           <>
             {userRole === 'delivery' && <Stack.Screen name="DeliveryRoot" component={DeliveryNavigator} />}
@@ -453,79 +380,7 @@ export default function App() {
             {userRole === 'admin' && <Stack.Screen name="AdminRoot" component={AdminNavigator} />}
 
             {!['delivery', 'user(customer)', 'vendor', 'admin'].includes(userRole) && (
-              <Stack.Screen name="Error">
-/*             
-{/* 🌟 拦截情况 1：账号被 Block 了 */}
-            {userRole === 'BLOCKED' && (
-              <Stack.Screen name="Blocked">
-                {() => (
-                  <View style={styles.centerContainer}>
-                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18, textAlign: 'center', paddingHorizontal: 20 }}>
-                      Error: your account have been blocked within 30 days
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.wireframeSubmitBtn} 
-                      onPress={async () => {
-                        await supabase.auth.signOut();
-                        setSession(null);
-                        setUserRole(null);
-                      }}
-                    >
-                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Stack.Screen>
-            )}
-
-            {/* 🌟 拦截情况 2：账号被 Delete 了 */}
-            {userRole === 'DELETED' && (
-              <Stack.Screen name="Deleted">
-                {() => (
-                  <View style={styles.centerContainer}>
-                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18, textAlign: 'center', paddingHorizontal: 20 }}>
-                      Error: your account have been deleted
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.wireframeSubmitBtn} 
-                      onPress={async () => {
-                        await supabase.auth.signOut();
-                        setSession(null);
-                        setUserRole(null);
-                      }}
-                    >
-                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Stack.Screen>
-            )}
-
-            {/* 🌟 拦截情况 3：账号没被 Block 也没被 Delete，但是角色填错了 */}
-            {userRole !== 'BLOCKED' && userRole !== 'DELETED' && !['delivery', 'user(customer)', 'vendor', 'admin'].includes(userRole) && (
-              <Stack.Screen name="InvalidRole">
-*/
-                {() => (
-                  <View style={styles.centerContainer}>
-                    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>
-                      Error: Invalid Role ({userRole})
-                    </Text>
-                    <Text style={{ marginTop: 10, paddingHorizontal: 30, textAlign: 'center', color: '#666' }}>
-                      System doesn't recognize this role. Please ask Admin to edit this account's role to: user(customer), vendor, delivery, or admin.
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.wireframeSubmitBtn} 
-                      onPress={async () => {
-                        await supabase.auth.signOut();
-                        setSession(null);
-                        setUserRole(null);
-                      }}
-                    >
-                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Stack.Screen>
+              <Stack.Screen name="Error" component={ErrorScreen} />
             )}
           </>
         )}
