@@ -193,7 +193,9 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
       <View style={cartStyles.headerRow}>
         <View style={{ width: 28 }} />
         <View style={cartStyles.titleContainer}><Text style={cartStyles.headerTitle}>Shopping Cart</Text></View>
-        <TouchableOpacity style={cartStyles.closeXBtn} onPress={onClose}><Ionicons name="close-circle-outline" size={28} color="#000" /></TouchableOpacity>
+        <TouchableOpacity style={cartStyles.closeXBtn} onPress={onClose}>
+          <Ionicons name="close" size={28} color="#000" />
+        </TouchableOpacity>
       </View>
       <View style={cartStyles.divider} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={cartStyles.scrollContainer}>
@@ -287,7 +289,12 @@ const styles = StyleSheet.create({
   cardDetails: { padding: 6, paddingBottom: 8, flex: 1, justifyContent: 'space-between', position: 'relative' },
   foodNameWrapper: { width: '100%', height: 68, marginBottom: 2 },
   foodName: { fontSize: 12, fontWeight: '700', color: '#000000', lineHeight: 15 },
-  plusButton: { backgroundColor: '#FF8C32', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 6, right: 6 },
+  plusButton: { backgroundColor: '#FF8C32', width: 28, height: 28, borderRadius: 20, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 6, right: 6 },
+  // 👈 🌟 就是这里！把下面这 3 行补上：
+  foodNameWrapperTmp: {
+    width: '100%',
+    flex: 1,
+  },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   modalBackdropCloser: { position: 'absolute', width: width, height: height },
   popupCardBody: { width: width * 0.86, maxHeight: height * 0.85, backgroundColor: '#ffffff', borderWidth: 3, borderColor: '#000000', borderRadius: 16, padding: 18, justifyContent: 'space-between', elevation: 8 },
@@ -315,30 +322,30 @@ const cartStyles = StyleSheet.create({
   divider: { height: 2, backgroundColor: '#000000', width: '100%' },
   scrollContainer: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '900', color: '#000000', marginVertical: 14, fontFamily: 'serif' },
-  
+
   // 🌟 调整：将整张卡片（外层高度约束）从 115 扩大到 125，给下方留出更多空间
   cartCard: { flexDirection: 'row', width: '100%', marginBottom: 21, height: 125, alignItems: 'center' },
-  
+
   // 🌟 调整：把食物图片和它的黑框等比例变大一点点（从 113x115 变成 120x125），圆角保持 12
   cartItemImage: { width: 120, height: 125, borderRadius: 12, borderWidth: 1.7, borderColor: '#000000', resizeMode: 'cover' },
-  
+
   // 🌟 调整：右边盒子维持经典的 105 高度不随图片变大！这样图片大、名字框小的层次感更明显，且内部由于上下拉伸，按钮会完美下沉，拉开与字体的距离！
-  cartItemInfoBox: { 
-    flex: 1, 
-    height: 105,                           
-    backgroundColor: '#ffffff', 
-    borderWidth: 1.5, 
-    borderColor: '#000000', 
-    paddingHorizontal: 12,                 
+  cartItemInfoBox: {
+    flex: 1,
+    height: 110,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#000000',
+    paddingHorizontal: 12,
     justifyContent: 'space-between',       // 👈 关键：依然让名字死守顶部，按钮沉在底部
-    paddingVertical: 10, 
-    borderLeftWidth: 0,                    
-    marginLeft: 0,                         
-    borderTopRightRadius: 4,               
+    paddingVertical: 10,
+    borderLeftWidth: 0,
+    marginLeft: 0,
+    borderTopRightRadius: 4,
     borderBottomRightRadius: 4,
   },
-  
-  itemNameText: { fontSize: 14, fontWeight: 'bold', color: '#000000', lineHeight: 18, paddingRight: 4 },
+
+  itemNameText: { fontSize: 14, fontWeight: 'bold', color: '#000000', lineHeight: 16, paddingRight: 4 },
   itemPriceText: { fontSize: 13, fontWeight: '700', color: '#444444', marginTop: 3 },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
   quantityController: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#000000', borderRadius: 20, backgroundColor: '#ffffff', paddingHorizontal: 4 },

@@ -597,18 +597,19 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { supabase } from './supabaseClient'; 
+import { supabase } from './supabaseClient';
 
-import DeliveryNavigator from './screens/deliveryman/deliveryNavigator'; 
-import VendorNavigator from './screens/vendor/vendornavigetor'; 
-import AdminNavigator from './screens/admin/admin_Navigation'; 
+import DeliveryNavigator from './screens/deliveryman/deliveryNavigator';
+import VendorNavigator from './screens/vendor/vendornavigetor';
+import AdminNavigator from './screens/admin/admin_Navigation';
+import UserNavigator from './screens/user/user_Navigation';
 // import CustomerNavigator from './customerNavigator'; 
 // import VendorNavigator from './vendorNavigator'; 
 
 const Stack = createNativeStackNavigator();
 
 // 🌟 核心防闪烁机制：红绿灯标志
-let isSigningUpFlag = false; 
+let isSigningUpFlag = false;
 
 // ==================== 1. 登录与注册页面 (Auth Screen) ====================
 const AuthScreen = () => {
@@ -634,7 +635,7 @@ const AuthScreen = () => {
   // ⚡ 注册逻辑
   const handleSignUpSubmit = async () => {
     if (signUpPassword !== confirmPassword) return Alert.alert("Error", "Passwords don't match!");
-    
+
     setIsLoading(true);
     isSigningUpFlag = true; // 🔴 亮起红灯：正在注册中，大管家不要监听状态变化！
 
@@ -698,7 +699,7 @@ const AuthScreen = () => {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          
+
           {currentPage === 'login' && (
             <View style={styles.wireframeCard}>
               <View style={styles.wireframeInputRow}>
@@ -722,10 +723,10 @@ const AuthScreen = () => {
             <View style={styles.wireframeCard}>
               <Text style={styles.wireframeLabel}>Full Name:</Text>
               <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-              
+
               <Text style={styles.wireframeLabel}>Email:</Text>
               <TextInput style={styles.input} value={signUpEmail} onChangeText={setSignUpEmail} autoCapitalize="none" keyboardType="email-address" />
-              
+
               <Text style={styles.wireframeLabel}>Account Type:</Text>
               <View style={styles.pickerContainerEdge}>
                 <Picker selectedValue={accountType} onValueChange={setAccountType}>
@@ -750,13 +751,13 @@ const AuthScreen = () => {
 
               <Text style={styles.wireframeLabel}>Phone Number:</Text>
               <TextInput style={styles.input} value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" />
-              
+
               <Text style={styles.wireframeLabel}>Age:</Text>
               <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" />
-              
+
               <Text style={styles.wireframeLabel}>Password:</Text>
               <TextInput style={styles.input} value={signUpPassword} onChangeText={setSignUpPassword} secureTextEntry />
-              
+
               <Text style={styles.wireframeLabel}>Confirm Password:</Text>
               <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
 
@@ -789,7 +790,7 @@ export default function App() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       // 🌟 拦截器：如果正在执行 Signup 流程，无视任何登录通知！
-      if (isSigningUpFlag) return; 
+      if (isSigningUpFlag) return;
 
       setSession(session);
       if (session) {
@@ -832,7 +833,7 @@ export default function App() {
         {!session ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : !userRole ? (
-           // 🌟 缓冲页面：拿到了 session 但还没拿到 role 时，给一个加载动画，而不是直接丢 Error
+          // 🌟 缓冲页面：拿到了 session 但还没拿到 role 时，给一个加载动画，而不是直接丢 Error
           <Stack.Screen name="RoleCheck">
             {() => (
               <View style={styles.centerContainer}>
@@ -844,10 +845,11 @@ export default function App() {
         ) : (
           <>
             {userRole === 'delivery' && <Stack.Screen name="DeliveryRoot" component={DeliveryNavigator} />}
-            {/* {userRole === 'user(customer)' && <Stack.Screen name="CustomerRoot" component={CustomerNavigator} />} */}
+            {userRole === 'user(customer)' && <Stack.Screen name="CustomerRoot" component={UserNavigator} />}
             {userRole === 'vendor' && <Stack.Screen name="VendorRoot" component={VendorNavigator} />}
             {userRole === 'admin' && <Stack.Screen name="AdminRoot" component={AdminNavigator} />}
-            
+
+
             {!['delivery', 'user(customer)', 'vendor'].includes(userRole) && (
               <Stack.Screen name="Error">
                 {() => (
@@ -875,18 +877,18 @@ const styles = StyleSheet.create({
   divider: { height: 2, backgroundColor: '#000' },
   scrollContainer: { padding: 20, paddingBottom: 40 },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
-  
+
   wireframeCard: { borderWidth: 1.5, borderColor: '#000', padding: 25, width: '100%', marginTop: 10, backgroundColor: '#fff' },
   wireframeInputRow: { marginBottom: 15 },
   wireframeLabel: { fontWeight: 'bold', marginBottom: 8, fontSize: 13 },
-  
+
   input: { borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 15, paddingVertical: 12, marginBottom: 18, backgroundColor: '#fff', fontSize: 14 },
   pickerContainerEdge: { borderWidth: 1.5, borderColor: '#000', marginBottom: 18, height: 50, justifyContent: 'center' },
-  
+
   wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: '#fff' },
   wireframeSubmitBtnText: { fontWeight: 'bold', color: '#000', fontSize: 15 },
   linkTextUnderline: { textDecorationLine: 'underline', textAlign: 'center', color: '#000', fontSize: 13 },
-  
+
   radioContainer: { flexDirection: 'row', alignItems: 'center', marginRight: 25 },
   radioOuter: { height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginRight: 8, justifyContent: 'center', alignItems: 'center' },
   radioSelected: { borderColor: '#000', backgroundColor: '#000' },
