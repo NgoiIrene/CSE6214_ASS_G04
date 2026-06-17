@@ -7,13 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // 🌟 1. 引入你的其他页面 (确保路径和你的文件名一模一样)
-import HomeScreen from './Home';
-import ManageAccounts from './manageaccount';
-import ManageAdvertisingBanner from './manageAdvertising';
-import ManageContent from './manageContent';
-import ProcessApplicationApproval from "./processApplication";
-import GenerateReport from './generateReport';
-import ConfigureSystemSettings from './systemSettings';
+import HomeScreen from './admin_Home';
+import ManageAccounts from './admin_manageAccounts';
+import ManageAdvertisingBanner from './admin_manageAdvertising';
+import ManageContent from './admin_manageContent';
+import ProcessApplicationApproval from "./admin_processApplicantApproval";
+import GenerateReport from './admin_reports';
+import ConfigureSystemSettings from './admin_systemSettings';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SIDEBAR_WIDTH = 280;
