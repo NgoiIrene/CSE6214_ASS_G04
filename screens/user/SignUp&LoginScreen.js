@@ -199,7 +199,7 @@ export default function App() {
                       style={styles.picker}
                     >
                       <Picker.Item label="--- PLEASE SELECT ONE ---" value="" color="#bbb" style={{ fontSize: 13 }} />
-                      <Picker.Item label="Customer" value="customer" style />
+                      <Picker.Item label="User(Customer)" value="user(customer)" style />
                       <Picker.Item label="Vendor" value="vendor" style />
                       <Picker.Item label="Delivery Man " value="delivery" />
                     </Picker>

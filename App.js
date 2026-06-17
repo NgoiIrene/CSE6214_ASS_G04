@@ -636,13 +636,13 @@ export default function App() {
   //   setIsLoading(true);
   //   const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
   //   setIsLoading(false);
-  //   if (error) return Alert.alert("错误", error.message);
-  //   Alert.alert("成功", "登录成功！");
+  //   if (error) return Alert.alert("Error", error.message);
+  //   Alert.alert("Success", "Login Successful!");
   // };
 
   // ⚡ 注册
   const handleSignUpSubmit = async () => {
-    if (signUpPassword !== confirmPassword) return Alert.alert("错误", "密码不匹配！");
+    if (signUpPassword !== confirmPassword) return Alert.alert("Error", "Passwords don't match!");
     setIsLoading(true);
 
     // 1. 注册账号
@@ -653,7 +653,7 @@ export default function App() {
 
     if (error) {
       setIsLoading(false);
-      return Alert.alert("错误", error.message);
+      return Alert.alert("Error", error.message);
     }
 
     // 2. 注册成功后，存入 profiles 表 (添加了 email 字段)
@@ -670,13 +670,13 @@ export default function App() {
 
       if (dbError) {
         setIsLoading(false);
-        console.log("数据库插入错误:", dbError);
-        return Alert.alert("资料保存失败", dbError.message);
+        console.log("Database insertion error:", dbError);
+        return Alert.alert("Data Save Failed", dbError.message);
       }
     }
 
     setIsLoading(false);
-    Alert.alert("成功", "注册完成！");
+    Alert.alert("Success", "Registration Complete!");
     setCurrentPage('login');
   };
 
@@ -690,13 +690,13 @@ export default function App() {
     setIsLoading(false);
 
     if (error) {
-      console.log("登录失败详情:", error); // ✅ 这里是关键！打开终端看红字
-      Alert.alert("登录失败", error.message);
+      console.log("Login failed details:", error); // ✅ Check terminal for error
+      Alert.alert("Login Failed", error.message);
       return;
     }
 
-    // 如果成功
-    Alert.alert("成功", "登录成功！");
+    // If successful
+    Alert.alert("Success", "Login Successful!");
     navigateToScreen?.('order');
   };
 
@@ -745,8 +745,9 @@ export default function App() {
               <View style={styles.pickerContainerEdge}>
                 <Picker selectedValue={accountType} onValueChange={setAccountType}>
                   <Picker.Item label="Account Type" value="" />
-                  <Picker.Item label="Customer" value="customer" />
+                  <Picker.Item label="User(Customer)" value="user(customer)" />
                   <Picker.Item label="Vendor" value="vendor" />
+                  <Picker.Item label="Delivery Man" value="delivery" />
                 </Picker>
               </View>
 

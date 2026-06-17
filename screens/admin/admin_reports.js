@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TouchableOpacity, 
-  ScrollView, 
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
   Alert
 } from 'react-native';
 import * as Sharing from 'expo-sharing';
@@ -21,7 +21,7 @@ export default function GenerateReport() {
 
   const [reportsData, setReportsData] = useState({
     overall: {
-      title: 'Overall Platform Revenue Trend', type: 'bars', 
+      title: 'Overall Platform Revenue Trend', type: 'bars',
       data: [
         { label: 'Gross Merchandise Value (GMV)', value: 8500, prefix: 'RM ' },
         { label: 'Platform Commission', value: 850, prefix: 'RM ' },
@@ -30,7 +30,7 @@ export default function GenerateReport() {
       ]
     },
     settlement: {
-      title: 'Vendor Settlement & Reconciliation', type: 'table', 
+      title: 'Vendor Settlement & Reconciliation', type: 'table',
       headers: ['Vendor Stall', 'Total Sales', 'Commission', 'Net Payable', 'Status'],
       rows: [
         ['Stall A (vendorname)', 'RM 1,200', 'RM 120', 'RM 1,080', 'Settled'],
@@ -40,7 +40,7 @@ export default function GenerateReport() {
       ]
     },
     top_selling: {
-      title: 'Top-Selling Items Ranking', type: 'ranking', 
+      title: 'Top-Selling Items Ranking', type: 'ranking',
       data: [
         { name: '1. Nasi Lemak', count: 320, percentage: '100%' },
         { name: '2. Chicken Rice', count: 240, percentage: '75%' },
@@ -49,7 +49,7 @@ export default function GenerateReport() {
       ]
     },
     peak_hours: {
-      title: 'Peak Ordering Hours Distribution', type: 'hours', 
+      title: 'Peak Ordering Hours Distribution', type: 'hours',
       data: [
         { hour: '08:00', orders: 45, height: 40 },
         { hour: '12:00 (Lunch)', orders: 180, height: 140 },
@@ -59,7 +59,7 @@ export default function GenerateReport() {
       ]
     },
     feedback: {
-      title: 'Customer Feedback & Complaints Share', type: 'progress_bars', 
+      title: 'User Feedback & Complaints Share', type: 'progress_bars',
       data: [
         { reason: 'Food Hygiene Issues', percent: 45 },
         { reason: 'Slow Order Preparation', percent: 35 },
@@ -73,10 +73,10 @@ export default function GenerateReport() {
   // 2. 颜色动态判定逻辑
   // ==========================================
   const getRevenueColor = (value) => {
-    if (value >= 600) return '#111111'; 
-    if (value >= 150 && value <= 590) return '#2E7D32'; 
-    if (value >= 0 && value < 150) return '#C62828'; 
-    return '#111111'; 
+    if (value >= 600) return '#111111';
+    if (value >= 150 && value <= 590) return '#2E7D32';
+    if (value >= 0 && value < 150) return '#C62828';
+    return '#111111';
   };
 
   const getPeakBarColor = (currentOrders, allData) => {
@@ -85,14 +85,14 @@ export default function GenerateReport() {
   };
 
   const getFeedbackColor = (percent) => {
-    if (percent > 40) return '#C62828'; 
-    if (percent >= 21 && percent <= 40) return '#EF6C00'; 
-    if (percent >= 0 && percent <= 20) return '#FBC02D'; 
-    return '#111111'; 
+    if (percent > 40) return '#C62828';
+    if (percent >= 21 && percent <= 40) return '#EF6C00';
+    if (percent >= 0 && percent <= 20) return '#FBC02D';
+    return '#111111';
   };
 
   useEffect(() => {
-    const fetchSupabaseData = async () => {};
+    const fetchSupabaseData = async () => { };
     fetchSupabaseData();
   }, []);
 
@@ -181,18 +181,18 @@ export default function GenerateReport() {
 
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
         await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-        
+
         Alert.alert("Export Successful", "Your PDF report has been generated and exported successfully!");
-      } 
-      
+      }
+
       else if (format === 'PNG') {
         const uri = await captureRef(chartRef, {
           format: 'png',
-          quality: 1, 
+          quality: 1,
         });
-        
+
         await Sharing.shareAsync(uri, { UTI: 'public.png', mimeType: 'image/png' });
-        
+
         Alert.alert("Export Successful", "Your PNG chart has been saved successfully!");
       }
 
@@ -204,7 +204,7 @@ export default function GenerateReport() {
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      
+
       <Text style={styles.sectionTitle}>Select Report Category</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBadgeRow}>
         {Object.keys(reportsData).map((key) => (
@@ -225,7 +225,7 @@ export default function GenerateReport() {
 
       <View style={styles.canvasWrapper} ref={chartRef} collapsable={false}>
         <Text style={styles.innerReportTitle}>{currentReport.title}</Text>
-        
+
         <View style={styles.chartContentWrapper}>
           {currentReport.type === 'bars' && (
             <View style={styles.barsContainer}>
@@ -250,7 +250,7 @@ export default function GenerateReport() {
                 <View style={styles.tableHeaderRow}>
                   {currentReport.headers.map((h, i) => (
                     <Text key={i} style={[
-                      styles.tableHeaderText, 
+                      styles.tableHeaderText,
                       { width: i === 0 ? 150 : 100, textAlign: i === 0 ? 'left' : 'center', paddingLeft: i === 0 ? 10 : 0 }
                     ]}>{h}</Text>
                   ))}
@@ -259,13 +259,13 @@ export default function GenerateReport() {
                   <View key={rIdx} style={styles.tableDataRow}>
                     {row.map((cell, cIdx) => (
                       <Text key={cIdx} style={[
-                        styles.tableCellText, 
-                        { 
-                          width: cIdx === 0 ? 150 : 100, 
+                        styles.tableCellText,
+                        {
+                          width: cIdx === 0 ? 150 : 100,
                           textAlign: cIdx === 0 ? 'left' : 'center',
                           paddingLeft: cIdx === 0 ? 10 : 0,
-                          color: cell === 'Pending' ? '#C62828' : '#333', 
-                          fontWeight: cell === 'Pending' ? 'bold' : 'normal' 
+                          color: cell === 'Pending' ? '#C62828' : '#333',
+                          fontWeight: cell === 'Pending' ? 'bold' : 'normal'
                         }
                       ]}>
                         {cell}
@@ -360,10 +360,10 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, color: '#555' },
   activeBadgeText: { color: '#FFF', fontWeight: 'bold' },
   contentDivider: { borderBottomWidth: 1, borderColor: '#B0B0B0', borderStyle: 'dashed', marginVertical: 20 },
-  
+
   canvasHeader: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   innerReportTitle: { fontSize: 18, fontWeight: 'bold', color: '#111', marginBottom: 0, textAlign: 'center', borderBottomWidth: 1, borderBottomColor: '#E0E0E0', paddingBottom: 10 },
-  
+
   canvasWrapper: { borderWidth: 2, borderColor: '#000000', borderRadius: 6, padding: 16, backgroundColor: '#FCFCFC', height: 340, justifyContent: 'flex-start' },
   chartContentWrapper: { flex: 1, justifyContent: 'center' },
 
@@ -373,26 +373,26 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 12, backgroundColor: '#E0E0E0', borderRadius: 6, marginHorizontal: 10, overflow: 'hidden' },
   barFill: { height: '100%' },
   barValue: { width: 75, fontSize: 13, textAlign: 'right', fontWeight: 'bold', color: '#000000' },
-  
+
   tableBox: { borderWidth: 1, borderColor: '#000', backgroundColor: '#FFF' },
   tableHeaderRow: { flexDirection: 'row', backgroundColor: '#ECECEC', borderBottomWidth: 1, borderColor: '#000', paddingVertical: 10 },
-  tableHeaderText: { fontWeight: 'bold', fontSize: 13 }, 
+  tableHeaderText: { fontWeight: 'bold', fontSize: 13 },
   tableDataRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderColor: '#E0E0E0', paddingVertical: 10 },
-  tableCellText: { fontSize: 13 }, 
-  
+  tableCellText: { fontSize: 13 },
+
   rankingContainer: { width: '100%' },
   rankItem: { marginVertical: 8 },
   rankName: { fontSize: 13, color: '#333', marginBottom: 4 },
   rankTrack: { height: 20, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
   rankFill: { height: '100%', backgroundColor: '#444' },
   rankCount: { position: 'absolute', right: 10, fontSize: 13, fontWeight: 'bold', color: '#333' },
-  
+
   hoursContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 180, paddingTop: 20 },
   hourColumn: { alignItems: 'center' },
   hourVerticalBar: { width: 25, borderRadius: 4, marginTop: 4, marginBottom: 6 },
   hourCountText: { fontSize: 11, color: '#666' },
   hourLabelText: { fontSize: 12, fontWeight: '600', color: '#000000' },
-  
+
   feedbackContainer: { width: '100%' },
   feedbackRow: { marginVertical: 8 },
   feedbackLabel: { fontSize: 13, color: '#000000' },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   feedbackFill: { height: '100%', borderRadius: 4 },
   alertBox: { backgroundColor: '#FFF3CD', padding: 10, borderRadius: 4, marginTop: 15, borderWidth: 1, borderColor: '#FFEBAA' },
   alertText: { fontSize: 12, color: '#856404', lineHeight: 18 },
-  
+
   exportHeader: { fontSize: 15, fontWeight: 'bold', marginBottom: 12 },
   radioGroupRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   radioOption: { flexDirection: 'row', alignItems: 'center', marginRight: 30 },
