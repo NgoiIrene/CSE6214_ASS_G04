@@ -150,7 +150,10 @@ export default function DeliveryMain() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={() => { setIsSidebarOpen(false); Alert.alert("Logout", "Logging out..."); }}>
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { 
+              setIsSidebarOpen(false); 
+              await supabase.auth.signOut(); 
+            }} >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
