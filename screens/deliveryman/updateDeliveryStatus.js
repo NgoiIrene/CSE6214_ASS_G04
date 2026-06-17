@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useRef, useState } from 'react';
+import { supabase } from '../../supabaseClient';
 import {
   Alert,
   Image,
@@ -308,9 +309,10 @@ export default function UpdateDeliveryProgress() {
               <TouchableOpacity
                 style={styles.logoutButton}
                 activeOpacity={0.7}
-                onPress={() => {
+                onPress={async () => {
                   setIsSidebarOpen(false);
-                  Alert.alert("Logout", "Logging out...");
+                  const { error } = await supabase.auth.signOut();
+                  if (error) return Alert.alert('Logout failed', error.message || 'Please try again.');
                 }}
               >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />

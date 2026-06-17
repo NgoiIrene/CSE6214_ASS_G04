@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState, useContext } from 'react';
 import { Image } from 'react-native';
 import { RiderContext } from './RiderProvider';
+import { supabase } from '../../supabaseClient';
 import {
   Alert,
   Platform,
@@ -16,13 +17,13 @@ import {
 import { Calendar } from 'react-native-calendars';
 
 export default function EarningsAndHistory() {
-  const navigation = useNavigation(); 
+  const navigation = useNavigation();
   const { avatarUri, riderName } = useContext(RiderContext);
-  
+
   // ================= 1. 状态管理 =================
-  const [activeTab, setActiveTab] = useState('Week'); 
-  const [selectedDate, setSelectedDate] = useState('2026-05-17'); 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  const [activeTab, setActiveTab] = useState('Week');
+  const [selectedDate, setSelectedDate] = useState('2026-05-17');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // 模拟历史订单
   const historyData = [
@@ -43,13 +44,13 @@ export default function EarningsAndHistory() {
   const markedDates = useMemo(() => {
     const marks = {};
     const dateObj = new Date(selectedDate);
-    const themeBlue = '#2196F3'; 
+    const themeBlue = '#2196F3';
 
     if (activeTab === 'Day') {
       marks[selectedDate] = { color: themeBlue, textColor: 'white', startingDay: true, endingDay: true };
-    } 
+    }
     else if (activeTab === 'Week') {
-      const dayOfWeek = dateObj.getDay(); 
+      const dayOfWeek = dateObj.getDay();
       const sunday = new Date(dateObj);
       sunday.setDate(dateObj.getDate() - dayOfWeek);
 
@@ -61,8 +62,8 @@ export default function EarningsAndHistory() {
         marks[dateStr] = {
           color: themeBlue,
           textColor: 'white',
-          startingDay: i === 0, 
-          endingDay: i === 6,   
+          startingDay: i === 0,
+          endingDay: i === 6,
         };
       }
     }
@@ -86,7 +87,7 @@ export default function EarningsAndHistory() {
   }, [selectedDate, activeTab]);
 
   const filteredData = useMemo(() => {
-    const activeMarkedDates = Object.keys(markedDates); 
+    const activeMarkedDates = Object.keys(markedDates);
     return historyData.filter(item => activeMarkedDates.includes(item.date));
   }, [markedDates, historyData]);
 
@@ -96,13 +97,13 @@ export default function EarningsAndHistory() {
 
   // 返回上一页
   const handleBack = () => {
-    navigation.goBack(); 
+    navigation.goBack();
   };
 
   // ================= 3. 界面渲染 =================
   return (
     <SafeAreaView style={styles.container}>
-      
+
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIcon} onPress={() => setIsSidebarOpen(true)}>
           <View style={styles.menuIconBorder}>
@@ -110,7 +111,7 @@ export default function EarningsAndHistory() {
           </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>HISTORY</Text>
-        <View style={{ width: 40, marginLeft: 15 }} /> 
+        <View style={{ width: 40, marginLeft: 15 }} />
       </View>
 
       <View style={styles.totalEarningsBoard}>
@@ -124,10 +125,10 @@ export default function EarningsAndHistory() {
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        
+
         <View style={styles.tabsContainer}>
           {['Day', 'Week', 'Month'].map((tab) => (
-            <TouchableOpacity 
+            <TouchableOpacity
               key={tab}
               style={[styles.tabButton, activeTab === tab ? styles.tabButtonActive : null]}
               onPress={() => setActiveTab(tab)}
@@ -145,7 +146,7 @@ export default function EarningsAndHistory() {
             markingType={'period'}
             markedDates={markedDates}
             theme={{
-              todayTextColor: '#2196F3', 
+              todayTextColor: '#2196F3',
               arrowColor: 'black',
               monthTextColor: 'black',
               textMonthFontWeight: 'bold',
@@ -188,12 +189,12 @@ export default function EarningsAndHistory() {
       {/* ================= 侧边栏 (🌟 已完美同步风格与点击响应) ================= */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
-          <TouchableOpacity 
-            style={styles.closeOverlay} 
-            activeOpacity={1} 
-            onPress={() => setIsSidebarOpen(false)} 
+          <TouchableOpacity
+            style={styles.closeOverlay}
+            activeOpacity={1}
+            onPress={() => setIsSidebarOpen(false)}
           />
-          
+
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
               <View style={styles.profileAvatar}>
@@ -207,7 +208,7 @@ export default function EarningsAndHistory() {
             </View>
 
             <ScrollView style={styles.menuList}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
                   setIsSidebarOpen(false);
@@ -218,7 +219,7 @@ export default function EarningsAndHistory() {
                 <Text style={styles.menuText}>HOME</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
                   setIsSidebarOpen(false);
@@ -228,8 +229,8 @@ export default function EarningsAndHistory() {
                 <Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>PROFILE</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
                   setIsSidebarOpen(false);
@@ -239,16 +240,16 @@ export default function EarningsAndHistory() {
                 <Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>WORKING SHIFT</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.menuItemActive}
                 onPress={() => setIsSidebarOpen(false)}
               >
                 <Ionicons name="wallet" size={22} color="#424242" style={styles.menuIconLeft} />
                 <Text style={styles.menuTextActive}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
                   setIsSidebarOpen(false);
@@ -261,12 +262,15 @@ export default function EarningsAndHistory() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity 
-                style={styles.logoutButton} 
+              <TouchableOpacity
+                style={styles.logoutButton}
                 activeOpacity={0.7}
-                onPress={() => {
+                onPress={async () => {
                   setIsSidebarOpen(false);
-                  Alert.alert("Logout", "Logging out...");
+                  const { error } = await supabase.auth.signOut();
+                  if (error) {
+                    return Alert.alert('Logout failed', error.message || 'Please try again.');
+                  }
                 }}
               >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
@@ -293,12 +297,12 @@ const styles = StyleSheet.create({
   backIconOutline: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#D0D0D0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', position: 'absolute', left: 15, zIndex: 10 },
   totalEarningsCenter: { flex: 1, alignItems: 'center' },
   totalLabel: { fontSize: 14, color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
-  totalAmount: { fontSize: 36, fontWeight: '900', color: '#00C853', marginTop: 5 }, 
+  totalAmount: { fontSize: 36, fontWeight: '900', color: '#00C853', marginTop: 5 },
   tabsContainer: { flexDirection: 'row', padding: 15, justifyContent: 'space-between' },
   tabButton: { flex: 1, paddingVertical: 10, borderWidth: 1.5, borderColor: '#000', alignItems: 'center', marginHorizontal: 4, borderRadius: 6, backgroundColor: '#FFF' },
-  tabButtonActive: { backgroundColor: '#424242', borderColor: '#424242' }, 
+  tabButtonActive: { backgroundColor: '#424242', borderColor: '#424242' },
   tabText: { fontWeight: 'bold', fontSize: 14, color: '#000' },
-  tabTextActive: { color: '#FFF' }, 
+  tabTextActive: { color: '#FFF' },
   calendarContainer: { paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', paddingBottom: 10 },
   listHeader: { padding: 15, backgroundColor: '#F0F0F0', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   listHeaderText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
