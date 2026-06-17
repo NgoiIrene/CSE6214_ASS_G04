@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
+import { supabase } from '../../supabaseClient';
 import {
   Alert,
   Platform,
@@ -72,7 +73,7 @@ export default function ProcessDeliveryRequest() {
 
   return (
     <SafeAreaView style={styles.container}>
-      
+
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIcon} onPress={() => setIsSidebarOpen(true)}>
           <View style={styles.menuIconBorder}>
@@ -84,7 +85,7 @@ export default function ProcessDeliveryRequest() {
       </View>
 
       <ScrollView style={{ flex: 1 }} bounces={false}>
-        
+
         <View style={styles.topInfoRow}>
           <View>
             <Text style={styles.newDeliveryText}>New Delivery</Text>
@@ -96,12 +97,12 @@ export default function ProcessDeliveryRequest() {
         </View>
 
         <View style={styles.mapContainer}>
-          <MapView 
+          <MapView
             style={styles.realMap}
             initialRegion={{
-              latitude: 2.9280, 
+              latitude: 2.9280,
               longitude: 101.6420,
-              latitudeDelta: 0.012, 
+              latitudeDelta: 0.012,
               longitudeDelta: 0.012,
             }}
           >
@@ -122,12 +123,12 @@ export default function ProcessDeliveryRequest() {
                 <Ionicons name="home" size={18} color="white" />
               </View>
             </Marker>
-            
-            <Polyline 
-              coordinates={[riderCoords, starbeesCoords, hostelCoords]} 
-              strokeColor="#00C853" 
-              strokeWidth={4} 
-              lineDashPattern={[5, 5]} 
+
+            <Polyline
+              coordinates={[riderCoords, starbeesCoords, hostelCoords]}
+              strokeColor="#00C853"
+              strokeWidth={4}
+              lineDashPattern={[5, 5]}
             />
           </MapView>
         </View>
@@ -159,8 +160,8 @@ export default function ProcessDeliveryRequest() {
           <Text style={styles.timeEst}>4 mins</Text>
         </View>
 
-        <TouchableOpacity 
-          style={styles.orderSummaryRow} 
+        <TouchableOpacity
+          style={styles.orderSummaryRow}
           onPress={() => setIsDetailsExpanded(!isDetailsExpanded)}
           activeOpacity={0.7}
         >
@@ -197,25 +198,25 @@ export default function ProcessDeliveryRequest() {
       </ScrollView>
 
       <View style={styles.footerActionArea}>
-        
+
         <View style={[styles.timerCircle, { borderColor: timerColor }]}>
           <Text style={[styles.timerText, { color: timerColor }]}>{timeLeft}</Text>
         </View>
-        
+
         <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} activeOpacity={0.8}>
           <Text style={styles.acceptBtnText}>Accept</Text>
         </TouchableOpacity>
-        
+
       </View>
 
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
-          <TouchableOpacity 
-            style={styles.closeOverlay} 
-            activeOpacity={1} 
-            onPress={() => setIsSidebarOpen(false)} 
+          <TouchableOpacity
+            style={styles.closeOverlay}
+            activeOpacity={1}
+            onPress={() => setIsSidebarOpen(false)}
           />
-          
+
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
               <View style={styles.profileAvatar}>
@@ -248,12 +249,13 @@ export default function ProcessDeliveryRequest() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity 
-                style={styles.logoutButton} 
+              <TouchableOpacity
+                style={styles.logoutButton}
                 activeOpacity={0.7}
-                onPress={() => {
+                onPress={async () => {
                   setIsSidebarOpen(false);
-                  Alert.alert("Logout", "Logging out...");
+                  const { error } = await supabase.auth.signOut();
+                  if (error) return Alert.alert('Logout failed', error.message || 'Please try again.');
                 }}
               >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
@@ -271,85 +273,85 @@ export default function ProcessDeliveryRequest() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 15, 
-    marginTop: 30, 
-    backgroundColor: '#FFF', 
-    borderBottomWidth: 1.5, 
-    borderBottomColor: '#E0E0E0' 
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 15,
+    marginTop: 30,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E0E0E0'
   },
-  
+
   menuIcon: { paddingHorizontal: 5 },
   menuIconBorder: {
-    width: 40, 
-    height: 40, 
-    borderRadius: 8, 
-    borderWidth: 1.5, 
-    borderColor: '#000', 
-    alignItems: 'center', 
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF'
   },
-  
+
   headerTitle: { fontSize: 18, fontWeight: 'bold', letterSpacing: 1 },
   topInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   newDeliveryText: { fontSize: 16, fontWeight: 'bold' },
   earningText: { fontSize: 16, fontWeight: 'bold', color: '#00C853', marginTop: 4 },
-  
+
   declineBtn: { borderWidth: 1.5, borderColor: '#FF3B30', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#FFF' },
   declineBtnText: { fontWeight: 'bold', fontSize: 14, color: '#FF3B30' },
-  
+
   mapContainer: { height: 200, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   realMap: { width: '100%', height: '100%' },
-  
+
   customMarkerContainer: {
     width: 32,
     height: 32,
-    borderRadius: 16, 
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF', 
+    borderColor: '#FFFFFF',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
-  
+
   gpsNoticeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, backgroundColor: '#F0FFF4', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   gpsNoticeText: { fontSize: 12, color: '#00C853', fontWeight: '500' },
-  
+
   locationRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  iconWrapper: { width: 35, alignItems: 'flex-start' }, 
+  iconWrapper: { width: 35, alignItems: 'flex-start' },
   locationTextContainer: { flex: 1, paddingLeft: 5 },
   locationTitle: { fontWeight: 'bold', fontSize: 15 },
   locationSub: { fontSize: 13, color: '#666', marginTop: 2 },
   timeEst: { fontWeight: 'bold', fontSize: 14 },
-  
+
   orderSummaryRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: '#F8F9FA' },
   orderId: { fontWeight: 'bold', fontSize: 14 },
   customerName: { fontSize: 12, color: '#888', marginTop: 2 },
-  
+
   orderDetailsContainer: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   foodItemRow: { flexDirection: 'row', marginBottom: 15 },
-  foodQty: { fontWeight: 'bold', fontSize: 14, width: 30, color: '#00C853' }, 
+  foodQty: { fontWeight: 'bold', fontSize: 14, width: 30, color: '#00C853' },
   foodName: { fontWeight: 'bold', fontSize: 14 },
   foodRemarks: { fontSize: 12, color: '#888', marginTop: 2 },
   foodPrice: { fontWeight: 'bold', fontSize: 14 },
-  
+
   footerActionArea: { padding: 20, backgroundColor: '#FFF', paddingBottom: 40, position: 'relative', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 5 },
   timerCircle: { position: 'absolute', right: 25, top: -25, width: 50, height: 50, borderRadius: 25, borderWidth: 3, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', zIndex: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 5 },
   timerText: { fontWeight: 'bold', fontSize: 18 },
-  
+
   /* 🌟 Accept 按钮改为了暗黑色，并且调整了阴影颜色 */
   acceptBtn: { backgroundColor: '#424242', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 5, shadowColor: '#424242', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 6 },
   acceptBtnText: { fontWeight: 'bold', fontSize: 18, color: '#FFFFFF', letterSpacing: 0.5 },
-  
+
   simulateBtn: { marginTop: 20, padding: 15, backgroundColor: '#000', borderRadius: 8 },
   simulateBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 
@@ -357,15 +359,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
     flexDirection: 'row',
-    zIndex: 100, 
+    zIndex: 100,
   },
   closeOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)', 
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sidebar: {
-    width: '75%', 
+    width: '75%',
     backgroundColor: '#FFF',
     height: '100%',
     shadowColor: '#000',
@@ -378,7 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 25,
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    backgroundColor: '#424242', 
+    backgroundColor: '#424242',
   },
   profileAvatar: {
     width: 60,
@@ -410,7 +412,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 25,
-    backgroundColor: '#F5F5F5', 
+    backgroundColor: '#F5F5F5',
     borderLeftWidth: 4,
     borderColor: '#424242',
   },
