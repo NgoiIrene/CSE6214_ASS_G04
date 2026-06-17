@@ -3,14 +3,11 @@ import {
   StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, 
   Platform, Dimensions, KeyboardAvoidingView, Alert, Modal, Image
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SIDEBAR_WIDTH = 260;
 
 export default function ProcessApplicationApproval() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('list'); 
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [filterCategory, setFilterCategory] = useState('All'); 
@@ -43,7 +40,7 @@ export default function ProcessApplicationApproval() {
 
   const filteredApplicants = applicants.filter(app => filterCategory === 'All' ? true : app.category === filterCategory);
 
-  // ==================== 🌟 核心：统一的发邮件函数 ====================
+  // ==================== 发邮件函数 ====================
   const sendEmailToUser = (statusLabel, customMessage) => {
     const templateParams = {
       to_email: selectedApplicant.email,  
@@ -54,7 +51,6 @@ export default function ProcessApplicationApproval() {
 
     console.log(`Trying to send email to: ${selectedApplicant.email}`);
 
-    // 使用 React Native 原生的 fetch 直接呼叫 EmailJS 服务器
     fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
       headers: {
@@ -63,9 +59,9 @@ export default function ProcessApplicationApproval() {
       body: JSON.stringify({
         service_id: 'service_v397',        
         template_id: 'template_5z0hpd8',   
-        user_id: 'MDqC7cME4HPDjYVOS',      // Public Key
+        user_id: 'MDqC7cME4HPDjYVOS',      
         accessToken: '2qTcKG1YpJH7Fd0JAPJ9r',
-        template_params: templateParams, //private key
+        template_params: templateParams, 
       }),
     })
     .then(async (response) => {
@@ -73,7 +69,6 @@ export default function ProcessApplicationApproval() {
         console.log("✅ Email sent successfully!");
         Alert.alert("Success", `Status updated to ${statusLabel} and email sent!`);
       } else {
-        // 🌟 核心改动：把 EmailJS 的真实报错信息抓出来，显示在手机屏幕上！
         const errorText = await response.text();
         console.error("❌ API decline:", response.status, errorText);
         Alert.alert("Email Failed", `EmailJS Error:\n\n${errorText}\n\nStatus Code: ${response.status}`);
@@ -85,10 +80,7 @@ export default function ProcessApplicationApproval() {
     });
   };
 
-
   // ==================== 业务逻辑 ====================
-  
-  // Path 1: 批准 (Approve)
   const handleApprove = () => {
     Alert.alert(
       "Confirm Approval",
@@ -99,7 +91,6 @@ export default function ProcessApplicationApproval() {
           text: "Approve", 
           onPress: () => {
             updateApplicantStatus(selectedApplicant.id, 'Active');
-            // 🌟 呼叫发邮件函数
             sendEmailToUser('Approved', 'Congratulations! Your account is now active. You can log in to the platform.');
             setCurrentView('list');
           }
@@ -117,7 +108,6 @@ export default function ProcessApplicationApproval() {
     }
   };
 
-  // Path 2 & 3: 拒绝或补充资料 (Reject & Clarify)
   const handleModalSubmit = () => {
     if (!adminRemark.trim()) {
       Alert.alert("Validation Error", "Please provide a remark or reason.");
@@ -126,11 +116,9 @@ export default function ProcessApplicationApproval() {
 
     if (modalConfig.type === 'Reject') {
       updateApplicantStatus(selectedApplicant.id, 'Locked');
-      // 🌟 呼叫发邮件函数，带上 Admin 写的拒绝理由
       sendEmailToUser('Rejected', `Unfortunately, your application was rejected. Reason: ${adminRemark}`);
     } else {
       updateApplicantStatus(selectedApplicant.id, 'Pending');
-      // 🌟 呼叫发邮件函数，带上 Admin 写的补充要求
       sendEmailToUser('Clarification Needed', `We need more info to process your application. Admin remark: ${adminRemark}`);
     }
 
@@ -142,13 +130,8 @@ export default function ProcessApplicationApproval() {
     setApplicants(applicants.map(app => app.id === id ? { ...app, status: newStatus } : app));
   };
 
-  const handleMenuClick = (moduleName) => { Alert.alert("Navigation", `Connecting to ${moduleName} module...`); setIsSidebarOpen(false); };
-  const handleLogout = () => { Alert.alert("Logout", "You have been logged out successfully."); setIsSidebarOpen(false); };
-  const renderOverlay = () => isSidebarOpen ? <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} /> : null;
-
   // ==================== 渲染页面 ====================
   const renderListView = () => (
-    // 🌟 列表页自带自己的 ScrollView
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.filterSection}>
         <Text style={styles.boldLabel}>Filter By:</Text>
@@ -188,8 +171,6 @@ export default function ProcessApplicationApproval() {
     const isVendor = selectedApplicant.category === 'vendor';
     return (
       <View style={styles.detailWrapper}>
-        
-        {/* 🌟 上半部分：资料区域独立滚动 */}
         <ScrollView contentContainerStyle={styles.detailScrollContent} showsVerticalScrollIndicator={false}>
           <TouchableOpacity style={styles.backBtnRow} onPress={() => setCurrentView('list')}><Ionicons name="arrow-back" size={20} color="#000" /><Text style={styles.backBtnText}>Back to Pending List</Text></TouchableOpacity>
           <View style={styles.detailCard}>
@@ -219,7 +200,6 @@ export default function ProcessApplicationApproval() {
           </View>
         </ScrollView>
 
-        {/* 🌟 下半部分：固定在底部的按钮区域 (Sticky Footer) */}
         <View style={styles.fixedActionBlock}>
           <TouchableOpacity style={styles.approveBtn} onPress={handleApprove}>
             <Text style={styles.btnTextWhite}>Approve Application</Text>
@@ -233,42 +213,14 @@ export default function ProcessApplicationApproval() {
             </TouchableOpacity>
           </View>
         </View>
-
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {renderOverlay()}
-      {/* 侧边栏 */}
-      <View style={[styles.sidebar, isSidebarOpen ? styles.sidebarOpen : styles.sidebarClosed]}>
-        <View style={styles.sidebarHeader}><TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(false)}><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /></TouchableOpacity></View>
-        <View style={styles.userSection}><View style={styles.avatarCircle}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View><Text style={styles.username}>Charlene</Text></View>
-        <ScrollView style={styles.menuList} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Home')}><Text style={styles.menuItemText}>Home</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Profile')}><Text style={styles.menuItemText}>Profile</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Accounts')}><Text style={styles.menuItemText}>Manage Accounts</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Menu & Content')}><Text style={styles.menuItemText}>Manage Menu & Content</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Generate Reports')}><Text style={styles.menuItemText}>Generate Reports</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Configure System Settings')}><Text style={styles.menuItemText}>Configure System Settings</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Advertising Board')}><Text style={styles.menuItemText}>Manage Advertising Board</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { backgroundColor: '#f0f0f0' }]} onPress={() => setIsSidebarOpen(false)}><Text style={styles.menuItemText}>Process Application Approval</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 2 }]} onPress={() => handleMenuClick('Reset Password')}><Text style={styles.menuItemText}>Reset Password</Text></TouchableOpacity>
-        </ScrollView>
-        <TouchableOpacity style={styles.logoutBox} onPress={handleLogout}><Ionicons name="arrow-forward-outline" size={16} color="#000" /><Text style={styles.logoutText}>Logout</Text></TouchableOpacity>
-      </View>
-      
-      {/* 顶部 Header */}
-      <View style={styles.header}><TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(!isSidebarOpen)}><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /></TouchableOpacity><Text style={styles.headerTitle}>Application Approval</Text><View style={{ width: 35, marginRight: 15 }} /></View>
-      <View style={styles.headerDivider} />
+    <KeyboardAvoidingView style={styles.keyboardAvoid} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      {currentView === 'list' ? renderListView() : renderDetailView()}
 
-      {/* 🌟 取消了原本包围全局的 ScrollView，改为按需渲染 */}
-      <KeyboardAvoidingView style={styles.keyboardAvoid} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        {currentView === 'list' ? renderListView() : renderDetailView()}
-      </KeyboardAvoidingView>
-
-      {/* 弹窗 */}
       <Modal animationType="fade" transparent={true} visible={modalConfig.visible} onRequestClose={() => setModalConfig({ ...modalConfig, visible: false })}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -282,34 +234,13 @@ export default function ProcessApplicationApproval() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 // ==================== 🎨 STYLESHEET ====================
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, backgroundColor: '#ffffff', zIndex: 10 },
-  hamburgerBtn: { width: 35, height: 30, borderRadius: 4, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 4, marginRight: 15 },
-  hamburgerLine: { width: 20, height: 2, backgroundColor: '#000' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' },
-  headerDivider: { height: 2, backgroundColor: '#000', width: '100%' },
-  keyboardAvoid: { flex: 1 },
-  
-  sidebar: { position: 'absolute', top: Platform.OS === 'ios' ? 44 : 40, height: '100%', width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100 },
-  sidebarOpen: { left: 0 }, sidebarClosed: { left: -SIDEBAR_WIDTH - 10 },
-  sidebarHeader: { height: 65, justifyContent: 'center', paddingLeft: 15, paddingTop: Platform.OS === 'ios' ? 0 : 20 },
-  userSection: { alignItems: 'center', paddingVertical: 15 },
-  avatarCircle: { width: 55, height: 55, borderRadius: 27.5, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 5 },
-  avatarHead: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#000', marginTop: 4 },
-  avatarBody: { width: 34, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginBottom: -8 },
-  username: { fontSize: 16, fontWeight: 'bold', color: '#000' },
-  menuList: { flex: 1 },
-  menuItem: { width: '100%', paddingVertical: 12, borderTopWidth: 1, borderColor: '#000', backgroundColor: '#fff' },
-  menuItemText: { fontSize: 14, fontWeight: 'bold', textAlign: 'left', color: '#000', paddingLeft: 30 },
-  logoutBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingBottom: Platform.OS === 'ios' ? 20 : 15, borderTopWidth: 2, borderColor: '#0f100f', backgroundColor: '#fff', marginBottom: Platform.OS === 'ios' ? 10 : 5 },
-  logoutText: { fontSize: 16, fontWeight: 'bold', color: '#070707', marginLeft: 8 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', zIndex: 90 },
+  keyboardAvoid: { flex: 1, backgroundColor: '#ffffff' },
   
   scrollContent: { paddingTop: 10, paddingBottom: 40, paddingHorizontal: 16 },
   boldLabel: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 5 },
@@ -328,7 +259,6 @@ const styles = StyleSheet.create({
   viewBtn: { position: 'absolute', bottom: 12, right: 12, borderWidth: 2, borderColor: '#000', paddingVertical: 5, paddingHorizontal: 15, borderRadius: 4, backgroundColor: '#fff' },
   viewBtnText: { color: '#000', fontSize: 13, fontWeight: 'bold' },
   
-  // 🌟 Detail View 专属样式更新
   detailWrapper: { flex: 1 }, 
   detailScrollContent: { paddingTop: 10, paddingBottom: 20, paddingHorizontal: 16 },
   backBtnRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
@@ -337,15 +267,14 @@ const styles = StyleSheet.create({
   detailSectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#000' },
   docImage: { width: '100%', height: 200, resizeMode: 'cover', borderWidth: 1, borderColor: '#ccc', borderRadius: 4 },
   
-  // 🌟 独立出来的底部固定区域样式 (Sticky Footer)
   fixedActionBlock: { 
     paddingHorizontal: 16, 
     paddingTop: 15, 
-    paddingBottom: Platform.OS === 'ios' ? 25 : 15, // 适配 iOS 底部安全区
+    paddingBottom: Platform.OS === 'ios' ? 25 : 15, 
     backgroundColor: '#fff', 
     borderTopWidth: 1, 
     borderColor: '#e0e0e0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 5 // 增加微妙的阴影让它浮起
+    shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 5
   },
   approveBtn: { backgroundColor: '#06980d', paddingVertical: 14, borderRadius: 6, alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: '#06980d'},
   btnTextWhite: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
@@ -354,7 +283,6 @@ const styles = StyleSheet.create({
   btnTextBlack: { color: '#fcf8f8', fontSize: 14, fontWeight: 'bold' },
   rejectBtn: { flex: 0.8, backgroundColor: '#ef3535', paddingVertical: 12, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: '#ef3535' },
   
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: SCREEN_WIDTH * 0.85, backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#000', padding: 20, borderRadius: 8 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 15, color: '#000' },

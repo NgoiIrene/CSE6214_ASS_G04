@@ -5,34 +5,20 @@ import {
   View, 
   TouchableOpacity, 
   ScrollView, 
-  Alert, 
-  Dimensions,
-  Platform
+  Alert
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { captureRef } from 'react-native-view-shot';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SIDEBAR_WIDTH = 260;
-
-export default function App() {
+export default function GenerateReport() {
   // ==========================================
-  // 1. Sidebar & Page Base State
+  // 1. Report Core Data & State 
   // ==========================================
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [category, setCategory] = useState('overall');
   const [format, setFormat] = useState('PDF');
-
-  // 用于绑定图表区域的 Ref，实现 PNG 截图
   const chartRef = useRef(null);
 
-  // ==========================================
-  // 2. Report Core Data State 
-  // ==========================================
   const [reportsData, setReportsData] = useState({
     overall: {
       title: 'Overall Platform Revenue Trend', type: 'bars', 
@@ -84,7 +70,7 @@ export default function App() {
   });
 
   // ==========================================
-  // 3. 颜色动态判定逻辑
+  // 2. 颜色动态判定逻辑
   // ==========================================
   const getRevenueColor = (value) => {
     if (value >= 600) return '#111111'; 
@@ -110,19 +96,11 @@ export default function App() {
     fetchSupabaseData();
   }, []);
 
-  const handleMenuClick = (moduleName) => {
-    Alert.alert("Navigation", `Connecting to ${moduleName} module...`);
-    setIsSidebarOpen(false);
-  };
-
-  const handleLogout = () => {
-    Alert.alert("Logout", "You have been logged out successfully.");
-    setIsSidebarOpen(false);
-  };
-
   // ==========================================
-  // Export 逻辑
+  // 3. Export 逻辑
   // ==========================================
+  const currentReport = reportsData[category];
+
   const handleExport = async () => {
     try {
       const reportTitle = currentReport.title;
@@ -224,261 +202,156 @@ export default function App() {
     }
   };
 
-  const renderOverlay = () => {
-    if (isSidebarOpen) {
-      return <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />;
-    }
-    return null;
-  };
-
-  const currentReport = reportsData[category];
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {renderOverlay()}
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      
+      <Text style={styles.sectionTitle}>Select Report Category</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBadgeRow}>
+        {Object.keys(reportsData).map((key) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.badgeButton, category === key && styles.activeBadgeButton]}
+            onPress={() => setCategory(key)}
+          >
+            <Text style={[styles.badgeText, category === key && styles.activeBadgeText]}>
+              {key === 'overall' ? 'Revenue' : key === 'settlement' ? 'Settlement' : key === 'top_selling' ? 'Top-Selling' : key === 'peak_hours' ? 'Peak Hours' : 'Feedback'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-      {/* ==================== LEFT SIDEBAR ==================== */}
-      <View style={[styles.sidebar, isSidebarOpen ? styles.sidebarOpen : styles.sidebarClosed]}>
-        <View style={styles.sidebarHeader}>
-          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(false)}>
-            <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.contentDivider} />
+      <Text style={styles.canvasHeader}>Display Chart</Text>
 
-        <View style={styles.userSection}>
-          <View style={styles.avatarCircle}>
-            <View style={styles.avatarHead} /><View style={styles.avatarBody} />
-          </View>
-          <Text style={styles.username}>Charlene</Text>
-        </View>
-
-        <ScrollView style={styles.menuList} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Home')}>
-            <Text style={styles.menuItemText}>Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Profile')}>
-            <Text style={styles.menuItemText}>Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Accounts')}>
-            <Text style={styles.menuItemText}>Manage Accounts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Menu & Content')}>
-            <Text style={styles.menuItemText}>Manage Menu & Content</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={[styles.menuItem, { backgroundColor: '#f0f0f0' }]} onPress={() => setIsSidebarOpen(false)}>
-            <Text style={styles.menuItemText}>Generate Reports</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Configure System Settings')}>
-            <Text style={styles.menuItemText}>Configure System Settings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Advertising Board')}>
-            <Text style={styles.menuItemText}>Manage Advertising Board</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Process Application Approval')}>
-            <Text style={styles.menuItemText}>Process Application Approval</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 2 }]} onPress={() => handleMenuClick('Reset Password')}>
-            <Text style={styles.menuItemText}>Reset Password</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        <TouchableOpacity style={styles.logoutBox} onPress={handleLogout}>
-          <Ionicons name="arrow-forward-outline" size={16} color="#000" />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* ==================== Top Unified Header ==================== */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Generate Reports</Text>
-        <View style={{ width: 35, marginRight: 15 }} />
-      </View>
-      <View style={styles.headerDivider} />
-
-      {/* ==================== Main Page Content ==================== */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.canvasWrapper} ref={chartRef} collapsable={false}>
+        <Text style={styles.innerReportTitle}>{currentReport.title}</Text>
         
-        <Text style={styles.sectionTitle}>Select Report Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBadgeRow}>
-          {Object.keys(reportsData).map((key) => (
-            <TouchableOpacity
-              key={key}
-              style={[styles.badgeButton, category === key && styles.activeBadgeButton]}
-              onPress={() => setCategory(key)}
-            >
-              <Text style={[styles.badgeText, category === key && styles.activeBadgeText]}>
-                {key === 'overall' ? 'Revenue' : key === 'settlement' ? 'Settlement' : key === 'top_selling' ? 'Top-Selling' : key === 'peak_hours' ? 'Peak Hours' : 'Feedback'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.contentDivider} />
-        <Text style={styles.canvasHeader}>Display Chart</Text>
-
-        {/* 外框设置 flex-start 让内容从头开始排，而不是整体居中 */}
-        <View style={styles.canvasWrapper} ref={chartRef} collapsable={false}>
-          
-          <Text style={styles.innerReportTitle}>{currentReport.title}</Text>
-          
-          {/* 🌟 核心修复1：将图表内容包裹在 flex:1 且居中的区域内，这样标题位置永远不动！ */}
-          <View style={styles.chartContentWrapper}>
-            {currentReport.type === 'bars' && (
-              <View style={styles.barsContainer}>
-                {currentReport.data.map((item, index) => {
-                  const barColor = getRevenueColor(item.value);
-                  return (
-                    <View key={index} style={styles.barItemRow}>
-                      <Text style={styles.barLabel}>{item.label}</Text>
-                      <View style={styles.barTrack}>
-                        <View style={[styles.barFill, { width: `${(item.value / 8500) * 100}%`, backgroundColor: barColor }]} />
-                      </View>
-                      <Text style={styles.barValue}>{item.prefix}{item.value}</Text>
+        <View style={styles.chartContentWrapper}>
+          {currentReport.type === 'bars' && (
+            <View style={styles.barsContainer}>
+              {currentReport.data.map((item, index) => {
+                const barColor = getRevenueColor(item.value);
+                return (
+                  <View key={index} style={styles.barItemRow}>
+                    <Text style={styles.barLabel}>{item.label}</Text>
+                    <View style={styles.barTrack}>
+                      <View style={[styles.barFill, { width: `${(item.value / 8500) * 100}%`, backgroundColor: barColor }]} />
                     </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {currentReport.type === 'table' && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-                <View style={styles.tableBox}>
-                  <View style={styles.tableHeaderRow}>
-                    {currentReport.headers.map((h, i) => (
-                      <Text key={i} style={[
-                        styles.tableHeaderText, 
-                        // 🌟 核心修复2：如果 i 是 0 (第一列)，就靠左对齐并加左内边距；其余列居中
-                        { width: i === 0 ? 150 : 100, textAlign: i === 0 ? 'left' : 'center', paddingLeft: i === 0 ? 10 : 0 }
-                      ]}>{h}</Text>
-                    ))}
+                    <Text style={styles.barValue}>{item.prefix}{item.value}</Text>
                   </View>
-                  {currentReport.rows.map((row, rIdx) => (
-                    <View key={rIdx} style={styles.tableDataRow}>
-                      {row.map((cell, cIdx) => (
-                        <Text key={cIdx} style={[
-                          styles.tableCellText, 
-                          // 🌟 核心修复2：第一列文本强制靠左对齐，并留出 padding
-                          { 
-                            width: cIdx === 0 ? 150 : 100, 
-                            textAlign: cIdx === 0 ? 'left' : 'center',
-                            paddingLeft: cIdx === 0 ? 10 : 0,
-                            color: cell === 'Pending' ? '#C62828' : '#333', 
-                            fontWeight: cell === 'Pending' ? 'bold' : 'normal' 
-                          }
-                        ]}>
-                          {cell}
-                        </Text>
-                      ))}
-                    </View>
+                );
+              })}
+            </View>
+          )}
+
+          {currentReport.type === 'table' && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+              <View style={styles.tableBox}>
+                <View style={styles.tableHeaderRow}>
+                  {currentReport.headers.map((h, i) => (
+                    <Text key={i} style={[
+                      styles.tableHeaderText, 
+                      { width: i === 0 ? 150 : 100, textAlign: i === 0 ? 'left' : 'center', paddingLeft: i === 0 ? 10 : 0 }
+                    ]}>{h}</Text>
                   ))}
                 </View>
-              </ScrollView>
-            )}
-
-            {currentReport.type === 'ranking' && (
-              <View style={styles.rankingContainer}>
-                {currentReport.data.map((item, index) => (
-                  <View key={index} style={styles.rankItem}>
-                    <Text style={styles.rankName}>{item.name}</Text>
-                    <View style={styles.rankTrack}>
-                      <View style={[styles.rankFill, { width: item.percentage }]} />
-                      <Text style={styles.rankCount}>{item.count} Orders</Text>
-                    </View>
+                {currentReport.rows.map((row, rIdx) => (
+                  <View key={rIdx} style={styles.tableDataRow}>
+                    {row.map((cell, cIdx) => (
+                      <Text key={cIdx} style={[
+                        styles.tableCellText, 
+                        { 
+                          width: cIdx === 0 ? 150 : 100, 
+                          textAlign: cIdx === 0 ? 'left' : 'center',
+                          paddingLeft: cIdx === 0 ? 10 : 0,
+                          color: cell === 'Pending' ? '#C62828' : '#333', 
+                          fontWeight: cell === 'Pending' ? 'bold' : 'normal' 
+                        }
+                      ]}>
+                        {cell}
+                      </Text>
+                    ))}
                   </View>
                 ))}
               </View>
-            )}
+            </ScrollView>
+          )}
 
-            {currentReport.type === 'hours' && (
-              <View style={styles.hoursContainer}>
-                {currentReport.data.map((item, index) => {
-                  const barColor = getPeakBarColor(item.orders, currentReport.data);
-                  return (
-                    <View key={index} style={styles.hourColumn}>
-                      <Text style={styles.hourCountText}>{item.orders} Orders</Text>
-                      <View style={[styles.hourVerticalBar, { height: item.height, backgroundColor: barColor }]} />
-                      <Text style={styles.hourLabelText}>{item.hour}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {currentReport.type === 'progress_bars' && (
-              <View style={styles.feedbackContainer}>
-                {currentReport.data.map((item, index) => {
-                  const barColor = getFeedbackColor(item.percent);
-                  return (
-                    <View key={index} style={styles.feedbackRow}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={styles.feedbackLabel}>{item.reason}</Text>
-                        <Text style={styles.feedbackPercent}>{item.percent}%</Text>
-                      </View>
-                      <View style={styles.feedbackTrack}>
-                        <View style={[styles.feedbackFill, { width: `${item.percent}%`, backgroundColor: barColor }]} />
-                      </View>
-                    </View>
-                  );
-                })}
-                <View style={styles.alertBox}>
-                  <Text style={styles.alertText}>{currentReport.alert}</Text>
+          {currentReport.type === 'ranking' && (
+            <View style={styles.rankingContainer}>
+              {currentReport.data.map((item, index) => (
+                <View key={index} style={styles.rankItem}>
+                  <Text style={styles.rankName}>{item.name}</Text>
+                  <View style={styles.rankTrack}>
+                    <View style={[styles.rankFill, { width: item.percentage }]} />
+                    <Text style={styles.rankCount}>{item.count} Orders</Text>
+                  </View>
                 </View>
+              ))}
+            </View>
+          )}
+
+          {currentReport.type === 'hours' && (
+            <View style={styles.hoursContainer}>
+              {currentReport.data.map((item, index) => {
+                const barColor = getPeakBarColor(item.orders, currentReport.data);
+                return (
+                  <View key={index} style={styles.hourColumn}>
+                    <Text style={styles.hourCountText}>{item.orders} Orders</Text>
+                    <View style={[styles.hourVerticalBar, { height: item.height, backgroundColor: barColor }]} />
+                    <Text style={styles.hourLabelText}>{item.hour}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {currentReport.type === 'progress_bars' && (
+            <View style={styles.feedbackContainer}>
+              {currentReport.data.map((item, index) => {
+                const barColor = getFeedbackColor(item.percent);
+                return (
+                  <View key={index} style={styles.feedbackRow}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={styles.feedbackLabel}>{item.reason}</Text>
+                      <Text style={styles.feedbackPercent}>{item.percent}%</Text>
+                    </View>
+                    <View style={styles.feedbackTrack}>
+                      <View style={[styles.feedbackFill, { width: `${item.percent}%`, backgroundColor: barColor }]} />
+                    </View>
+                  </View>
+                );
+              })}
+              <View style={styles.alertBox}>
+                <Text style={styles.alertText}>{currentReport.alert}</Text>
               </View>
-            )}
-          </View>
+            </View>
+          )}
         </View>
+      </View>
 
-        <View style={styles.contentDivider} />
+      <View style={styles.contentDivider} />
 
-        <Text style={styles.exportHeader}>Export Options</Text>
-        <View style={styles.radioGroupRow}>
-          {['PDF', 'PNG'].map((type) => (
-            <TouchableOpacity key={type} style={styles.radioOption} onPress={() => setFormat(type)}>
-              <View style={styles.outerRadio}>
-                {format === type && <View style={styles.innerRadio} />}
-              </View>
-              <Text style={styles.radioText}>{type}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <Text style={styles.exportHeader}>Export Options</Text>
+      <View style={styles.radioGroupRow}>
+        {['PDF', 'PNG'].map((type) => (
+          <TouchableOpacity key={type} style={styles.radioOption} onPress={() => setFormat(type)}>
+            <View style={styles.outerRadio}>
+              {format === type && <View style={styles.innerRadio} />}
+            </View>
+            <Text style={styles.radioText}>{type}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-        <TouchableOpacity style={styles.exportButton} onPress={handleExport}>
-          <Text style={styles.exportButtonText}>Export Report</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <TouchableOpacity style={styles.exportButton} onPress={handleExport}>
+        <Text style={styles.exportButtonText}>Export Report</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, backgroundColor: '#ffffff', zIndex: 10 },
-  hamburgerBtn: { width: 35, height: 30, borderRadius: 4, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 4, marginRight: 15 },
-  hamburgerLine: { width: 20, height: 2, backgroundColor: '#000' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' },
-  headerDivider: { height: 2, backgroundColor: '#000', width: '100%' },
-  
-  sidebar: { position: 'absolute', top: Platform.OS === 'ios' ? 44 : 40, height: '100%', width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100 },
-  sidebarOpen: { left: 0 },
-  sidebarClosed: { left: -SIDEBAR_WIDTH - 10 },
-  sidebarHeader: { height: 65, justifyContent: 'center', paddingLeft: 15, paddingTop: Platform.OS === 'ios' ? 0 : 20 },
-  userSection: { alignItems: 'center', paddingVertical: 15 },
-  avatarCircle: { width: 55, height: 55, borderRadius: 27.5, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 5 },
-  avatarHead: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#000', marginTop: 4 },
-  avatarBody: { width: 34, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginBottom: -8 },
-  username: { fontSize: 16, fontWeight: 'bold', color: '#000' },
-  menuList: { flex: 1 },
-  menuItem: { width: '100%', paddingVertical: 12, borderTopWidth: 1, borderColor: '#000', backgroundColor: '#fff' },
-  menuItemText: { fontSize: 14, fontWeight: 'bold', textAlign: 'left', color: '#000', paddingLeft: 30 },
-  logoutBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingBottom: Platform.OS === 'ios' ? 20 : 15, borderTopWidth: 2, borderColor: '#0f100f', backgroundColor: '#fff', marginBottom: Platform.OS === 'ios' ? 10 : 5 },
-  logoutText: { fontSize: 16, fontWeight: 'bold', color: '#070707', marginLeft: 8 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', zIndex: 90 },
-
   scrollContent: { paddingTop: 10, paddingBottom: 40, paddingHorizontal: 16 },
   sectionTitle: { fontSize: 14, fontWeight: 'bold', marginTop: 10, marginBottom: 10 },
   categoryBadgeRow: { flexDirection: 'row', marginBottom: 10 },
@@ -491,9 +364,7 @@ const styles = StyleSheet.create({
   canvasHeader: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   innerReportTitle: { fontSize: 18, fontWeight: 'bold', color: '#111', marginBottom: 0, textAlign: 'center', borderBottomWidth: 1, borderBottomColor: '#E0E0E0', paddingBottom: 10 },
   
-  // 🌟 将主包裹层改为顶部对齐 flex-start
   canvasWrapper: { borderWidth: 2, borderColor: '#000000', borderRadius: 6, padding: 16, backgroundColor: '#FCFCFC', height: 340, justifyContent: 'flex-start' },
-  // 🌟 将图表内容区域设为独立居中
   chartContentWrapper: { flex: 1, justifyContent: 'center' },
 
   barsContainer: { width: '100%' },
@@ -505,9 +376,9 @@ const styles = StyleSheet.create({
   
   tableBox: { borderWidth: 1, borderColor: '#000', backgroundColor: '#FFF' },
   tableHeaderRow: { flexDirection: 'row', backgroundColor: '#ECECEC', borderBottomWidth: 1, borderColor: '#000', paddingVertical: 10 },
-  tableHeaderText: { fontWeight: 'bold', fontSize: 13 }, // 🌟 删除了默认的 textAlign: center，交由 inline 控制
+  tableHeaderText: { fontWeight: 'bold', fontSize: 13 }, 
   tableDataRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderColor: '#E0E0E0', paddingVertical: 10 },
-  tableCellText: { fontSize: 13 }, // 🌟 删除了默认的 textAlign: center，交由 inline 控制
+  tableCellText: { fontSize: 13 }, 
   
   rankingContainer: { width: '100%' },
   rankItem: { marginVertical: 8 },

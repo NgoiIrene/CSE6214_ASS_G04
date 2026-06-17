@@ -1,17 +1,14 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, 
-  Platform, Dimensions, KeyboardAvoidingView, Alert, Modal
+  Dimensions, Alert, Modal
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SIDEBAR_WIDTH = 260;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ConfigureSystemSettings() {
   // ==================== 1. Basic Page State ====================
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState('Delivery Zones & Fees');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
@@ -150,237 +147,153 @@ export default function ConfigureSystemSettings() {
     }
   };
 
-  // ==================== 5. Navigation & Overlay Logic ====================
-  const handleMenuClick = (moduleName) => {
-    Alert.alert("Navigation", `Connecting to ${moduleName} module...`);
-    setIsSidebarOpen(false);
-  };
-
-  const handleLogout = () => {
-    Alert.alert("Logout", "You have been logged out successfully.");
-    setIsSidebarOpen(false);
-  };
-
-  const renderOverlay = () => isSidebarOpen ? <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} /> : null;
-  
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {renderOverlay()}
-
-      {/* ==================== LEFT SIDEBAR ==================== */}
-      <View style={[styles.sidebar, isSidebarOpen ? styles.sidebarOpen : styles.sidebarClosed]}>
-        <View style={styles.sidebarHeader}>
-          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(false)}>
-            <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
+    <>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        
+        {/* Category Dropdown */}
+        <View style={[styles.sectionContainer, { zIndex: 10 }]}>
+          <Text style={styles.boldLabel}>Category</Text>
+          <TouchableOpacity style={styles.dropdownBox} onPress={() => setIsDropdownOpen(!isDropdownOpen)}>
+            <Text style={styles.dropdownText}>{currentCategory}</Text>
+            <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={16} color="#a0a0a0" />
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.userSection}>
-          <View style={styles.avatarCircle}>
-            <View style={styles.avatarHead} /><View style={styles.avatarBody} />
-          </View>
-          <Text style={styles.username}>Charlene</Text>
-        </View>
-
-        <ScrollView style={styles.menuList} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Home')}>
-            <Text style={styles.menuItemText}>Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Profile')}>
-            <Text style={styles.menuItemText}>Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Accounts')}>
-            <Text style={styles.menuItemText}>Manage Accounts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Menu & Content')}>
-            <Text style={styles.menuItemText}>Manage Menu & Content</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Generate Reports')}>
-            <Text style={styles.menuItemText}>Generate Reports</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { backgroundColor: '#f0f0f0' }]} onPress={() => setIsSidebarOpen(false)}>
-            <Text style={styles.menuItemText}>Configure System Settings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Manage Advertising Board')}>
-            <Text style={styles.menuItemText}>Manage Advertising Board</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuClick('Process Application Approval')}>
-            <Text style={styles.menuItemText}>Process Application Approval</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 2 }]} onPress={() => handleMenuClick('Reset Password')}>
-            <Text style={styles.menuItemText}>Reset Password</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        <TouchableOpacity style={styles.logoutBox} onPress={handleLogout}>
-          <Ionicons name="arrow-forward-outline" size={16} color="#000" />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {/* ==================== TOP HEADER ==================== */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Configure System Settings</Text>
-        <View style={{ width: 35, marginRight: 15 }} />
-      </View>
-      <View style={styles.headerDivider} />
-
-      {/* ==================== MAIN CONTENT ==================== */}
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          
-          {/* Category Dropdown */}
-          <View style={styles.sectionContainer} style={{ zIndex: 10 }}>
-            <Text style={styles.boldLabel}>Category</Text>
-            <TouchableOpacity style={styles.dropdownBox} onPress={() => setIsDropdownOpen(!isDropdownOpen)}>
-              <Text style={styles.dropdownText}>{currentCategory}</Text>
-              <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={16} color="#a0a0a0" />
-            </TouchableOpacity>
-
-            {isDropdownOpen && (
-              <View style={styles.dropdownList}>
-                {['Delivery Zones & Fees', 'Financial & Commission'].map((item) => (
-                  <TouchableOpacity key={item} style={styles.dropdownItem} onPress={() => { setCurrentCategory(item); setIsDropdownOpen(false); }}>
-                    <Text style={styles.dropdownText}>{item}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.dashedDivider} />
-
-          {/* Conditional Page Rendering */}
-          {currentCategory === 'Delivery Zones & Fees' ? (
-            <View>
-              <Text style={styles.sectionSubTitle}>CURRENT CONFIGURATIONS</Text>
-              
-              {zones.map((zone) => (
-                <View key={zone.id} style={styles.configCard}>
-                  <View style={styles.configRow}><Text style={styles.configLabel}>Zone Name:</Text><Text style={styles.configValue}>{zone.name}</Text></View>
-                  <View style={styles.configRow}><Text style={styles.configLabel}>Base Fee($):</Text><Text style={styles.configValue}>{zone.baseFee}</Text></View>
-                  <View style={styles.configRow}><Text style={styles.configLabel}>Extra Fee($):</Text><Text style={styles.configValue}>{zone.extraFee}</Text></View>
-
-                  <View style={styles.cardBtnGroup}>
-                    <TouchableOpacity style={styles.editBtn} onPress={() => startEdit(zone)}><Text style={styles.editBtnText}>Edit</Text></TouchableOpacity>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(zone.id)}><Text style={styles.deleteBtnText}>Delete</Text></TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-
-              {/* Add New Zone Form */}
-              <View style={styles.addFormContainer}>
-                <Text style={styles.formTitle}>+ Add New Delivery Zone</Text>
-                <Text style={styles.formLabel}>Category</Text>
-                <TextInput style={styles.formInput} value={newZoneName} onChangeText={setNewZoneName} placeholder="e.g. CanteenD" />
-                <Text style={styles.formLabel}>Base Fee ($)</Text>
-                <TextInput style={styles.formInput} value={newBaseFee} onChangeText={setNewBaseFee} keyboardType="numeric" placeholder="0.00" />
-                <Text style={styles.formLabel}>Extra Fee ($)</Text>
-                <TextInput style={styles.formInput} value={newExtraFee} onChangeText={setNewExtraFee} keyboardType="numeric" placeholder="0.00" />
-                <View style={styles.formBtnGroup}>
-                  <TouchableOpacity style={styles.addBtn} onPress={handleAddZone}><Text style={styles.addBtnText}>Add Zone</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={() => { setNewZoneName(''); setNewBaseFee(''); setNewExtraFee(''); }}><Text style={styles.cancelBtnText}>Cancel</Text></TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          ) : (
-            /* ==================== 🌟 Replaced Financial & Commission UI ==================== */
-            <View style={styles.commissionWrapper}>
-              
-              {/* 1. Global Platform Commission */}
-              <View style={styles.financialCard}>
-                <Text style={styles.financialCardTitle}>📊 1. Global Platform Commission</Text>
-                
-                <Text style={styles.formLabel}>Default Order Commission Rate (%)</Text>
-                <TextInput 
-                  style={styles.formInput} 
-                  value={commissionRate} 
-                  onChangeText={setCommissionRate} 
-                  keyboardType="numeric" 
-                  placeholder="10"
-                />
-
-                <Text style={styles.formLabel}>Commission Calculation Basis</Text>
-                <View style={styles.radioContainer}>
-                  <TouchableOpacity style={styles.radioButtonRow} onPress={() => setCalcBasis('total')}>
-                    <Ionicons name={calcBasis === 'total' ? "radio-button-on" : "radio-button-off"} size={18} color="#000" />
-                    <Text style={styles.radioLabelText}>Based on Total Order Amount (incl. packaging)</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity style={styles.radioButtonRow} onPress={() => setCalcBasis('dish')}>
-                    <Ionicons name={calcBasis === 'dish' ? "radio-button-on" : "radio-button-off"} size={18} color="#000" />
-                    <Text style={styles.radioLabelText}>Based on Dish Price Only</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* 2. Rider Delivery Fee Split */}
-              <View style={styles.financialCard}>
-                <Text style={styles.financialCardTitle}>🛵 2. Rider Delivery Fee Split</Text>
-                
-                <Text style={styles.formLabel}>Platform Delivery Fee Split (%) (as dispatch fee)</Text>
-                <TextInput 
-                  style={styles.formInput} 
-                  value={platformSplit} 
-                  onChangeText={handlePlatformSplitChange} 
-                  keyboardType="numeric" 
-                  placeholder="20"
-                />
-
-                <Text style={styles.formLabel}>Rider Delivery Fee Split (%) (auto-calculated)</Text>
-                <TextInput 
-                  style={[styles.formInput, styles.disabledInput]} 
-                  value={riderSplit} 
-                  editable={false} 
-                  backgroundColor="#f2f2f2"
-                />
-              </View>
-
-              {/* 3. Settlement Rules */}
-              <View style={styles.financialCard} style={{ zIndex: 5, borderWidth: 1, borderColor: '#a0a0a0', padding: 15, marginBottom: 15 }}>
-                <Text style={styles.financialCardTitle}>💳 3. Settlement Rules</Text>
-                
-                <Text style={styles.formLabel}>Merchant/Rider Minimum Withdrawal Threshold (RM)</Text>
-                <TextInput 
-                  style={styles.formInput} 
-                  value={minWithdrawal} 
-                  onChangeText={setMinWithdrawal} 
-                  keyboardType="numeric" 
-                  placeholder="50.00"
-                />
-
-                <Text style={styles.formLabel}>Automatic Settlement Period</Text>
-                <TouchableOpacity style={styles.dropdownBox} onPress={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}>
-                  <Text style={styles.dropdownText}>{settlementPeriod}</Text>
-                  <Ionicons name={isPeriodDropdownOpen ? "chevron-up" : "chevron-down"} size={16} color="#a0a0a0" />
+          {isDropdownOpen && (
+            <View style={styles.dropdownList}>
+              {['Delivery Zones & Fees', 'Financial & Commission'].map((item) => (
+                <TouchableOpacity key={item} style={styles.dropdownItem} onPress={() => { setCurrentCategory(item); setIsDropdownOpen(false); }}>
+                  <Text style={styles.dropdownText}>{item}</Text>
                 </TouchableOpacity>
-
-                {isPeriodDropdownOpen && (
-                  <View style={styles.innerDropdownList}>
-                    {['Weekly', 'Monthly', 'Daily'].map((period) => (
-                      <TouchableOpacity key={period} style={styles.dropdownItem} onPress={() => { setSettlementPeriod(period); setIsPeriodDropdownOpen(false); }}>
-                        <Text style={styles.dropdownText}>{period}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-
+              ))}
             </View>
           )}
+        </View>
 
-          <TouchableOpacity style={styles.updateMasterBtn} onPress={handleMasterUpdate}>
-            <Text style={styles.updateMasterBtnText}>Update Settings</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={styles.dashedDivider} />
+
+        {/* Conditional Page Rendering */}
+        {currentCategory === 'Delivery Zones & Fees' ? (
+          <View>
+            <Text style={styles.sectionSubTitle}>CURRENT CONFIGURATIONS</Text>
+            
+            {zones.map((zone) => (
+              <View key={zone.id} style={styles.configCard}>
+                <View style={styles.configRow}><Text style={styles.configLabel}>Zone Name:</Text><Text style={styles.configValue}>{zone.name}</Text></View>
+                <View style={styles.configRow}><Text style={styles.configLabel}>Base Fee($):</Text><Text style={styles.configValue}>{zone.baseFee}</Text></View>
+                <View style={styles.configRow}><Text style={styles.configLabel}>Extra Fee($):</Text><Text style={styles.configValue}>{zone.extraFee}</Text></View>
+
+                <View style={styles.cardBtnGroup}>
+                  <TouchableOpacity style={styles.editBtn} onPress={() => startEdit(zone)}><Text style={styles.editBtnText}>Edit</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(zone.id)}><Text style={styles.deleteBtnText}>Delete</Text></TouchableOpacity>
+                </View>
+              </View>
+            ))}
+
+            {/* Add New Zone Form */}
+            <View style={styles.addFormContainer}>
+              <Text style={styles.formTitle}>+ Add New Delivery Zone</Text>
+              <Text style={styles.formLabel}>Category</Text>
+              <TextInput style={styles.formInput} value={newZoneName} onChangeText={setNewZoneName} placeholder="e.g. CanteenD" />
+              <Text style={styles.formLabel}>Base Fee ($)</Text>
+              <TextInput style={styles.formInput} value={newBaseFee} onChangeText={setNewBaseFee} keyboardType="numeric" placeholder="0.00" />
+              <Text style={styles.formLabel}>Extra Fee ($)</Text>
+              <TextInput style={styles.formInput} value={newExtraFee} onChangeText={setNewExtraFee} keyboardType="numeric" placeholder="0.00" />
+              <View style={styles.formBtnGroup}>
+                <TouchableOpacity style={styles.addBtn} onPress={handleAddZone}><Text style={styles.addBtnText}>Add Zone</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setNewZoneName(''); setNewBaseFee(''); setNewExtraFee(''); }}><Text style={styles.cancelBtnText}>Cancel</Text></TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          /* ==================== 🌟 Replaced Financial & Commission UI ==================== */
+          <View style={styles.commissionWrapper}>
+            
+            {/* 1. Global Platform Commission */}
+            <View style={styles.financialCard}>
+              <Text style={styles.financialCardTitle}>📊 1. Global Platform Commission</Text>
+              
+              <Text style={styles.formLabel}>Default Order Commission Rate (%)</Text>
+              <TextInput 
+                style={styles.formInput} 
+                value={commissionRate} 
+                onChangeText={setCommissionRate} 
+                keyboardType="numeric" 
+                placeholder="10"
+              />
+
+              <Text style={styles.formLabel}>Commission Calculation Basis</Text>
+              <View style={styles.radioContainer}>
+                <TouchableOpacity style={styles.radioButtonRow} onPress={() => setCalcBasis('total')}>
+                  <Ionicons name={calcBasis === 'total' ? "radio-button-on" : "radio-button-off"} size={18} color="#000" />
+                  <Text style={styles.radioLabelText}>Based on Total Order Amount (incl. packaging)</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.radioButtonRow} onPress={() => setCalcBasis('dish')}>
+                  <Ionicons name={calcBasis === 'dish' ? "radio-button-on" : "radio-button-off"} size={18} color="#000" />
+                  <Text style={styles.radioLabelText}>Based on Dish Price Only</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 2. Rider Delivery Fee Split */}
+            <View style={styles.financialCard}>
+              <Text style={styles.financialCardTitle}>🛵 2. Rider Delivery Fee Split</Text>
+              
+              <Text style={styles.formLabel}>Platform Delivery Fee Split (%) (as dispatch fee)</Text>
+              <TextInput 
+                style={styles.formInput} 
+                value={platformSplit} 
+                onChangeText={handlePlatformSplitChange} 
+                keyboardType="numeric" 
+                placeholder="20"
+              />
+
+              <Text style={styles.formLabel}>Rider Delivery Fee Split (%) (auto-calculated)</Text>
+              <TextInput 
+                style={[styles.formInput, styles.disabledInput]} 
+                value={riderSplit} 
+                editable={false} 
+              />
+            </View>
+
+            {/* 3. Settlement Rules */}
+            <View style={[styles.financialCard, { zIndex: 5 }]}>
+              <Text style={styles.financialCardTitle}>💳 3. Settlement Rules</Text>
+              
+              <Text style={styles.formLabel}>Merchant/Rider Minimum Withdrawal Threshold (RM)</Text>
+              <TextInput 
+                style={styles.formInput} 
+                value={minWithdrawal} 
+                onChangeText={setMinWithdrawal} 
+                keyboardType="numeric" 
+                placeholder="50.00"
+              />
+
+              <Text style={styles.formLabel}>Automatic Settlement Period</Text>
+              <TouchableOpacity style={styles.dropdownBox} onPress={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}>
+                <Text style={styles.dropdownText}>{settlementPeriod}</Text>
+                <Ionicons name={isPeriodDropdownOpen ? "chevron-up" : "chevron-down"} size={16} color="#a0a0a0" />
+              </TouchableOpacity>
+
+              {isPeriodDropdownOpen && (
+                <View style={styles.innerDropdownList}>
+                  {['Weekly', 'Monthly', 'Daily'].map((period) => (
+                    <TouchableOpacity key={period} style={styles.dropdownItem} onPress={() => { setSettlementPeriod(period); setIsPeriodDropdownOpen(false); }}>
+                      <Text style={styles.dropdownText}>{period}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+          </View>
+        )}
+
+        <TouchableOpacity style={styles.updateMasterBtn} onPress={handleMasterUpdate}>
+          <Text style={styles.updateMasterBtnText}>Update Settings</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* ==================== EDIT POP-UP WINDOW (Modal) ==================== */}
       <Modal
@@ -413,37 +326,12 @@ export default function ConfigureSystemSettings() {
           </View>
         </View>
       </Modal>
-
-    </SafeAreaView>
+    </>
   );
 }
 
 // ==================== 🎨 STYLESHEET ====================
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, backgroundColor: '#ffffff', zIndex: 10 },
-  hamburgerBtn: { width: 35, height: 30, borderRadius: 4, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 4, marginRight: 15 },
-  hamburgerLine: { width: 20, height: 2, backgroundColor: '#000' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' },
-  headerDivider: { height: 2, backgroundColor: '#000', width: '100%' },
-  keyboardAvoid: { flex: 1 },
-  // Sidebar
-  sidebar: { position: 'absolute', top: Platform.OS === 'ios' ? 44 : 40, height: '100%', width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100 },
-  sidebarOpen: { left: 0 },
-  sidebarClosed: { left: -SIDEBAR_WIDTH - 10 },
-  sidebarHeader: { height: 65, justifyContent: 'center', paddingLeft: 15, paddingTop: Platform.OS === 'ios' ? 0 : 20 },
-  userSection: { alignItems: 'center', paddingVertical: 15 },
-  avatarCircle: { width: 55, height: 55, borderRadius: 27.5, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 5 },
-  avatarHead: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#000', marginTop: 4 },
-  avatarBody: { width: 34, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginBottom: -8 },
-  username: { fontSize: 16, fontWeight: 'bold', color: '#000' },
-  menuList: { flex: 1 },
-  menuItem: { width: '100%', paddingVertical: 12, borderTopWidth: 1, borderColor: '#000', backgroundColor: '#fff' },
-  menuItemText: { fontSize: 14, fontWeight: 'bold', textAlign: 'left', color: '#000', paddingLeft: 30 },
-  logoutBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingBottom: Platform.OS === 'ios' ? 20 : 15, borderTopWidth: 2, borderColor: '#0f100f', backgroundColor: '#fff', marginBottom: Platform.OS === 'ios' ? 10 : 5 },
-  logoutText: { fontSize: 16, fontWeight: 'bold', color: '#070707', marginLeft: 8 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', zIndex: 90 },
-  // Content
   scrollContent: { paddingTop: 10, paddingBottom: 40, paddingHorizontal: 16 },
   sectionContainer: { marginTop: 10, marginBottom: 15, position: 'relative' },
   boldLabel: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 5 },
@@ -483,7 +371,7 @@ const styles = StyleSheet.create({
   financialCardTitle: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 15 },
   radioContainer: { flexDirection: 'column', marginTop: 5, marginBottom: 5 },
   radioButtonRow: { flexDirection: 'row', alignItems: 'center', marginRight: 12 },
-  radioLabelText: { fontSize: 14, marginLeft: 8, color: '#000' ,flex:1,flexWrap:'wrap'}, // 加上 flex: 1 和 flexWrap，确保如果用户的手机屏幕比较小，文字会自动换行而不会被切断
+  radioLabelText: { fontSize: 14, marginLeft: 8, color: '#000' ,flex:1,flexWrap:'wrap'}, 
   innerDropdownList: { borderWidth: 1, borderColor: '#a0a0a0', borderRadius: 4, marginTop: 2, backgroundColor: '#fff', position: 'absolute', top: 135, width: '100%', zIndex: 99 },
 
   // POP-UP MODAL WINDOW STYLES
