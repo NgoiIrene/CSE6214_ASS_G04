@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
+// 🔌 引入您项目中配置好的官方 Supabase 客户端实例
+import { supabase } from '../../supabaseClient';
+
 const { width } = Dimensions.get('window');
 
 // ==================== 🔢 智能库存快捷控制器组件 ====================
@@ -25,15 +28,9 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
   const [isTextInputMode, setIsTextInputMode] = useState(false);
   const [localValue, setLocalValue] = useState(stockValue.toString());
 
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalValue(stockValue.toString());
   }, [stockValue]);
-
-  const handleStep = (step) => {
-    const current = parseInt(stockValue, 10) || 0;
-    const nextValue = Math.max(0, current + step);
-    onChangeStock(nextValue.toString());
-  };
 
   const handleFinishEditing = () => {
     setIsTextInputMode(false);
@@ -43,6 +40,12 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
     } else {
       onChangeStock(parsed.toString());
     }
+  };
+
+  const handleStep = (step) => {
+    const current = parseInt(stockValue, 10) || 0;
+    const nextValue = Math.max(0, current + step);
+    onChangeStock(nextValue.toString());
   };
 
   if (!isEditing) {
@@ -85,30 +88,33 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   // 🚪 侧边栏显隐状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // ==================== 🛠️ 1. 全局状态控制 ====================
+  // 👤 用户与商家状态
+  const [vendorId, setVendorId] = useState(null);
+  const [profileName, setProfileName] = useState('Loading...');
+  const [profileAvatar, setProfileAvatar] = useState(null);
+
+  // ==================== 🛠️ 全局状态控制 ====================
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('ANNOUNCEMENT');
-  const [tabs, setTabs] = useState(['ANNOUNCEMENT', 'RICE', 'NOODLE', 'DRINK', 'COMBO']);
+  const [tabs, setTabs] = useState(['ANNOUNCEMENT']); // 默认只有公告栏，其余分类从数据库动态加载
 
   // ==================== ➕ 分类命名弹窗状态 ====================
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isEditModeCategory, setIsEditModeCategory] = useState(false);
 
-  // ==================== 📢 2. 公告板状态 (ANNOUNCEMENT) ====================
-  const [welcomeText, setWelcomeText] = useState(
-    'Welcome to Rasa Syiok . Hope you have a nice day and rasa syioknya'
-  );
+  // ==================== 📢 公告板状态 (ANNOUNCEMENT) ====================
+  const [welcomeText, setWelcomeText] = useState('Welcome to our store! Hope you have a nice day.');
   const [imageUri, setImageUri] = useState(null);
   const [imageAspectRatio, setImageAspectRatio] = useState(1);
 
-  // ==================== 🍛 3. 菜品列表数据状态 ====================
-  const [foodItems, setFoodItems] = useState([
-    { id: '1', category: 'RICE', code: 'A01', name: 'NASI GORENG', price: '5', stock: '99', desc: '', img: null },
-    { id: '2', category: 'RICE', code: 'A02', name: 'NASI AYAM PENYET', price: '8', stock: '76', desc: '', img: null },
-  ]);
+  // 专门用来控制公告栏是否处于编辑状态
+  const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
 
-  // ==================== 📝 4. Food Detail 弹窗状态 ====================
+  // ==================== 🍛 菜品列表数据状态 ====================
+  const [foodItems, setFoodItems] = useState([]);
+
+  // ==================== 📝 Food Detail 弹窗状态 ====================
   const [foodModalVisible, setFoodModalVisible] = useState(false);
   const [editingFoodId, setEditingFoodId] = useState(null);
   const [formName, setFormName] = useState('');
@@ -117,27 +123,129 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   const [formDesc, setFormDesc] = useState('');
   const [formImg, setFormImg] = useState(null);
 
-  // ==================== ⚡ 5. 核心逻辑功能 ====================
+  // ==================== 🔄 核心：初始化拉取商家的全套数据 ====================
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        // 1. 获取当前登录用户的 Auth 信息
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          setProfileName('GUEST');
+          return;
+        }
+        setVendorId(user.id);
 
-  // 🌟 双向完美拦截跨栏点击
+        // 2. 并发读取商家 Profile、分类、菜品、以及【新增：公告信息】
+        const [profileRes, categoriesRes, foodRes, announcementRes] = await Promise.all([
+          supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single(),
+          supabase.from('categories').select('name').eq('vendor_id', user.id).order('created_at', { ascending: true }),
+          supabase.from('food_items').select('*').eq('vendor_id', user.id).order('created_at', { ascending: true }),
+          supabase.from('announcements').select('content, image_url').eq('vendor_id', user.id).maybeSingle() // 👈 动态抓取公告
+        ]);
+
+        // 绑定侧边栏个人信息
+        if (profileRes.data) {
+          setProfileName(profileRes.data.full_name || 'No Name');
+          setProfileAvatar(profileRes.data.avatar_url || null);
+        }
+
+        // 绑定公告栏内容 (如果没有配置过则保留默认文本)
+        if (announcementRes.data) {
+          setWelcomeText(announcementRes.data.content || 'Welcome to our store! Hope you have a nice day.');
+          setImageUri(announcementRes.data.image_url || null);
+        }
+
+        // 绑定分类 Tab
+        if (categoriesRes.data) {
+          const dbTabs = categoriesRes.data.map(c => c.name);
+          setTabs(['ANNOUNCEMENT', ...dbTabs]);
+        }
+
+        // 绑定菜品列表
+        if (foodRes.data) {
+          const mappedFoods = foodRes.data.map(item => ({
+            id: item.id,
+            category: item.category,
+            code: item.code,
+            name: item.name,
+            price: item.price.toString(),
+            stock: item.stock.toString(),
+            desc: item.desc || '',
+            img: item.image_url || null
+          }));
+          setFoodItems(mappedFoods);
+        }
+
+      } catch (err) {
+        console.error('Initialization failed:', err);
+        setProfileName('ERROR');
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  // ==================== ⚡ 核心逻辑功能与 Supabase 交互 ====================
+
   const handleTabChange = (nextTab) => {
-    if (activeTab === 'ANNOUNCEMENT' && isEditing && nextTab !== 'ANNOUNCEMENT') {
+    if (activeTab === 'ANNOUNCEMENT' && isEditingAnnouncement && nextTab !== 'ANNOUNCEMENT') {
       Alert.alert("Notice", "Please SAVE your announcement updates before leaving.");
       return;
     }
-
     if (activeTab !== 'ANNOUNCEMENT' && isEditing && nextTab === 'ANNOUNCEMENT') {
       Alert.alert("Notice", "Please finish or exit editing mode before viewing Announcement.");
       return;
     }
 
+    if (nextTab !== 'ANNOUNCEMENT') {
+      setIsEditingAnnouncement(false);
+    }
     setActiveTab(nextTab);
   };
 
-  const handleUpdateSingleStock = (id, newStock) => {
+  // 保存公告内容并真正更新同步到 Supabase
+  const handleSaveAnnouncement = async () => {
+    try {
+      // 通过 upsert 实现：如果有当前商家的记录则覆盖更新，没有则新增
+      const { error } = await supabase
+        .from('announcements')
+        .upsert(
+          {
+            vendor_id: vendorId,
+            content: welcomeText,
+            image_url: imageUri
+          },
+          { onConflict: 'vendor_id' }
+        );
+
+      if (error) {
+        Alert.alert("Error", "Failed to sync announcement: " + error.message);
+      } else {
+        setIsEditingAnnouncement(false);
+        Alert.alert("Success", "Announcement saved successfully!");
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "An unexpected error occurred.");
+    }
+  };
+
+  const handleUpdateSingleStock = async (id, newStock) => {
+    const stockInt = parseInt(newStock, 10) || 0;
+
     setFoodItems(prevItems =>
       prevItems.map(item => item.id === id ? { ...item, stock: newStock } : item)
     );
+
+    const { error } = await supabase
+      .from('food_items')
+      .update({ stock: stockInt })
+      .eq('id', id)
+      .eq('vendor_id', vendorId);
+
+    if (error) {
+      Alert.alert("Error", "Failed to update stock in database: " + error.message);
+    }
   };
 
   const handleSelectAnnouncementImage = async () => {
@@ -168,9 +276,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       quality: 0.7,
       allowsMultipleSelection: false,
       selectionLimit: 1,
-      ...Platform.select({
-        android: { circleCrop: true }
-      })
     });
     if (!result.canceled) {
       setFormImg(result.assets[0].uri);
@@ -179,18 +284,18 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
   const openAddCategoryModal = () => {
     setIsEditModeCategory(false);
-    setNewCategoryName(''); // 🔧 修复原本大小写错误的 Bug (NewCategoryName)
+    setNewCategoryName('');
     setCategoryModalVisible(true);
   };
 
   const openEditCategoryModal = () => {
     if (activeTab === 'ANNOUNCEMENT') return;
     setIsEditModeCategory(true);
-    setNewCategoryName(activeTab); // 🔧 修复原本大小写错误的 Bug (NewCategoryName)
+    setNewCategoryName(activeTab);
     setCategoryModalVisible(true);
   };
 
-  const handleCategorySubmit = () => {
+  const handleCategorySubmit = async () => {
     const formattedName = newCategoryName.trim().toUpperCase();
     if (formattedName === '') {
       Alert.alert("Error", "Category name cannot be empty.");
@@ -207,22 +312,35 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         return;
       }
 
-      const updatedTabs = tabs.map(t => t === activeTab ? formattedName : t);
-      const updatedFoodItems = foodItems.map(item => {
-        if (item.category === activeTab) {
-          return { ...item, category: formattedName };
-        }
-        return item;
-      });
+      const { error } = await supabase
+        .from('categories')
+        .update({ name: formattedName })
+        .eq('vendor_id', vendorId)
+        .eq('name', activeTab);
 
-      setTabs(updatedTabs);
-      setFoodItems(updatedFoodItems);
+      if (error) {
+        Alert.alert("Error", error.message);
+        return;
+      }
+
+      setTabs(tabs.map(t => t === activeTab ? formattedName : t));
+      setFoodItems(foodItems.map(item => item.category === activeTab ? { ...item, category: formattedName } : item));
       setActiveTab(formattedName);
     } else {
       if (tabs.includes(formattedName)) {
         Alert.alert("Error", "This category already exists.");
         return;
       }
+
+      const { error } = await supabase
+        .from('categories')
+        .insert([{ vendor_id: vendorId, name: formattedName }]);
+
+      if (error) {
+        Alert.alert("Error", error.message);
+        return;
+      }
+
       setTabs([...tabs, formattedName]);
       setActiveTab(formattedName);
     }
@@ -248,24 +366,66 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     setFoodModalVisible(true);
   };
 
-  const handleSaveFoodForm = () => {
+  const handleSaveFoodForm = async () => {
     if (!formName || !formPrice) {
       Alert.alert("Error", "Name and Price are required.");
       return;
     }
 
+    const priceNum = parseFloat(formPrice) || 0;
+    const stockInt = parseInt(formStock, 10) || 0;
+    const finalName = formName.toUpperCase();
+
     if (editingFoodId) {
+      const { error } = await supabase
+        .from('food_items')
+        .update({
+          name: finalName,
+          price: priceNum,
+          stock: stockInt,
+          desc: formDesc,
+          image_url: formImg
+        })
+        .eq('id', editingFoodId)
+        .eq('vendor_id', vendorId);
+
+      if (error) {
+        Alert.alert("Error", error.message);
+        return;
+      }
+
       setFoodItems(foodItems.map(item => item.id === editingFoodId ? {
-        ...item, name: formName, price: formPrice, stock: formStock, desc: formDesc, img: formImg
+        ...item, name: finalName, price: formPrice, stock: formStock, desc: formDesc, img: formImg
       } : item));
     } else {
       const currentCatCount = foodItems.filter(i => i.category === activeTab).length;
       const newCode = `${activeTab.substring(0, 1)}0${currentCatCount + 1}`;
+
+      const { data, error } = await supabase
+        .from('food_items')
+        .insert([{
+          vendor_id: vendorId,
+          category: activeTab,
+          code: newCode,
+          name: finalName,
+          price: priceNum,
+          stock: stockInt,
+          desc: formDesc,
+          image_url: formImg
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        Alert.alert("Error", error.message);
+        return;
+      }
+
       const newFood = {
-        id: Date.now().toString(),
+        id: data.id,
         category: activeTab,
         code: newCode,
-        name: formName.toUpperCase(),
+        name: finalName,
         price: formPrice,
         stock: formStock || '0',
         desc: formDesc,
@@ -284,23 +444,30 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => {
+        onPress: async () => {
+          const { error } = await supabase
+            .from('categories')
+            .delete()
+            .eq('vendor_id', vendorId)
+            .eq('name', activeTab);
+
+          if (error) {
+            Alert.alert("Error", error.message);
+            return;
+          }
+
           const currentIndex = tabs.indexOf(activeTab);
           let nextTargetTab = 'ANNOUNCEMENT';
-
           if (currentIndex < tabs.length - 1) {
             nextTargetTab = tabs[currentIndex + 1];
           } else if (currentIndex > 0) {
             nextTargetTab = tabs[currentIndex - 1];
           }
 
-          if (nextTargetTab === 'ANNOUNCEMENT') {
-            setIsEditing(false);
-          }
+          if (nextTargetTab === 'ANNOUNCEMENT') setIsEditing(false);
 
-          const updatedTabs = tabs.filter(t => t !== activeTab);
+          setTabs(tabs.filter(t => t !== activeTab));
           setFoodItems(foodItems.filter(item => item.category !== activeTab));
-          setTabs(updatedTabs);
           setActiveTab(nextTargetTab);
         }
       }
@@ -310,20 +477,33 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   const handleDeleteFood = (id) => {
     Alert.alert("Delete", "Are you sure you want to delete this food item?", [
       { text: "Cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setFoodItems(foodItems.filter(i => i.id !== id)) }
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const { error } = await supabase
+            .from('food_items')
+            .delete()
+            .eq('id', id)
+            .eq('vendor_id', vendorId);
+
+          if (error) {
+            Alert.alert("Error", error.message);
+            return;
+          }
+          setFoodItems(foodItems.filter(i => i.id !== id));
+        }
+      }
     ]);
   };
 
-  // 🛠️ 处理侧边栏导航点击与跳转（打通保障）
   const handleMenuPress = (targetScreen) => {
-    setIsSidebarOpen(false); // 先关闭侧边栏
+    setIsSidebarOpen(false);
     if (targetScreen === 'menu') return;
-
-    // 回传参数给上层主控路由，确保跳转畅通
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
-      onBack(targetScreen); 
+      onBack(targetScreen);
     }
   };
 
@@ -338,24 +518,24 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         onRequestClose={() => setIsSidebarOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* 左侧实体菜单 */}
           <View style={styles.sidebar}>
-            {/* 顶栏：Menu 切换按钮 */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                <Ionicons name="person-outline" size={45} color="#000" />
+                {profileAvatar ? (
+                  <Image source={{ uri: profileAvatar }} style={styles.sidebarAvatarImage} />
+                ) : (
+                  <Ionicons name="person-outline" size={45} color="#000" />
+                )}
               </View>
-              <Text style={styles.avatarName}>Rasa Syiok</Text>
+              <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* 导航列表 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -364,7 +544,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Profile</Text>
             </TouchableOpacity>
 
-            {/* 当前页面高亮为灰色背景 */}
             <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('menu')}>
               <Text style={styles.sidebarItemText}>Menu</Text>
             </TouchableOpacity>
@@ -385,7 +564,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
-            {/* 底部退出登录 */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -393,8 +571,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* 右侧空白处暗色遮罩层 */}
           <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
             <View style={styles.backdrop} />
           </TouchableWithoutFeedback>
@@ -415,27 +591,19 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
         <Text style={styles.headerTitle}>Menu</Text>
 
-        {activeTab !== 'ANNOUNCEMENT' ? (
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(!isEditing)}>
-            <Ionicons
-              name={isEditing ? "checkmark-circle-outline" : "create-outline"}
-              size={28}
-              color={isEditing ? "green" : "#000"}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 38 }} />
-        )}
+        <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(!isEditing)}>
+          <Ionicons
+            name={isEditing ? "checkmark-circle-outline" : "create-outline"}
+            size={28}
+            color={isEditing ? "green" : "#000"}
+          />
+        </TouchableOpacity>
       </View>
       <View style={styles.divider} />
 
       {/* ==================== 2. TAB BAR ==================== */}
       <View style={styles.tabBarContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBarScroll}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarScroll}>
           {tabs.map((tab) => {
             const isSelected = activeTab === tab;
             return (
@@ -448,7 +616,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
               </TouchableOpacity>
             );
           })}
-
           {isEditing && (
             <TouchableOpacity style={styles.tabAddButton} onPress={openAddCategoryModal}>
               <Ionicons name="add" size={22} color="#000" />
@@ -458,14 +625,10 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       </View>
 
       {/* ==================== 3. 主页面显示区 ==================== */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        {/* 📢 场景 A：公告板界面 */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {activeTab === 'ANNOUNCEMENT' && (
           <View style={{ flex: 1 }}>
-            {isEditing && (
+            {isEditingAnnouncement && (
               <View style={styles.toolbarContainer}>
                 <View style={styles.leftTools}>
                   <TouchableOpacity style={styles.toolIconBtn} onPress={() => setImageUri(null)}>
@@ -475,7 +638,8 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                     <Ionicons name="image-outline" size={24} color="#000" />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.saveButton} onPress={() => setIsEditing(false)}>
+                {/* 🔧 这里改为触发 handleSaveAnnouncement 函数，保存进数据库 */}
+                <TouchableOpacity style={styles.saveButton} onPress={handleSaveAnnouncement}>
                   <Text style={styles.saveButtonText}>SAVE</Text>
                 </TouchableOpacity>
               </View>
@@ -483,19 +647,24 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
             <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.welcomeCard}>
-                {!isEditing && (
-                  <TouchableOpacity style={styles.cardEditBtn} onPress={() => setIsEditing(true)}>
+                {!isEditingAnnouncement && (
+                  <TouchableOpacity style={styles.cardEditBtn} onPress={() => setIsEditingAnnouncement(true)}>
                     <Text style={styles.cardEditText}>edit</Text>
                   </TouchableOpacity>
                 )}
 
                 <View style={styles.cardHeader}>
-                  <Ionicons name="person-circle-outline" size={60} color="#333" style={styles.avatarIcon} />
-                  <Text style={styles.brandTitle}>Rasa Syiok</Text>
+                  {/* 🔧 这里的头像和店名不再写死，而是同步真实的用户 Profile 数据 */}
+                  {profileAvatar ? (
+                    <Image source={{ uri: profileAvatar }} style={[styles.avatarIcon, { width: 60, height: 60, borderRadius: 30 }]} />
+                  ) : (
+                    <Ionicons name="person-circle-outline" size={60} color="#333" style={styles.avatarIcon} />
+                  )}
+                  <Text style={styles.brandTitle}>{profileName}</Text>
                 </View>
 
                 <View style={styles.cardBody}>
-                  {!isEditing ? (
+                  {!isEditingAnnouncement ? (
                     <Text style={styles.welcomeText}>{welcomeText}</Text>
                   ) : (
                     <TextInput
@@ -507,7 +676,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                     />
                   )}
                 </View>
-
                 {imageUri && (
                   <View style={styles.imageWrapper}>
                     <Image source={{ uri: imageUri }} style={[styles.realSelectedImage, { aspectRatio: imageAspectRatio }]} resizeMode="contain" />
@@ -518,10 +686,8 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           </View>
         )}
 
-        {/* 🍛 场景 B：食品分类界面 */}
         {activeTab !== 'ANNOUNCEMENT' && (
           <View style={{ flex: 1 }}>
-
             {isEditing && (
               <View style={styles.hintBar}>
                 <View style={styles.hintLeftIcons}>
@@ -541,8 +707,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                   {isEditing && (
                     <View style={styles.foodActionLeft}>
                       <TouchableOpacity onPress={() => handleDeleteFood(food.id)}>
-                        <Ionicons name="trash-outline" size={20} color="red" style={{ marginRight: 8 }} />
-                      </TouchableOpacity>
+                        <Ionicons name="trash-outline" size={20} color="red" style={{ marginRight: 8 }} />                      </TouchableOpacity>
                       <TouchableOpacity onPress={() => openFoodModal(food)}>
                         <Ionicons name="create-outline" size={20} color="blue" style={{ marginRight: 8 }} />
                       </TouchableOpacity>
@@ -700,7 +865,7 @@ const styles = StyleSheet.create({
   cardEditText: { fontSize: 13, color: 'red', textDecorationLine: 'underline', fontWeight: 'bold' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   avatarIcon: { marginRight: 12 },
-  brandTitle: { fontSize: 32, fontWeight: 'bold', color: '#000' },
+  brandTitle: { fontSize: 26, fontWeight: 'bold', color: '#000', flex: 1 },
   cardBody: { width: '100%' },
   welcomeText: { fontSize: 16, lineHeight: 24, color: '#000', textAlign: 'center' },
   welcomeInput: { fontSize: 16, lineHeight: 24, color: '#000', textAlign: 'center', padding: 10, minHeight: 80, borderWidth: 1, borderColor: '#e5e5e5', borderRadius: 8, backgroundColor: '#fafafa' },
@@ -758,13 +923,10 @@ const styles = StyleSheet.create({
   modalSubmitBtn: { backgroundColor: '#A9A9A9', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
 
-  /* ==================== 📌 Sidebar 样式表 ==================== */
-  modalContainer: {
-    flex: 1,
-    flexDirection: 'row',
-  },
+  /* ==================== Sidebar 样式表 ==================== */
+  modalContainer: { flex: 1, flexDirection: 'row' },
   sidebar: {
-    width: Dimensions.get('window').width * 0.75, 
+    width: Dimensions.get('window').width * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     borderRightWidth: 2,
@@ -772,17 +934,8 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 40 : 25,
     zIndex: 10,
   },
-  sidebarHeader: {
-    paddingHorizontal: 15,
-    paddingBottom: 10,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#000',
-    marginBottom: 10,
-  },
+  sidebarHeader: { paddingHorizontal: 15, paddingBottom: 10 },
+  avatarSection: { alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1.5, borderBottomColor: '#000', marginBottom: 10 },
   avatarCircle: {
     width: 70,
     height: 70,
@@ -792,50 +945,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
+    overflow: 'hidden',
   },
-  avatarName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#000',
-  },
-  sidebarItem: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#000',
-    alignItems: 'center',
-  },
-  sidebarActiveItem: {
-    backgroundColor: '#A9A9A9', 
-  },
-  sidebarItemText: {
-    fontSize: 22,
-    color: '#000',
-    fontWeight: 'normal',
-  },
-  sidebarFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1.5,
-    borderTopColor: '#000',
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoutText: {
-    fontSize: 22,
-    color: '#000',
-    marginLeft: 10,
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
-  },
+  sidebarAvatarImage: { width: '100%', height: '100%', borderRadius: 35 },
+  avatarName: { fontSize: 16, fontWeight: 'bold', color: '#000' },
+  sidebarItem: { width: '100%', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1.5, borderBottomColor: '#000', alignItems: 'center' },
+  sidebarActiveItem: { backgroundColor: '#A9A9A9' },
+  sidebarItemText: { fontSize: 22, color: '#000', fontWeight: 'normal' },
+  sidebarFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopWidth: 1.5, borderTopColor: '#000', paddingVertical: 12, backgroundColor: '#fff' },
+  logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  logoutText: { fontSize: 22, color: '#000', marginLeft: 10 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
 });
