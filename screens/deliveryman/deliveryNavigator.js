@@ -8,6 +8,7 @@ import ProcessDeliveryRequest from './processRequest';
 import UpdateDeliveryProgress from './updateDeliveryStatus';
 import WorkingShift from './workingshift';
 import DeliveryProfile from './deliveryProfile';
+import DeliveryResetPassword from './deliveryResetPassword';
 
 // 🌟 引入刚创建的全局 Provider
 import { RiderProvider } from './RiderProvider'; 
@@ -25,6 +26,7 @@ export default function DeliveryNavigator() {
         <Stack.Screen name="EarningsHistory" component={EarningsAndHistory} />
         <Stack.Screen name="ProcessRequest" component={ProcessDeliveryRequest} />
         <Stack.Screen name="UpdateProgress" component={UpdateDeliveryProgress} />
+        <Stack.Screen name="ResetPassword" component={DeliveryResetPassword} />
       </Stack.Navigator>
     </RiderProvider>
   );
