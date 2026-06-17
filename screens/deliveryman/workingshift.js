@@ -1,8 +1,9 @@
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import React, { useState, useContext } from 'react'; 
-import { RiderContext } from './RiderProvider'; 
+import React, { useState, useContext } from 'react';
+import { RiderContext } from './RiderProvider';
+import { supabase } from '../../supabaseClient';
 import {
   Alert,
   Image,
@@ -19,11 +20,11 @@ export default function WorkingShift() {
   const navigation = useNavigation();
   // 🌟 顺便把 riderName 也一起解构出来
   const { avatarUri, riderName } = useContext(RiderContext);
-  
+
   // ================= 1. 动态状态管理 (State) =================
   const getToday = () => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); 
+    today.setHours(0, 0, 0, 0);
     return today;
   };
 
@@ -50,10 +51,10 @@ export default function WorkingShift() {
     const dayOfWeek = dateCopy.getDay();
     const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(dateCopy.setDate(dateCopy.getDate() + distanceToMonday));
-    
+
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const weekArray = [];
-    
+
     for (let i = 0; i < 7; i++) {
       const nextDay = new Date(monday);
       nextDay.setDate(monday.getDate() + i);
@@ -87,7 +88,7 @@ export default function WorkingShift() {
 
   const handleDatePress = (fullDate) => {
     if (isPastDate(fullDate)) {
-      return; 
+      return;
     }
     setCurrentDate(fullDate);
   };
@@ -144,23 +145,23 @@ export default function WorkingShift() {
         "Unsaved Changes",
         "You have selected shifts but haven't saved them. Are you sure you want to leave?",
         [
-          { text: "No", style: "cancel" }, 
-          { 
-            text: "Yes, Discard", 
-            style: "destructive", 
-            onPress: () => navigation.goBack() 
+          { text: "No", style: "cancel" },
+          {
+            text: "Yes, Discard",
+            style: "destructive",
+            onPress: () => navigation.goBack()
           }
         ]
       );
     } else {
-      navigation.goBack(); 
+      navigation.goBack();
     }
   };
 
   // ================= 5. 界面渲染 (UI) =================
   return (
     <SafeAreaView style={styles.container}>
-      
+
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIcon} onPress={() => setIsSidebarOpen(true)}>
           <View style={styles.menuIconBorder}>
@@ -168,11 +169,11 @@ export default function WorkingShift() {
           </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>AVAILABLE SHIFTS</Text>
-        <View style={{ width: 40, marginLeft: 15 }} /> 
+        <View style={{ width: 40, marginLeft: 15 }} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        
+
         <View style={styles.monthNavRow}>
           <TouchableOpacity onPress={handleBack} style={styles.iconButtonOutline}>
             <Ionicons name="arrow-back" size={20} color="black" />
@@ -187,7 +188,7 @@ export default function WorkingShift() {
               <Ionicons name="chevron-forward" size={20} color="black" />
             </TouchableOpacity>
           </View>
-          
+
           <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.iconButtonOutline}>
             <Ionicons name="calendar-outline" size={20} color="black" />
           </TouchableOpacity>
@@ -197,17 +198,17 @@ export default function WorkingShift() {
           {weekDays.map((item) => {
             const isActive = item.fullDate.toDateString() === currentDate.toDateString();
             const isPast = isPastDate(item.fullDate);
-            
+
             return (
-              <TouchableOpacity 
-                key={item.fullDate.toString()} 
+              <TouchableOpacity
+                key={item.fullDate.toString()}
                 style={[
-                  styles.dayBlock, 
+                  styles.dayBlock,
                   isActive && styles.dayBlockActive,
-                  isPast && !isActive && styles.dayBlockPast 
+                  isPast && !isActive && styles.dayBlockPast
                 ]}
                 onPress={() => handleDatePress(item.fullDate)}
-                disabled={isPast} 
+                disabled={isPast}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.dayName, isActive && styles.dayTextActive, isPast && !isActive && styles.dayTextPast]}>
@@ -223,7 +224,7 @@ export default function WorkingShift() {
 
         <View style={styles.listContainer}>
           <Text style={styles.listHeader}>Available Shifts ({currentShifts.length})</Text>
-          
+
           {currentShifts.map((shift) => {
             let btnStyle = styles.btnAvailable;
             let btnTextStyle = styles.btnTextAvailable;
@@ -234,7 +235,7 @@ export default function WorkingShift() {
               btnStyle = styles.btnSelected;
               btnTextStyle = styles.btnTextSelected;
               btnLabel = "Selected ✓";
-              cardHighlight = styles.shiftCardSelected; 
+              cardHighlight = styles.shiftCardSelected;
             } else if (shift.state === 'taken') {
               btnStyle = styles.btnTaken;
               btnTextStyle = styles.btnTextTaken;
@@ -250,10 +251,10 @@ export default function WorkingShift() {
                     <Text style={styles.shiftDuration}>{shift.duration}</Text>
                   </View>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.actionBtn, btnStyle]}
                   onPress={() => toggleShift(shift.id)}
-                  disabled={shift.state === 'taken'} 
+                  disabled={shift.state === 'taken'}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.actionBtnText, btnTextStyle]}>{btnLabel}</Text>
@@ -275,7 +276,7 @@ export default function WorkingShift() {
           value={currentDate}
           mode="date"
           display="default"
-          minimumDate={getToday()} 
+          minimumDate={getToday()}
           onChange={onDateChange}
         />
       )}
@@ -316,7 +317,7 @@ export default function WorkingShift() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={() => { setIsSidebarOpen(false); Alert.alert("Logout", "Logging out..."); }}>
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { setIsSidebarOpen(false); const { error } = await supabase.auth.signOut(); if (error) return Alert.alert('Logout failed', error.message || 'Please try again.'); }}>
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
@@ -325,43 +326,43 @@ export default function WorkingShift() {
           </View>
         </View>
       ) : null}
-      
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 15, 
-    marginTop: 30, 
-    backgroundColor: '#FFF', 
-    borderBottomWidth: 1.5, 
-    borderBottomColor: '#E0E0E0' 
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 15,
+    marginTop: 30,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E0E0E0'
   },
   menuIcon: { paddingHorizontal: 5 },
   menuIconBorder: {
-    width: 40, 
-    height: 40, 
-    borderRadius: 8, 
-    borderWidth: 1.5, 
-    borderColor: '#000', 
-    alignItems: 'center', 
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF'
   },
   headerTitle: { fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
   monthNavRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 15, backgroundColor: '#FFF' },
-  iconButtonOutline: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    borderWidth: 1, 
+  iconButtonOutline: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: '#D0D0D0',
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF'
   },
@@ -395,17 +396,17 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: 'row', padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
   saveBtn: { flex: 1, paddingVertical: 15, borderRadius: 10, backgroundColor: '#424242', alignItems: 'center', elevation: 3, shadowColor: '#424242', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
   saveBtnText: { fontWeight: 'bold', fontSize: 16, color: '#FFF' },
-  
+
   // 🌟 侧边栏样式
   sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
   closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
   sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },
   sidebarHeader: { alignItems: 'center', padding: 25, paddingTop: Platform.OS === 'ios' ? 60 : 50, backgroundColor: '#424242' },
   profileAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
-  
+
   // 🌟 这里就是刚才缺失的关键一行！加了这行，照片就显示出来了：
   avatarImageReal: { width: 60, height: 60, borderRadius: 30 },
-  
+
   profileName: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 2 },
   menuList: { flex: 1, paddingTop: 10 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 25 },

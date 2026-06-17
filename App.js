@@ -3,15 +3,27 @@ import {
   StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, Platform, Alert, ActivityIndicator, KeyboardAvoidingView
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import { supabase } from './supabaseClient'; // 确保此文件路径正确
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { supabase } from './supabaseClient'; 
 
-export default function App() {
+import DeliveryNavigator from './screens/deliveryman/deliveryNavigator'; 
+import VendorNavigator from './screens/vendor/vendornavigetor'; 
+import AdminNavigator from './screens/admin/admin_Navigation'; 
+// import CustomerNavigator from './customerNavigator'; 
+// import VendorNavigator from './vendorNavigator'; 
+
+const Stack = createNativeStackNavigator();
+
+// 🌟 核心防闪烁机制：红绿灯标志
+let isSigningUpFlag = false; 
+
+// ==================== 1. 登录与注册页面 (Auth Screen) ====================
+const AuthScreen = () => {
   const [currentPage, setCurrentPage] = useState('login');
   const [isLoading, setIsLoading] = useState(false);
 
-  // 状态定义
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -23,124 +35,93 @@ export default function App() {
   const [signUpPassword, setSignUpPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // 清空注册表单的辅助函数
-  const clearForm = () => {
-    setFullName('');
-    setSignUpEmail('');
-    setAccountType('');
-    setPhoneNumber('');
-    setGender('');
-    setAge('');
-    setSignUpPassword('');
-    setConfirmPassword('');
-  };
-
   useEffect(() => {
-    // 当 currentPage 发生变化时，执行清空
-    clearForm();
+    setFullName(''); setSignUpEmail(''); setAccountType(''); setPhoneNumber('');
+    setGender(''); setAge(''); setSignUpPassword(''); setConfirmPassword('');
   }, [currentPage]);
 
-  // ⚡ 登录
-  // const handleLoginSubmit = async () => {
-  //   setIsLoading(true);
-  //   const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
-  //   setIsLoading(false);
-  //   if (error) return Alert.alert("Error", error.message);
-  //   Alert.alert("Success", "Login Successful!");
-  // };
-
-  // ⚡ 注册
+  // ⚡ 注册逻辑
   const handleSignUpSubmit = async () => {
     if (signUpPassword !== confirmPassword) return Alert.alert("Error", "Passwords don't match!");
+    
     setIsLoading(true);
+    isSigningUpFlag = true; // 🔴 亮起红灯：正在注册中，大管家不要监听状态变化！
 
-    // 1. 注册账号
-    const { data, error } = await supabase.auth.signUp({
-      email: signUpEmail,
-      password: signUpPassword
-    });
+    // 1. Supabase 账号注册
+    const { data, error } = await supabase.auth.signUp({ email: signUpEmail, password: signUpPassword });
 
     if (error) {
       setIsLoading(false);
+      isSigningUpFlag = false; // 🟢 发生错误，恢复绿灯
       return Alert.alert("Error", error.message);
     }
 
-    // 2. 注册成功后，存入 profiles 表 (添加了 email 字段)
+    // 2. 存入 Profile 资料
     if (data.user) {
       const { error: dbError } = await supabase.from('profiles').insert([{
         id: data.user.id,
-        email: signUpEmail, // <--- 新增这行，将邮箱存入数据库
+        email: signUpEmail,
         full_name: fullName,
         account_type: accountType,
         phone_number: phoneNumber,
-        gender: gender,     // 确保你的 radio button 逻辑已更新 state
+        gender: gender,
         age: parseInt(age) || 0
       }]);
 
       if (dbError) {
         setIsLoading(false);
-        console.log("Database insertion error:", dbError);
+        isSigningUpFlag = false; // 🟢 发生错误，恢复绿灯
         return Alert.alert("Data Save Failed", dbError.message);
       }
     }
 
+    // 3. 强制登出（因为这时候还没切页面，用户完全察觉不到）
+    await supabase.auth.signOut();
+
     setIsLoading(false);
-    Alert.alert("Success", "Registration Complete!");
-    setCurrentPage('login');
+    isSigningUpFlag = false; // 🟢 注册全套流程完毕，恢复绿灯！
+
+    Alert.alert("Success", "Registration Complete! Please log in.");
+    setCurrentPage('login'); // 稳稳地停留在当前页面，切回 Login 表单
   };
 
+  // ⚡ 登录逻辑
   const handleLoginSubmit = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password: loginPassword
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
     setIsLoading(false);
 
     if (error) {
-      console.log("Login failed details:", error); // ✅ Check terminal for error
       Alert.alert("Login Failed", error.message);
-      return;
     }
-
-    // If successful
-    Alert.alert("Success", "Login Successful!");
-    navigateToScreen?.('order');
   };
 
-  const getHeaderTitle = () => {
-    if (currentPage === 'login') return 'Log In';
-    if (currentPage === 'signup') return 'Sign Up';
-    return 'Reset Password';
-  };
+  const getHeaderTitle = () => currentPage === 'login' ? 'Log In' : 'Sign Up';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View style={{ width: 32 }} />
         <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
-        <View style={{ width: 32 }} />
       </View>
       <View style={styles.divider} />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-
+        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          
           {currentPage === 'login' && (
             <View style={styles.wireframeCard}>
               <View style={styles.wireframeInputRow}>
                 <Text style={styles.wireframeLabel}>Email:</Text>
-                <TextInput style={styles.wireframeInputInline} value={loginEmail} onChangeText={setLoginEmail} autoCapitalize="none" />
+                <TextInput style={styles.input} value={loginEmail} onChangeText={setLoginEmail} autoCapitalize="none" keyboardType="email-address" />
               </View>
               <View style={styles.wireframeInputRow}>
                 <Text style={styles.wireframeLabel}>Password:</Text>
-                <TextInput style={styles.wireframeInputInline} value={loginPassword} onChangeText={setLoginPassword} secureTextEntry />
+                <TextInput style={styles.input} value={loginPassword} onChangeText={setLoginPassword} secureTextEntry />
               </View>
-              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleLoginSubmit}>
-                <Text style={styles.wireframeSubmitBtnText}>{isLoading ? '...' : 'Login'}</Text>
+              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleLoginSubmit} disabled={isLoading}>
+                <Text style={styles.wireframeSubmitBtnText}>{isLoading ? 'Loading...' : 'Login'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCurrentPage('signup')} style={{ marginTop: 15 }}>
+              <TouchableOpacity onPress={() => setCurrentPage('signup')} style={{ marginTop: 20 }}>
                 <Text style={styles.linkTextUnderline}>No account? Sign Up</Text>
               </TouchableOpacity>
             </View>
@@ -148,12 +129,16 @@ export default function App() {
 
           {currentPage === 'signup' && (
             <View style={styles.wireframeCard}>
-              <TextInput style={styles.input} placeholder="Full Name" value={fullName} onChangeText={setFullName} />
-              <TextInput style={styles.input} placeholder="Email" value={signUpEmail} onChangeText={setSignUpEmail} autoCapitalize="none" />
-
+              <Text style={styles.wireframeLabel}>Full Name:</Text>
+              <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
+              
+              <Text style={styles.wireframeLabel}>Email:</Text>
+              <TextInput style={styles.input} value={signUpEmail} onChangeText={setSignUpEmail} autoCapitalize="none" keyboardType="email-address" />
+              
+              <Text style={styles.wireframeLabel}>Account Type:</Text>
               <View style={styles.pickerContainerEdge}>
                 <Picker selectedValue={accountType} onValueChange={setAccountType}>
-                  <Picker.Item label="Account Type" value="" />
+                  <Picker.Item label="--- Select ---" value="" color="#999" />
                   <Picker.Item label="User(Customer)" value="user(customer)" />
                   <Picker.Item label="Vendor" value="vendor" />
                   <Picker.Item label="
@@ -161,30 +146,35 @@ export default function App() {
                 </Picker>
               </View>
 
-              {/* ⚡ Gender Radio Button 模拟 */}
               <Text style={styles.wireframeLabel}>Gender:</Text>
-              <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', marginBottom: 15 }}>
                 {['male', 'female'].map((item) => (
-                  <TouchableOpacity
-                    key={item}
-                    style={{ flexDirection: 'row', alignItems: 'center', marginRight: 20 }}
-                    onPress={() => setGender(item)}
-                  >
+                  <TouchableOpacity key={item} style={styles.radioContainer} onPress={() => setGender(item)}>
                     <View style={[styles.radioOuter, gender === item && styles.radioSelected]}>
                       {gender === item && <View style={styles.radioInner} />}
                     </View>
-                    <Text style={{ textTransform: 'capitalize' }}>{item}</Text>
+                    <Text style={{ textTransform: 'capitalize', fontWeight: '500' }}>{item}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <TextInput style={styles.input} placeholder="Phone" value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" />
-              <TextInput style={styles.input} placeholder="Age" value={age} onChangeText={setAge} keyboardType="numeric" />
-              <TextInput style={styles.input} placeholder="Password" value={signUpPassword} onChangeText={setSignUpPassword} secureTextEntry />
-              <TextInput style={styles.input} placeholder="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+              <Text style={styles.wireframeLabel}>Phone Number:</Text>
+              <TextInput style={styles.input} value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" />
+              
+              <Text style={styles.wireframeLabel}>Age:</Text>
+              <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" />
+              
+              <Text style={styles.wireframeLabel}>Password:</Text>
+              <TextInput style={styles.input} value={signUpPassword} onChangeText={setSignUpPassword} secureTextEntry />
+              
+              <Text style={styles.wireframeLabel}>Confirm Password:</Text>
+              <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
 
-              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleSignUpSubmit}>
-                <Text style={styles.wireframeSubmitBtnText}>{isLoading ? '...' : 'Signup'}</Text>
+              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleSignUpSubmit} disabled={isLoading}>
+                <Text style={styles.wireframeSubmitBtnText}>{isLoading ? 'Processing...' : 'Signup'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCurrentPage('login')} style={{ marginTop: 20 }}>
+                <Text style={styles.linkTextUnderline}>Already have an account? Log In</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -192,28 +182,123 @@ export default function App() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+};
+
+// ==================== 2. ROOT NAVIGATOR ====================
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchUserRole(session.user.id);
+      else setIsAppLoading(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      // 🌟 拦截器：如果正在执行 Signup 流程，无视任何登录通知！
+      if (isSigningUpFlag) return; 
+
+      setSession(session);
+      if (session) {
+        setIsAppLoading(true);
+        fetchUserRole(session.user.id);
+      } else {
+        setUserRole(null);
+        setIsAppLoading(false);
+      }
+    });
+
+    return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  const fetchUserRole = async (userId) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('account_type')
+      .eq('id', userId)
+      .single();
+
+    if (!error && data) {
+      setUserRole(data.account_type);
+    }
+    setIsAppLoading(false);
+  };
+
+  if (isAppLoading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#000" />
+        <Text style={{ marginTop: 10, fontWeight: 'bold' }}>Loading Campus App...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!session ? (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : !userRole ? (
+           // 🌟 缓冲页面：拿到了 session 但还没拿到 role 时，给一个加载动画，而不是直接丢 Error
+          <Stack.Screen name="RoleCheck">
+            {() => (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#000" />
+                <Text style={{ marginTop: 15, fontWeight: 'bold', fontSize: 16 }}>Verifying Account...</Text>
+              </View>
+            )}
+          </Stack.Screen>
+        ) : (
+          <>
+            {userRole === 'delivery' && <Stack.Screen name="DeliveryRoot" component={DeliveryNavigator} />}
+            {/* {userRole === 'user(customer)' && <Stack.Screen name="CustomerRoot" component={CustomerNavigator} />} */}
+            {userRole === 'vendor' && <Stack.Screen name="VendorRoot" component={VendorNavigator} />}
+            {userRole === 'admin' && <Stack.Screen name="AdminRoot" component={AdminNavigator} />}
+            
+            {!['delivery', 'user(customer)', 'vendor'].includes(userRole) && (
+              <Stack.Screen name="Error">
+                {() => (
+                  <View style={styles.centerContainer}>
+                    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>Error: Invalid Role.</Text>
+                    <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={() => supabase.auth.signOut()}>
+                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </Stack.Screen>
+            )}
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 }
 
+// ==================== STYLES ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 20, flexDirection: 'row', justifyContent: 'center' },
-  headerTitle: { fontSize: 24, fontWeight: 'bold' },
+  header: { padding: 20, flexDirection: 'row', justifyContent: 'center', paddingTop: Platform.OS === 'ios' ? 10 : 40 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', letterSpacing: 1 },
   divider: { height: 2, backgroundColor: '#000' },
-  scrollContainer: { padding: 20 },
-  wireframeCard: { borderWidth: 1.5, borderColor: '#000', padding: 20, marginTop: 20 },
+  scrollContainer: { padding: 20, paddingBottom: 40 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+  
+  wireframeCard: { borderWidth: 1.5, borderColor: '#000', padding: 25, width: '100%', marginTop: 10, backgroundColor: '#fff' },
   wireframeInputRow: { marginBottom: 15 },
-  wireframeLabel: { fontWeight: 'bold', marginBottom: 5 },
-  wireframeInputInline: { borderWidth: 1.5, borderColor: '#000', padding: 10, marginBottom: 10 },
-  input: { borderWidth: 1.5, borderColor: '#000', padding: 10, marginBottom: 10 },
-  pickerContainerEdge: { borderWidth: 1.5, borderColor: '#000', marginBottom: 10 },
-  wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', padding: 15, alignItems: 'center', marginTop: 10 },
-  wireframeSubmitBtnText: { fontWeight: 'bold' },
-  linkTextUnderline: { textDecorationLine: 'underline', textAlign: 'center' },
-  radioOuter: {
-    height: 20, width: 20, borderRadius: 10, borderWidth: 2,
-    borderColor: '#000', marginRight: 8, justifyContent: 'center', alignItems: 'center'
-  },
-  radioSelected: { borderColor: '#000' },
-  radioInner: { height: 10, width: 10, borderRadius: 5, backgroundColor: '#000' },
+  wireframeLabel: { fontWeight: 'bold', marginBottom: 8, fontSize: 13 },
+  
+  input: { borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 15, paddingVertical: 12, marginBottom: 18, backgroundColor: '#fff', fontSize: 14 },
+  pickerContainerEdge: { borderWidth: 1.5, borderColor: '#000', marginBottom: 18, height: 50, justifyContent: 'center' },
+  
+  wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: '#fff' },
+  wireframeSubmitBtnText: { fontWeight: 'bold', color: '#000', fontSize: 15 },
+  linkTextUnderline: { textDecorationLine: 'underline', textAlign: 'center', color: '#000', fontSize: 13 },
+  
+  radioContainer: { flexDirection: 'row', alignItems: 'center', marginRight: 25 },
+  radioOuter: { height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginRight: 8, justifyContent: 'center', alignItems: 'center' },
+  radioSelected: { borderColor: '#000', backgroundColor: '#000' },
+  radioInner: { height: 8, width: 8, borderRadius: 4, backgroundColor: '#FFF' }
 });
-

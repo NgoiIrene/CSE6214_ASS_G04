@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useContext } from 'react';
 import { Image } from 'react-native'; // 确保引入了 Image
 import { RiderContext } from './RiderProvider'; // 确保路径正确
+import { supabase } from '../../supabaseClient';
 import {
   Dimensions,
   Platform,
@@ -19,11 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 const { width, height } = Dimensions.get('window');
 
 export default function DeliveryMain() {
-  const navigation = useNavigation(); 
+  const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-// 🌟 顺便把 riderName 也一起解构出来
+  // 🌟 顺便把 riderName 也一起解构出来
   const { avatarUri, riderName } = useContext(RiderContext);
 
   const [shifts, setShifts] = useState([
@@ -37,7 +38,7 @@ export default function DeliveryMain() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
+
       {/* 状态栏防撞区 */}
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
 
@@ -70,8 +71,8 @@ export default function DeliveryMain() {
                 <Text style={styles.shiftTime}>{shift.time}</Text>
                 <Text style={styles.shiftDuration}>Duration: {shift.duration}</Text>
               </View>
-              <TouchableOpacity 
-                style={styles.deleteButton} 
+              <TouchableOpacity
+                style={styles.deleteButton}
                 onPress={() => handleDeleteShift(shift.id)}
                 activeOpacity={0.6}
               >
@@ -79,7 +80,7 @@ export default function DeliveryMain() {
               </TouchableOpacity>
             </View>
           ))}
-          
+
           {shifts.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="calendar-clear-outline" size={48} color="#CCC" />
@@ -99,10 +100,10 @@ export default function DeliveryMain() {
               ios_backgroundColor="#E0E0E0"
               onValueChange={() => setIsOnline(!isOnline)}
               value={isOnline}
-              style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }} 
+              style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
             />
           </View>
-          
+
           <View style={[styles.statusBox, isOnline ? styles.statusBoxOnline : styles.statusBoxOffline]}>
             <View style={[styles.statusDot, { backgroundColor: isOnline ? '#FFF' : '#999' }]} />
             <Text style={[styles.statusText, { color: isOnline ? '#FFF' : '#666' }]}>
@@ -150,7 +151,10 @@ export default function DeliveryMain() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={() => { setIsSidebarOpen(false); Alert.alert("Logout", "Logging out..."); }}>
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => {
+                setIsSidebarOpen(false);
+                await supabase.auth.signOut();
+              }} >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
@@ -168,7 +172,7 @@ export default function DeliveryMain() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F9FA', 
+    backgroundColor: '#F8F9FA',
   },
   header: {
     flexDirection: 'row',
@@ -186,7 +190,7 @@ const styles = StyleSheet.create({
     marginLeft: -5,
   },
   headerTitle: {
-    fontSize: 18, 
+    fontSize: 18,
     fontWeight: '800',
     color: '#000',
     letterSpacing: 1,
@@ -240,7 +244,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#E8F5E9', 
+    backgroundColor: '#E8F5E9',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
@@ -310,7 +314,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   statusBoxOnline: {
-    backgroundColor: '#00C853', 
+    backgroundColor: '#00C853',
   },
   statusBoxOffline: {
     backgroundColor: '#F0F0F0',

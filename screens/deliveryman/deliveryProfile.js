@@ -1,12 +1,13 @@
 import { useNavigation } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker'; 
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { useContext } from 'react';
-import { RiderContext } from './RiderProvider'; 
+import { RiderContext } from './RiderProvider';
+import { supabase } from '../../supabaseClient';
 import {
   Alert,
   Dimensions,
-  Image, 
+  Image,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -21,33 +22,33 @@ import { Ionicons } from '@expo/vector-icons';
 const { width } = Dimensions.get('window');
 
 export default function DeliveryProfile() {
-  const navigation = useNavigation(); 
+  const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false); 
+  const [isEditing, setIsEditing] = useState(false);
 
   // 🌟 把它改成同时获取头像和名字的状态
   const { avatarUri, setAvatarUri, riderName, setRiderName } = useContext(RiderContext);
 
   // 骑手基础资料与载具证件信息
   const [profileData, setProfileData] = useState({
-  name: riderName, // 🌟 改成全局变量，这样每次进页面显示的就是最新修改的名字
-  phone: '012-345 6789',
-  email: 'irene.partner@campusfood.com',
-  vehicleType: 'Motorcycle (Yamaha Y15)', 
-  plateNumber: 'WAA 1234 B',
-  licenseNumber: 'D19980512-KL',
-  licenseExpiry: '15/06/2028',
-});
+    name: riderName, // 🌟 改成全局变量，这样每次进页面显示的就是最新修改的名字
+    phone: '012-345 6789',
+    email: 'irene.partner@campusfood.com',
+    vehicleType: 'Motorcycle (Yamaha Y15)',
+    plateNumber: 'WAA 1234 B',
+    licenseNumber: 'D19980512-KL',
+    licenseExpiry: '15/06/2028',
+  });
 
   const handleInputChange = (key, value) => {
     setProfileData({ ...profileData, [key]: value });
   };
 
   const handleSave = () => {
-  setRiderName(profileData.name); // 🌟 加上这行，点击 Save 时将新名字同步到全局
-  Alert.alert("Success", "Profile updated successfully!");
-  setIsEditing(false);
-};
+    setRiderName(profileData.name); // 🌟 加上这行，点击 Save 时将新名字同步到全局
+    Alert.alert("Success", "Profile updated successfully!");
+    setIsEditing(false);
+  };
 
   // 更换头像弹窗选择
   const handleChangeAvatar = () => {
@@ -109,7 +110,7 @@ export default function DeliveryProfile() {
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>PROFILE</Text>
-        
+
         {isEditing ? (
           <TouchableOpacity style={styles.saveActionBtn} onPress={handleSave}>
             <Text style={styles.saveActionText}>Save</Text>
@@ -123,7 +124,7 @@ export default function DeliveryProfile() {
 
       {/* ==================== 2. 主体内容滚动区 ==================== */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mainScrollContent}>
-        
+
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButtonAbsolute}>
             <Ionicons name="arrow-back" size={20} color="black" />
@@ -150,7 +151,7 @@ export default function DeliveryProfile() {
             <Ionicons name="card-outline" size={20} color="#424242" />
             <Text style={styles.cardHeaderTitle}>Personal Information</Text>
           </View>
-          
+
           {renderInputField('Full Name', profileData.name, (val) => handleInputChange('name', val), isEditing)}
           {renderInputField('Phone Number', profileData.phone, (val) => handleInputChange('phone', val), isEditing, 'phone-pad')}
           {renderInputField('Email Address', profileData.email, null, false, 'email-address')}
@@ -161,14 +162,14 @@ export default function DeliveryProfile() {
             <Ionicons name="bicycle-outline" size={20} color="#424242" />
             <Text style={styles.cardHeaderTitle}>Delivery & License Information</Text>
           </View>
-          
+
           {renderInputField('Vehicle Type', profileData.vehicleType, (val) => handleInputChange('vehicleType', val), isEditing)}
           {renderInputField('Plate Number', profileData.plateNumber, (val) => handleInputChange('plateNumber', val), isEditing, 'default', true)}
           {renderInputField('Driving License No.', profileData.licenseNumber, (val) => handleInputChange('licenseNumber', val), isEditing)}
           {renderInputField('License Expiry Date', profileData.licenseExpiry, (val) => handleInputChange('licenseExpiry', val), isEditing)}
         </View>
 
-        <View style={{ height: 40 }} /> 
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* ==================== 3. 侧边栏 (🌟 PROFILE 激活状态) ==================== */}
@@ -208,7 +209,7 @@ export default function DeliveryProfile() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={() => { setIsSidebarOpen(false); Alert.alert("Logout", "Logging out..."); }}>
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { setIsSidebarOpen(false); const { error } = await supabase.auth.signOut(); if (error) return Alert.alert('Logout failed', error.message || 'Please try again.'); }}>
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
@@ -246,14 +247,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20, 
+    paddingHorizontal: 20,
     paddingBottom: 15,
     paddingTop: 10,
     backgroundColor: '#FFF',
     borderBottomWidth: 1.5,
     borderColor: '#E0E0E0',
   },
-  menuIconBox: { width: 40, alignItems: 'flex-start' }, 
+  menuIconBox: { width: 40, alignItems: 'flex-start' },
   menuIconBorder: {
     width: 40, height: 40, borderRadius: 8, borderWidth: 1.5, borderColor: '#000',
     alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF'
@@ -264,19 +265,19 @@ const styles = StyleSheet.create({
   saveActionText: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
   mainScrollContent: { padding: 20 },
   avatarSection: { alignItems: 'center', marginBottom: 25, position: 'relative', width: '100%' },
-  backButtonAbsolute: { 
-    position: 'absolute', left: 0, top: 0, 
+  backButtonAbsolute: {
+    position: 'absolute', left: 0, top: 0,
     width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#D0D0D0',
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', zIndex: 10 
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', zIndex: 10
   },
-  avatarCircle: { 
-    width: 90, height: 90, borderRadius: 45, backgroundColor: '#424242', 
+  avatarCircle: {
+    width: 90, height: 90, borderRadius: 45, backgroundColor: '#424242',
     justifyContent: 'center', alignItems: 'center', position: 'relative',
-    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 5 
+    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 5
   },
   avatarImage: { width: 90, height: 90, borderRadius: 45 },
-  cameraBadge: { 
-    position: 'absolute', bottom: 0, right: 0, backgroundColor: '#00C853', 
+  cameraBadge: {
+    position: 'absolute', bottom: 0, right: 0, backgroundColor: '#00C853',
     width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center',
     borderWidth: 2, borderColor: '#FFF'
   },
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
   inputLabel: { fontSize: 13, fontWeight: '600', color: '#888', marginBottom: 8 },
   textInputViewMode: { fontSize: 16, fontWeight: '600', color: '#111', paddingVertical: 5 },
   textInputEditing: { fontSize: 16, fontWeight: '600', color: '#424242', backgroundColor: '#F5F5F5', borderWidth: 1.5, borderColor: '#D0D0D0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 12 : 10 },
-  
+
   // 🌟 完全统一的侧边栏样式
   sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
   closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
