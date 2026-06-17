@@ -13,26 +13,22 @@ import {
   Modal,
   Dimensions,
   TouchableWithoutFeedback,
-  Image // 👈 引入 Image 组件用于显示头像
+  ActivityIndicator,
+  Image // 🎯 导入 Image 组件用于在侧边栏显示用户头像
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
-// 🔌 引入你项目中的 Supabase 客户端实例
+// 🎯 引入你的 Supabase 客户端实例
 import { supabase } from '../../supabaseClient';
 
 const { width } = Dimensions.get('window');
 
 export default function OperationStatusApp({ onBack, navigateToScreen }) {
-  // 🚪 侧边栏显隐状态
+  // 🚪 侧边栏显隐状态与加载状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 👤 用户与商家状态（参考 menu.js）
-  const [vendorId, setVendorId] = useState(null);
-  const [profileName, setProfileName] = useState('Loading...');
-  const [profileAvatar, setProfileAvatar] = useState(null);
-
-  // --- 状态控制 ---
+  // --- 表单状态控制 ---
   const [dateStart, setDateStart] = useState(new Date());
   const [dateEnd, setDateEnd] = useState(new Date());
 
@@ -50,63 +46,13 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
 
   const [status, setStatus] = useState('active');
 
+  // 👤 Supabase 用户资料状态（Sidebar 动态展示使用）
+  const [profileName, setProfileName] = useState('Loading...');
+  const [avatarUrl, setAvatarUrl] = useState(null);
+
   // 用于嵌入式显示时间格式提示或错误的状态
   const [timeNotice, setTimeNotice] = useState('Use 24-hour format (00-23)');
   const [isNoticeError, setIsNoticeError] = useState(false);
-
-  // ==================== 🔄 初始化拉取 Supabase 数据 ====================
-  useEffect(() => {
-    const initializeData = async () => {
-      try {
-        // 1. 获取当前登录用户的 Auth 信息
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-          setProfileName('GUEST');
-          return;
-        }
-        setVendorId(user.id);
-
-        // 2. 并发读取商家 Profile 以及现有的运营状态（若有）
-        const [profileRes, statusRes] = await Promise.all([
-          supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single(),
-          supabase.from('vendor_statuses').select('*').eq('vendor_id', user.id).maybeSingle()
-        ]);
-
-        // 绑定侧边栏个人信息
-        if (profileRes.data) {
-          setProfileName(profileRes.data.full_name || 'No Name');
-          setProfileAvatar(profileRes.data.avatar_url || null);
-        }
-
-        // 自动回填已有的运营状态数据（提升用户体验）
-        if (statusRes.data) {
-          const currentStatus = statusRes.data;
-          setStatus(currentStatus.status);
-          setDateStartText(currentStatus.date_start);
-          setDateEndText(currentStatus.date_end);
-          setDateStart(new Date(currentStatus.date_start));
-          setDateEnd(new Date(currentStatus.date_end));
-
-          // 拆分时间字段 (例如 "09:30:00" -> ["09", "30"])
-          if (currentStatus.time_start) {
-            const [sh, sm] = currentStatus.time_start.split(':');
-            setTimeStartHour(sh);
-            setTimeStartMin(sm);
-          }
-          if (currentStatus.time_end) {
-            const [eh, em] = currentStatus.time_end.split(':');
-            setTimeEndHour(eh);
-            setTimeEndMin(em);
-          }
-        }
-      } catch (err) {
-        console.error('Initialization failed:', err);
-        setProfileName('ERROR');
-      }
-    };
-
-    initializeData();
-  }, []);
 
   // 获取清空时分秒的“今天”的凌晨时间
   const getTodayWithNoon = () => {
@@ -122,10 +68,47 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
     return `${year}-${month}-${day}`;
   };
 
+  // 👤 副作用：动态拉取当前登录用户的 profiles 数据来展示在 Sidebar 上
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        // 1. 从官方 Auth 拿到当前会话的用户 UID
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          setProfileName('Guest');
+          return;
+        }
+
+        // 2. 拿着 UID 去 profiles 表查询 full_name 和 avatar_url
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        if (profile) {
+          if (profile.full_name) setProfileName(profile.full_name);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+        }
+      } catch (error) {
+        console.log('Fetch profile error:', error.message);
+        setProfileName('User'); // 出错或无数据时的默认降级显示
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
   // 处理侧边栏导航点击
   const handleMenuPress = (targetScreen) => {
-    setIsSidebarOpen(false);
+    setIsSidebarOpen(false); // 先关闭侧边栏
+
+    // 如果点击的是当前页面，不需要跳转
     if (targetScreen === 'operationstatus') return;
+
+    // 回传参数给上层主控组件进行界面跳转
     if (navigateToScreen) {
       navigateToScreen(targetScreen);
     } else if (onBack) {
@@ -140,6 +123,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
         Alert.alert("Error", "Start date cannot be earlier than today!");
         return;
       }
+
       setDateStart(selectedDate);
       const formatted = formatDate(selectedDate);
       setDateStartText(formatted);
@@ -162,6 +146,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
         Alert.alert("Error", "End date cannot be earlier than Start date!");
         return;
       }
+
       setDateEnd(selectedDate);
       const formatted = formatDate(selectedDate);
       setDateEndText(formatted);
@@ -199,7 +184,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
     setIsNoticeError(false);
   };
 
-  // ==================== 💾 核心修改：提交并同步到 Supabase ====================
+  // ⚡ 核心提交功能：使用 .insert() 每次都在 Supabase 产生新行记录
   const handleUpdateSubmit = async () => {
     if (!dateStartText || !dateEndText || !timeStartHour || !timeStartMin || !timeEndHour || !timeEndMin) {
       Alert.alert("Error", "Please fill in all date and time fields!");
@@ -231,34 +216,51 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
       return;
     }
 
-    // 格式化为标准的 HH:MM:SS 供 Postgres 的 time 类型读取
-    const formattedTimeStart = `${timeStartHour.padStart(2, '0')}:${timeStartMin.padStart(2, '0')}:00`;
-    const formattedTimeEnd = `${timeEndHour.padStart(2, '0')}:${timeEndMin.padStart(2, '0')}:00`;
+    // 格式化时间字符串 例如将 9:5 转成 "09:05" 存入数据库
+    const startTimeStr = `${timeStartHour.padStart(2, '0')}:${timeStartMin.padStart(2, '0')}`;
+    const endTimeStr = `${timeEndHour.padStart(2, '0')}:${timeEndMin.padStart(2, '0')}`;
+
+    setIsLoading(true);
 
     try {
-      // 写入数据库：使用 upsert，依靠 vendor_id 的唯一性约束覆盖旧记录
-      const { error } = await supabase
-        .from('vendor_statuses')
-        .upsert({
-          vendor_id: vendorId,
+      // 1. 获取当前用户 UID
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error("User session not found. Please log in again.");
+      }
+
+      // 2. 🎯 改用 .insert() 确保每次提交都是一条独立的、全新的新纪录
+      const { error: uploadError } = await supabase
+        .from('operation_status')
+        .insert({
+          user_id: user.id,
           date_start: dateStartText,
           date_end: dateEndText,
-          time_start: formattedTimeStart,
-          time_end: formattedTimeEnd,
+          time_start: startTimeStr,
+          time_end: endTimeStr,
           status: status
-        }, { onConflict: 'vendor_id' });
+        });
 
-      if (error) {
-        Alert.alert("Error", "Failed to upload status: " + error.message);
-      } else {
-        Alert.alert(
-          "Success",
-          `Status updated successfully!\nStatus: ${status}\nDate: ${dateStartText} to ${dateEndText}\nTime: ${timeStartHour}:${timeStartMin} - ${timeEndHour}:${timeEndMin}`
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "An unexpected network error occurred.");
+      if (uploadError) throw uploadError;
+
+      Alert.alert(
+        "Success ✅",
+        `New status record added successfully!\nStatus: ${status}\nDate: ${dateStartText} to ${dateEndText}\nTime: ${startTimeStr} - ${endTimeStr}`
+      );
+
+      // 成功后清空输入框，方便商家输入添加下一组时段状态
+      setDateStartText('');
+      setDateEndText('');
+      setTimeStartHour('');
+      setTimeStartMin('');
+      setTimeEndHour('');
+      setTimeEndMin('');
+
+    } catch (error) {
+      console.log('Supabase Save Error:', error.message);
+      Alert.alert("Error ❌", error.message || "Failed to save operation status.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -273,25 +275,32 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
         onRequestClose={() => setIsSidebarOpen(false)}
       >
         <View style={styles.modalContainer}>
+          {/* 左侧实体菜单 */}
           <View style={styles.sidebar}>
+            {/* 顶栏：Menu 切换按钮 */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
 
-            {/* 👤 头像区域（已改为从 Supabase 获取的真实状态数据） */}
+            {/* 用户头像区域 (已经同步绑定为来自 Supabase profiles 的动态数据) */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                {profileAvatar ? (
-                  <Image source={{ uri: profileAvatar }} style={styles.sidebarAvatarImage} />
+                {avatarUrl ? (
+                  <Image 
+                    source={{ uri: avatarUrl }} 
+                    style={{ width: 68, height: 68, borderRadius: 34 }} 
+                  />
                 ) : (
                   <Ionicons name="person-outline" size={45} color="#000" />
                 )}
               </View>
+              {/* 动态显示全名 */}
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
+            {/* 导航列表 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -304,7 +313,8 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Menu</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('operationstatus')}>
+            {/* 当前页面：高亮为灰色背景 */}
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => setIsSidebarOpen(false)}>
               <Text style={styles.sidebarItemText}>Update Status</Text>
             </TouchableOpacity>
 
@@ -320,6 +330,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
+            {/* 底部退出登录 */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -328,6 +339,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
             </View>
           </View>
 
+          {/* 右侧空白处暗色遮罩层 */}
           <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
             <View style={styles.backdrop} />
           </TouchableWithoutFeedback>
@@ -345,6 +357,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
 
       <View style={styles.divider} />
 
+      {/* KeyboardAvoidingView 包裹 ScrollView 解决键盘挡住输入框问题 */}
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -483,9 +496,13 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* UPDATE 按钮 */}
-          <TouchableOpacity style={styles.button} onPress={handleUpdateSubmit}>
-            <Text style={styles.buttonText}>UPDATE</Text>
+          {/* UPDATE 按钮（带优雅的加载等待动画） */}
+          <TouchableOpacity style={styles.button} onPress={handleUpdateSubmit} disabled={isLoading}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>UPDATE</Text>
+            )}
           </TouchableOpacity>
 
         </ScrollView>
@@ -531,10 +548,10 @@ const styles = StyleSheet.create({
   radioCircle: { height: 14, width: 14, borderRadius: 7, borderWidth: 1, borderColor: '#000', alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   radioDot: { height: 8, width: 8, borderRadius: 4, backgroundColor: '#000' },
   radioLabel: { fontSize: 12, color: '#000' },
-  button: { backgroundColor: '#A9A9A9', paddingVertical: 10, borderRadius: 20, marginTop: 35, width: '55%', alignSelf: 'center', alignItems: 'center' },
+  button: { backgroundColor: '#A9A9A9', paddingVertical: 10, borderRadius: 20, marginTop: 35, width: '55%', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', height: 44 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
 
-  /* ==================== 📌 Sidebar 样式表修复更新 ==================== */
+  /* ==================== 📌 Sidebar 样式表 ==================== */
   modalContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -568,17 +585,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
-    overflow: 'hidden' // 👈 确保头像图片超过圆形容器时被切圆
-  },
-  sidebarAvatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 35
+    overflow: 'hidden' // 🎯 确保图片加载出时完美收纳在圆圈内
   },
   avatarName: {
-    fontSize: 16, // 👈 增大字体，与 menu.js 一致
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '500',
     color: '#000',
+    marginTop: 5
   },
   sidebarItem: {
     width: '100%',
