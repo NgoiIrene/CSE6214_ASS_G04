@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef ,useEffect} from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, ScrollView,
-  Platform, Dimensions, Alert, Animated, TouchableWithoutFeedback
+  Platform, Dimensions, Alert, Animated, TouchableWithoutFeedback,Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import ManageContent from './admin_manageContent';
 import ProcessApplicationApproval from "./admin_processApplicantApproval";
 import GenerateReport from './admin_reports';
 import ConfigureSystemSettings from './admin_systemSettings';
+import AdminProfileScreen from './admin_profile';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SIDEBAR_WIDTH = 280;
@@ -24,9 +25,43 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState('Home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  //状态：用于存储 Sidebar 显示的个人信息
+  const [sidebarProfile, setSidebarProfile] = useState({
+    full_name: 'Admin',
+    avatar_url: null
+  });
+
   // 动画控制
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  // 每次组件加载时，去 Supabase 抓取当前管理员的名字和头像
+  const fetchSidebarProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+        
+        if (data && !error) {
+          setSidebarProfile({
+            full_name: data.full_name || 'Admin',
+            avatar_url: data.avatar_url || null
+          });
+        }
+      }
+    } catch (error) {
+      console.log("Error fetching profile for sidebar:", error.message);
+    }
+  };
+
+  // 页面初次加载时执行抓取
+  useEffect(() => {
+    fetchSidebarProfile();
+  }, []);
 
   // 🌟 3. 这是真正的 toggleSidebar 逻辑，只放动画计算
   const toggleSidebar = (open) => {
@@ -78,6 +113,8 @@ export default function App() {
       case 'Process Application Approval':
         return <ProcessApplicationApproval />;
       case 'Profile':
+        //把 fetchSidebarProfile 作为 prop 传给 Profile 页面
+        return <AdminProfileScreen onProfileUpdate={fetchSidebarProfile} />;
       case 'Reset Password':
         return (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -96,8 +133,7 @@ export default function App() {
       {/* 遮罩层 */}
       <Animated.View
         style={[styles.overlayWrapper, { opacity: overlayAnim }]}
-        pointerEvents={isSidebarOpen ? 'auto' : 'none'}
-      >
+        pointerEvents={isSidebarOpen ? 'auto' : 'none'}>
         <TouchableWithoutFeedback onPress={() => toggleSidebar(false)}>
           <View style={styles.overlayClickableArea} />
         </TouchableWithoutFeedback>
@@ -113,12 +149,20 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
+        {/* Sidebar 头像和名字根据 state 动态渲染 */}
         <View style={styles.userSection}>
           <View style={styles.avatarCircle}>
-            <View style={styles.avatarHead} />
-            <View style={styles.avatarBody} />
+            {sidebarProfile.avatar_url ? (
+              <Image source={{ uri: sidebarProfile.avatar_url }} style={styles.realAvatarImage} />
+            ) : (
+              <>
+                <View style={styles.avatarHead} />
+                <View style={styles.avatarBody} />
+              </>
+            )}
           </View>
-          <Text style={styles.username}>Charlene</Text>
+          {/* 显示真实名字 */}
+          <Text style={styles.username}>{sidebarProfile.full_name}</Text>
         </View>
 
         <ScrollView style={styles.menuList} showsVerticalScrollIndicator={false}>
@@ -181,24 +225,17 @@ export default function App() {
 // ==================== 🎨 STYLESHEET ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35,
-    backgroundColor: '#fff', zIndex: 10,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35, backgroundColor: '#fff', zIndex: 10 },
   hamburgerBtn: { width: 35, height: 30, borderRadius: 4, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 4 },
   hamburgerLine: { width: 20, height: 2, backgroundColor: '#000' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', letterSpacing: 2 },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
-
-  sidebar: {
-    position: 'absolute', top: 0, left: 0, height: SCREEN_HEIGHT, width: SIDEBAR_WIDTH,
-    backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100,
-    paddingTop: Platform.OS === 'ios' ? 44 : 40
-  },
+  sidebar: { position: 'absolute', top: 0, left: 0, height: SCREEN_HEIGHT, width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100, paddingTop: Platform.OS === 'ios' ? 44 : 40 },
   sidebarHeader: { height: 65, justifyContent: 'center', paddingLeft: 15, paddingTop: Platform.OS === 'ios' ? 0 : 20 },
   userSection: { alignItems: 'center', paddingVertical: 15 },
   avatarCircle: { width: 55, height: 55, borderRadius: 27.5, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 5 },
+  // 【新增样式】真实图片的尺寸
+  realAvatarImage: { width: 55, height: 55, borderRadius: 27.5 },
   avatarHead: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#000', marginTop: 4 },
   avatarBody: { width: 34, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginBottom: -8 },
   username: { fontSize: 16, fontWeight: 'bold', color: '#000' },
@@ -207,10 +244,6 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 14, fontWeight: 'bold', textAlign: 'left', color: '#000', paddingLeft: 30 },
   logoutBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingBottom: Platform.OS === 'ios' ? 40 : 20, borderTopWidth: 2, borderColor: '#0f100f', backgroundColor: '#fff' },
   logoutText: { fontSize: 16, fontWeight: 'bold', color: '#070707', marginLeft: 8 },
-
-  overlayWrapper: {
-    position: 'absolute', top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 90
-  },
+  overlayWrapper: { position: 'absolute', top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 90 },
   overlayClickableArea: { flex: 1 }
 });
