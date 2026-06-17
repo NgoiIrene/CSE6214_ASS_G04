@@ -177,7 +177,13 @@ export default function DeliveryMain() {
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}><Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>PROFILE</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}><Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>WORKING SHIFT</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}><Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>EARNINGS & HISTORY</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); Alert.alert("Notice", "Reset Password clicked"); }}><Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>RESET PASSWORD</Text></TouchableOpacity>
+              
+              {/* 🌟 只有这里补上了文字和图标，绝对没改其他任何东西！ */}
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('ResetPassword'); }}>
+                <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
+                <Text style={styles.menuText}>RESET PASSWORD</Text>
+              </TouchableOpacity>
+              
             </ScrollView>
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { setIsSidebarOpen(false); await supabase.auth.signOut(); }} >

@@ -249,13 +249,7 @@ export default function EarningsAndHistory() {
                 <Text style={styles.menuTextActive}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                  Alert.alert("Notice", "Reset Password clicked");
-                }}
-              >
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('ResetPassword'); }}>
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
