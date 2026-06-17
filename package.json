@@ -26,6 +26,7 @@
     "react-native-calendars": "^1.1314.0",
     "react-native-maps": "1.20.1",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "react-native-screens": "~4.16.0",
     "react-native-url-polyfill": "^3.0.0"
 =======
@@ -35,6 +36,10 @@
     "react-native-screens": "~4.16.0"
 
 >>>>>>> 8f0f3b27d1d0cc860ed62ffdf614c8f98d6e46c9
+=======
+    "react-native-screens": "~4.16.0",
+    "react-native-url-polyfill": "^3.0.0"
+>>>>>>> 277a64131873897e157a0cacb74d27327b843b33
   },
   "private": true
 }
