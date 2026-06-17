@@ -32,12 +32,6 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
     setLocalValue(stockValue.toString());
   }, [stockValue]);
 
-  const handleStep = (step) => {
-    const current = parseInt(stockValue, 10) || 0;
-    const nextValue = Math.max(0, current + step);
-    onChangeStock(nextValue.toString());
-  };
-
   const handleFinishEditing = () => {
     setIsTextInputMode(false);
     const parsed = parseInt(localValue, 10);
@@ -46,6 +40,12 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
     } else {
       onChangeStock(parsed.toString());
     }
+  };
+
+  const handleStep = (step) => {
+    const current = parseInt(stockValue, 10) || 0;
+    const nextValue = Math.max(0, current + step);
+    onChangeStock(nextValue.toString());
   };
 
   if (!isEditing) {
@@ -104,13 +104,11 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   const [isEditModeCategory, setIsEditModeCategory] = useState(false);
 
   // ==================== 📢 公告板状态 (ANNOUNCEMENT) ====================
-  const [welcomeText, setWelcomeText] = useState(
-    'Welcome to Rasa Syiok . Hope you have a nice day and rasa syioknya'
-  );
+  const [welcomeText, setWelcomeText] = useState('Welcome to our store! Hope you have a nice day.');
   const [imageUri, setImageUri] = useState(null);
   const [imageAspectRatio, setImageAspectRatio] = useState(1);
 
-  // 🆕 新增：专门用来控制公告栏是否处于编辑状态
+  // 专门用来控制公告栏是否处于编辑状态
   const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
 
   // ==================== 🍛 菜品列表数据状态 ====================
@@ -137,11 +135,12 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         }
         setVendorId(user.id);
 
-        // 2. 并发读取商家 Profile、分类、菜品
-        const [profileRes, categoriesRes, foodRes] = await Promise.all([
+        // 2. 并发读取商家 Profile、分类、菜品、以及【新增：公告信息】
+        const [profileRes, categoriesRes, foodRes, announcementRes] = await Promise.all([
           supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single(),
           supabase.from('categories').select('name').eq('vendor_id', user.id).order('created_at', { ascending: true }),
-          supabase.from('food_items').select('*').eq('vendor_id', user.id).order('created_at', { ascending: true })
+          supabase.from('food_items').select('*').eq('vendor_id', user.id).order('created_at', { ascending: true }),
+          supabase.from('announcements').select('content, image_url').eq('vendor_id', user.id).maybeSingle() // 👈 动态抓取公告
         ]);
 
         // 绑定侧边栏个人信息
@@ -150,13 +149,19 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           setProfileAvatar(profileRes.data.avatar_url || null);
         }
 
+        // 绑定公告栏内容 (如果没有配置过则保留默认文本)
+        if (announcementRes.data) {
+          setWelcomeText(announcementRes.data.content || 'Welcome to our store! Hope you have a nice day.');
+          setImageUri(announcementRes.data.image_url || null);
+        }
+
         // 绑定分类 Tab
         if (categoriesRes.data) {
           const dbTabs = categoriesRes.data.map(c => c.name);
           setTabs(['ANNOUNCEMENT', ...dbTabs]);
         }
 
-        // 绑定菜品列表 (把数据库字段映射为前端需要的格式)
+        // 绑定菜品列表
         if (foodRes.data) {
           const mappedFoods = foodRes.data.map(item => ({
             id: item.id,
@@ -183,7 +188,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   // ==================== ⚡ 核心逻辑功能与 Supabase 交互 ====================
 
   const handleTabChange = (nextTab) => {
-    // 🆕 修改：检查公告栏自身的编辑状态
     if (activeTab === 'ANNOUNCEMENT' && isEditingAnnouncement && nextTab !== 'ANNOUNCEMENT') {
       Alert.alert("Notice", "Please SAVE your announcement updates before leaving.");
       return;
@@ -193,23 +197,46 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       return;
     }
 
-    // 🆕 切换 Tab 时，顺手关闭公告的编辑状态
     if (nextTab !== 'ANNOUNCEMENT') {
       setIsEditingAnnouncement(false);
     }
     setActiveTab(nextTab);
   };
 
-  // 快捷修改单个库存并直接同步到 Supabase
+  // 保存公告内容并真正更新同步到 Supabase
+  const handleSaveAnnouncement = async () => {
+    try {
+      // 通过 upsert 实现：如果有当前商家的记录则覆盖更新，没有则新增
+      const { error } = await supabase
+        .from('announcements')
+        .upsert(
+          {
+            vendor_id: vendorId,
+            content: welcomeText,
+            image_url: imageUri
+          },
+          { onConflict: 'vendor_id' }
+        );
+
+      if (error) {
+        Alert.alert("Error", "Failed to sync announcement: " + error.message);
+      } else {
+        setIsEditingAnnouncement(false);
+        Alert.alert("Success", "Announcement saved successfully!");
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "An unexpected error occurred.");
+    }
+  };
+
   const handleUpdateSingleStock = async (id, newStock) => {
     const stockInt = parseInt(newStock, 10) || 0;
 
-    // 先乐观更新本地 UI
     setFoodItems(prevItems =>
       prevItems.map(item => item.id === id ? { ...item, stock: newStock } : item)
     );
 
-    // 同步到 Supabase
     const { error } = await supabase
       .from('food_items')
       .update({ stock: stockInt })
@@ -268,7 +295,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     setCategoryModalVisible(true);
   };
 
-  // 提交新建分类或重命名分类
   const handleCategorySubmit = async () => {
     const formattedName = newCategoryName.trim().toUpperCase();
     if (formattedName === '') {
@@ -277,7 +303,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     }
 
     if (isEditModeCategory) {
-      // 重命名模式
       if (formattedName === activeTab) {
         setCategoryModalVisible(false);
         return;
@@ -287,7 +312,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         return;
       }
 
-      // 在 Supabase 中更新分类名 (级联外键会自动更新对应的菜品)
       const { error } = await supabase
         .from('categories')
         .update({ name: formattedName })
@@ -299,18 +323,15 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         return;
       }
 
-      // 更新本地状态
       setTabs(tabs.map(t => t === activeTab ? formattedName : t));
       setFoodItems(foodItems.map(item => item.category === activeTab ? { ...item, category: formattedName } : item));
       setActiveTab(formattedName);
     } else {
-      // 新建模式
       if (tabs.includes(formattedName)) {
         Alert.alert("Error", "This category already exists.");
         return;
       }
 
-      // 插入到 Supabase
       const { error } = await supabase
         .from('categories')
         .insert([{ vendor_id: vendorId, name: formattedName }]);
@@ -345,7 +366,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     setFoodModalVisible(true);
   };
 
-  // 提交保存或创建菜品
   const handleSaveFoodForm = async () => {
     if (!formName || !formPrice) {
       Alert.alert("Error", "Name and Price are required.");
@@ -357,7 +377,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     const finalName = formName.toUpperCase();
 
     if (editingFoodId) {
-      // 1. 更新现有菜品到 Supabase
       const { error } = await supabase
         .from('food_items')
         .update({
@@ -379,7 +398,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         ...item, name: finalName, price: formPrice, stock: formStock, desc: formDesc, img: formImg
       } : item));
     } else {
-      // 2. 新增菜品到 Supabase
       const currentCatCount = foodItems.filter(i => i.category === activeTab).length;
       const newCode = `${activeTab.substring(0, 1)}0${currentCatCount + 1}`;
 
@@ -403,7 +421,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         return;
       }
 
-      // 用数据库返回的真实 id 塞入本地列表
       const newFood = {
         id: data.id,
         category: activeTab,
@@ -419,7 +436,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     setFoodModalVisible(false);
   };
 
-  // 删除当前整个分类
   const handleDeleteCategory = () => {
     if (activeTab === 'ANNOUNCEMENT') return;
 
@@ -429,7 +445,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          // 从 Supabase 删除分类 (在建表时设置了 cascade 级联，关联的菜品也会自动被清空)
           const { error } = await supabase
             .from('categories')
             .delete()
@@ -459,7 +474,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     ]);
   };
 
-  // 删除单个菜品
   const handleDeleteFood = (id) => {
     Alert.alert("Delete", "Are you sure you want to delete this food item?", [
       { text: "Cancel" },
@@ -576,8 +590,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         )}
 
         <Text style={styles.headerTitle}>Menu</Text>
-        
-        {/* 无论在哪个 Tab 都会显示，它只控制全局菜品和分类的编辑/保存状态 */}
+
         <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(!isEditing)}>
           <Ionicons
             name={isEditing ? "checkmark-circle-outline" : "create-outline"}
@@ -615,7 +628,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {activeTab === 'ANNOUNCEMENT' && (
           <View style={{ flex: 1 }}>
-            {/* 🆕 这里的控制栏完全移交给独立的公告编辑状态 isEditingAnnouncement */}
             {isEditingAnnouncement && (
               <View style={styles.toolbarContainer}>
                 <View style={styles.leftTools}>
@@ -626,7 +638,8 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                     <Ionicons name="image-outline" size={24} color="#000" />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.saveButton} onPress={() => setIsEditingAnnouncement(false)}>
+                {/* 🔧 这里改为触发 handleSaveAnnouncement 函数，保存进数据库 */}
+                <TouchableOpacity style={styles.saveButton} onPress={handleSaveAnnouncement}>
                   <Text style={styles.saveButtonText}>SAVE</Text>
                 </TouchableOpacity>
               </View>
@@ -634,16 +647,22 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
             <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.welcomeCard}>
-                {/* 🆕 只有在没有编辑公告时，才显示红色小 edit 按钮 */}
                 {!isEditingAnnouncement && (
                   <TouchableOpacity style={styles.cardEditBtn} onPress={() => setIsEditingAnnouncement(true)}>
                     <Text style={styles.cardEditText}>edit</Text>
                   </TouchableOpacity>
                 )}
+
                 <View style={styles.cardHeader}>
-                  <Ionicons name="person-circle-outline" size={60} color="#333" style={styles.avatarIcon} />
-                  <Text style={styles.brandTitle}>Rasa Syiok</Text>
+                  {/* 🔧 这里的头像和店名不再写死，而是同步真实的用户 Profile 数据 */}
+                  {profileAvatar ? (
+                    <Image source={{ uri: profileAvatar }} style={[styles.avatarIcon, { width: 60, height: 60, borderRadius: 30 }]} />
+                  ) : (
+                    <Ionicons name="person-circle-outline" size={60} color="#333" style={styles.avatarIcon} />
+                  )}
+                  <Text style={styles.brandTitle}>{profileName}</Text>
                 </View>
+
                 <View style={styles.cardBody}>
                   {!isEditingAnnouncement ? (
                     <Text style={styles.welcomeText}>{welcomeText}</Text>
@@ -688,8 +707,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                   {isEditing && (
                     <View style={styles.foodActionLeft}>
                       <TouchableOpacity onPress={() => handleDeleteFood(food.id)}>
-                        <Ionicons name="trash-outline" size={20} color="red" style={{ marginRight: 8 }} />
-                      </TouchableOpacity>
+                        <Ionicons name="trash-outline" size={20} color="red" style={{ marginRight: 8 }} />                      </TouchableOpacity>
                       <TouchableOpacity onPress={() => openFoodModal(food)}>
                         <Ionicons name="create-outline" size={20} color="blue" style={{ marginRight: 8 }} />
                       </TouchableOpacity>
@@ -847,7 +865,7 @@ const styles = StyleSheet.create({
   cardEditText: { fontSize: 13, color: 'red', textDecorationLine: 'underline', fontWeight: 'bold' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   avatarIcon: { marginRight: 12 },
-  brandTitle: { fontSize: 32, fontWeight: 'bold', color: '#000' },
+  brandTitle: { fontSize: 26, fontWeight: 'bold', color: '#000', flex: 1 },
   cardBody: { width: '100%' },
   welcomeText: { fontSize: 16, lineHeight: 24, color: '#000', textAlign: 'center' },
   welcomeInput: { fontSize: 16, lineHeight: 24, color: '#000', textAlign: 'center', padding: 10, minHeight: 80, borderWidth: 1, borderColor: '#e5e5e5', borderRadius: 8, backgroundColor: '#fafafa' },
