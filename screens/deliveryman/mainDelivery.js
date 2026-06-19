@@ -1,5 +1,5 @@
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import React, { useState, useContext, useCallback } from 'react';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
 import { Image, ActivityIndicator } from 'react-native'; 
 import { RiderContext } from './RiderProvider'; 
 import { supabase } from '../../supabaseClient';
@@ -13,7 +13,7 @@ export default function DeliveryMain() {
   const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // 🌟 核心修改点：把 true 改成 false，外卖员一登录默认就是 Offline！
+  // 🌟 外卖员一登录默认就是 Offline
   const [isOnline, setIsOnline] = useState(false); 
   
   const { avatarUri, riderName } = useContext(RiderContext);
@@ -21,7 +21,6 @@ export default function DeliveryMain() {
   const [shifts, setShifts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 每次回到 Home 页面，自动去拉取最新的排班
   useFocusEffect(
     useCallback(() => {
       fetchMyShifts();
@@ -86,6 +85,77 @@ export default function DeliveryMain() {
     );
   };
 
+  // 🌟 核心：切换上下线状态，并同步到数据库
+  const handleToggleOnline = async (newValue) => {
+    setIsOnline(newValue); 
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_online: newValue })
+        .eq('id', session.user.id);
+
+      if (error) {
+        setIsOnline(!newValue);
+        Alert.alert("Network Error", "Failed to update your status.");
+      } else {
+        if (newValue === true) {
+          Alert.alert("🟢 You are Online!", "Radar activated. Waiting for incoming delivery requests...");
+        } else {
+          Alert.alert("⚪ You are Offline", "You will no longer receive delivery requests.");
+        }
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  // 🌟🌟 核心：接单雷达监听器 🌟🌟
+  useEffect(() => {
+    let orderChannel = null;
+
+    if (isOnline) {
+      // 开启大喇叭监听 orders 表的新增数据 (INSERT)
+      orderChannel = supabase
+        .channel('rider-order-radar')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders' },
+          (payload) => {
+            const newOrder = payload.new;
+            
+            // 筛选过滤器：必须是外卖单(delivery) 并且没有人接过单(pending_rider)
+            if (newOrder.status === 'pending_rider' && newOrder.order_type === 'delivery') {
+              Alert.alert(
+                "🔔 New Order Request!",
+                `Restaurant: ${newOrder.vendor_name}\nEarning: RM ${Number(newOrder.earning).toFixed(2)}\nDestination: ${newOrder.dropoff_location}`,
+                [
+                  {
+                    text: "View Request",
+                    onPress: () => {
+                      // 带着新鲜滚烫的真实订单数据，闪现到处理订单页面！
+                      navigation.navigate('ProcessRequest', { orderData: newOrder });
+                    }
+                  }
+                ]
+              );
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    // 清理机制：当外卖员 Offline 或者离开软件时，自动断开监听，省电省流量
+    return () => {
+      if (orderChannel) {
+        supabase.removeChannel(orderChannel);
+      }
+    };
+  }, [isOnline]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
@@ -146,7 +216,7 @@ export default function DeliveryMain() {
               trackColor={{ false: "#E0E0E0", true: "#A5D6A7" }}
               thumbColor={isOnline ? "#00C853" : "#F5F5F5"}
               ios_backgroundColor="#E0E0E0"
-              onValueChange={() => setIsOnline(!isOnline)}
+              onValueChange={handleToggleOnline} 
               value={isOnline}
               style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
             />
@@ -177,13 +247,10 @@ export default function DeliveryMain() {
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}><Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>PROFILE</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}><Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>WORKING SHIFT</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}><Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>EARNINGS & HISTORY</Text></TouchableOpacity>
-              
-              {/* 🌟 只有这里补上了文字和图标，绝对没改其他任何东西！ */}
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('ResetPassword'); }}>
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
-              
             </ScrollView>
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { setIsSidebarOpen(false); await supabase.auth.signOut(); }} >
