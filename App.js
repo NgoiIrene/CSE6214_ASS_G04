@@ -6,14 +6,14 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons'; 
+import emailjs from '@emailjs/react-native'; 
 import { supabase } from './supabaseClient';
 
 import DeliveryNavigator from './screens/deliveryman/deliveryNavigator';
 import VendorNavigator from './screens/vendor/vendornavigetor';
 import AdminNavigator from './screens/admin/admin_Navigation';
 import UserNavigator from './screens/user/user_Navigation';
-// import CustomerNavigator from './customerNavigator'; 
-// import VendorNavigator from './vendorNavigator'; 
 
 const Stack = createNativeStackNavigator();
 
@@ -27,6 +27,7 @@ const AuthScreen = () => {
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+
   const [fullName, setFullName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [accountType, setAccountType] = useState('');
@@ -36,75 +37,157 @@ const AuthScreen = () => {
   const [signUpPassword, setSignUpPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const [resetEmail, setResetEmail] = useState('');
+  const [pin, setPin] = useState('');
+  const [generatedPin, setGeneratedPin] = useState(''); 
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
+  const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
+  const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
+
   useEffect(() => {
-    setFullName(''); setSignUpEmail(''); setAccountType(''); setPhoneNumber('');
-    setGender(''); setAge(''); setSignUpPassword(''); setConfirmPassword('');
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+  }, []);
+
+  useEffect(() => {
+    if (currentPage === 'login' || currentPage === 'signup') {
+      setResetEmail(''); setPin(''); setGeneratedPin(''); setNewPassword(''); setConfirmNewPassword('');
+    }
+    if (currentPage === 'login') {
+      setFullName(''); setSignUpEmail(''); setAccountType(''); setPhoneNumber('');
+      setGender(''); setAge(''); setSignUpPassword(''); setConfirmPassword('');
+    }
   }, [currentPage]);
 
-  // ⚡ 注册逻辑
   const handleSignUpSubmit = async () => {
+    if (!fullName || !signUpEmail || !accountType || !phoneNumber || !gender || !age || !signUpPassword || !confirmPassword) {
+      return Alert.alert("Error", "Please fill in all fields!");
+    }
     if (signUpPassword !== confirmPassword) return Alert.alert("Error", "Passwords don't match!");
 
     setIsLoading(true);
-    isSigningUpFlag = true; // 🔴 亮起红灯：正在注册中，大管家不要监听状态变化！
+    isSigningUpFlag = true;
 
-    // 1. Supabase 账号注册
     const { data, error } = await supabase.auth.signUp({ email: signUpEmail, password: signUpPassword });
 
     if (error) {
       setIsLoading(false);
+
       isSigningUpFlag = false; // 🟢 发生错误，恢复绿灯
       //return Alert.alert("Error", error.message);
       console.error("Signup Raw Error: ", error); // 在终端打印完整错误，方便追踪
 return Alert.alert("Error", error?.message || "An unexpected server error occurred.");
     }
 
-    // 2. 存入 Profile 资料
     if (data.user) {
       const { error: dbError } = await supabase.from('profiles').insert([{
-        id: data.user.id,
-        email: signUpEmail,
-        full_name: fullName,
-        account_type: accountType,
-        phone_number: phoneNumber,
-        gender: gender,
-        age: parseInt(age) || 0
+        id: data.user.id, email: signUpEmail, full_name: fullName, account_type: accountType,
+        phone_number: phoneNumber, gender: gender, age: parseInt(age) || 0
       }]);
 
       if (dbError) {
         setIsLoading(false);
-        isSigningUpFlag = false; // 🟢 发生错误，恢复绿灯
+        isSigningUpFlag = false;
         return Alert.alert("Data Save Failed", dbError.message);
       }
     }
 
-    // 3. 强制登出（因为这时候还没切页面，用户完全察觉不到）
     await supabase.auth.signOut();
-
     setIsLoading(false);
-    isSigningUpFlag = false; // 🟢 注册全套流程完毕，恢复绿灯！
-
+    isSigningUpFlag = false;
     Alert.alert("Success", "Registration Complete! Please log in.");
-    setCurrentPage('login'); // 稳稳地停留在当前页面，切回 Login 表单
+    setCurrentPage('login');
   };
 
-  // ⚡ 登录逻辑
   const handleLoginSubmit = async () => {
+    if (!loginEmail || !loginPassword) return Alert.alert("Error", "Please enter email and password!");
+    
     setIsLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
     setIsLoading(false);
 
-    if (error) {
-      Alert.alert("Login Failed", error.message);
+    if (error) Alert.alert("Login Failed", error.message);
+  };
+
+  const handleVerifyEmail = async () => {
+    const userEmail = resetEmail.trim();
+    if (!userEmail) return Alert.alert("Error", "Please enter your email address first!");
+
+    const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedPin(randomPin); 
+    setIsLoading(true);
+
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { email: userEmail, reply_pin: randomPin });
+      Alert.alert("Email Sent! 📩", `A verification email has been sent to:\n${userEmail}`);
+    } catch (error) {
+      Alert.alert("Error", "Failed to send email. Please check your network.");
+    } finally {
+      setIsLoading(false); 
     }
   };
 
-  const getHeaderTitle = () => currentPage === 'login' ? 'Log In' : 'Sign Up';
+  const handleContinueReset = () => {
+    const enteredEmail = resetEmail.trim();
+    const enteredPin = pin.trim();
+
+    if (!enteredEmail || !enteredPin) return Alert.alert("Error", "Please fill in both Email and Verification PIN!");
+    if (!generatedPin || enteredPin !== generatedPin) return Alert.alert("Verification Failed ❌", "The PIN code is incorrect.");
+    
+    setCurrentPage('reset_step2'); 
+  };
+
+  const handleFinalReset = async () => {
+    if (!newPassword || !confirmNewPassword) return Alert.alert("Error", "Please fill in all fields!");
+    if (newPassword !== confirmNewPassword) return Alert.alert("Error", "Passwords do not match!");
+
+    const strongPasswordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPasswordRegex.test(newPassword)) {
+      return Alert.alert("Weak Password ❌", "Password must be at least 8 characters long and contain uppercase letters, numbers, and at least one special character!");
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.rpc('reset_user_password_by_email', {
+        target_email: resetEmail.trim(), new_password: newPassword
+      });
+
+      if (error) throw error;
+
+      if (data === 'Success') {
+        Alert.alert("Success ✅", "Password reset successful! You can now log in.", [
+          { text: "OK", onPress: () => setCurrentPage('login') } 
+        ]);
+      } else {
+        Alert.alert("Error ❌", data || "User reset failed.");
+      }
+    } catch (error) {
+      Alert.alert("Error ❌", error.message || "Failed to update password.");
+    } finally {
+      setIsLoading(false); 
+    }
+  };
+
+  const getHeaderTitle = () => {
+    if (currentPage === 'login') return 'Log In';
+    if (currentPage === 'signup') return 'Sign Up';
+    if (currentPage === 'reset_step1') return 'Verification';
+    return 'Reset Password';
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
+        {currentPage === 'reset_step2' ? (
+          <TouchableOpacity style={styles.headerBackBtn} onPress={() => setCurrentPage('reset_step1')}>
+            <Ionicons name="arrow-back-outline" size={24} color="#000" />
+          </TouchableOpacity>
+        ) : <View style={{ width: 32 }} />}
         <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
+        <View style={{ width: 32 }} />
       </View>
       <View style={styles.divider} />
 
@@ -114,19 +197,22 @@ return Alert.alert("Error", error?.message || "An unexpected server error occurr
           {currentPage === 'login' && (
             <View style={styles.wireframeCard}>
               <View style={styles.wireframeInputRow}>
-                <Text style={styles.wireframeLabel}>Email:</Text>
+                <Text style={styles.wireframeLabel}>Email address:</Text>
                 <TextInput style={styles.input} value={loginEmail} onChangeText={setLoginEmail} autoCapitalize="none" keyboardType="email-address" />
               </View>
               <View style={styles.wireframeInputRow}>
                 <Text style={styles.wireframeLabel}>Password:</Text>
                 <TextInput style={styles.input} value={loginPassword} onChangeText={setLoginPassword} secureTextEntry />
               </View>
+              
               <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleLoginSubmit} disabled={isLoading}>
                 <Text style={styles.wireframeSubmitBtnText}>{isLoading ? 'Loading...' : 'Login'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCurrentPage('signup')} style={{ marginTop: 20 }}>
-                <Text style={styles.linkTextUnderline}>No account? Sign Up</Text>
-              </TouchableOpacity>
+
+              <View style={styles.linksRow}>
+                <TouchableOpacity onPress={() => setCurrentPage('reset_step1')}><Text style={styles.linkTextUnderline}>Forgot Password</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setCurrentPage('signup')}><Text style={styles.linkTextUnderline}>Sign Up</Text></TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -134,20 +220,17 @@ return Alert.alert("Error", error?.message || "An unexpected server error occurr
             <View style={styles.wireframeCard}>
               <Text style={styles.wireframeLabel}>Full Name:</Text>
               <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-
               <Text style={styles.wireframeLabel}>Email:</Text>
               <TextInput style={styles.input} value={signUpEmail} onChangeText={setSignUpEmail} autoCapitalize="none" keyboardType="email-address" />
-
               <Text style={styles.wireframeLabel}>Account Type:</Text>
               <View style={styles.pickerContainerEdge}>
                 <Picker selectedValue={accountType} onValueChange={setAccountType}>
                   <Picker.Item label="--- Select ---" value="" color="#999" />
                   <Picker.Item label="User(Customer)" value="user(customer)" />
                   <Picker.Item label="Vendor" value="vendor" />
-                  <Picker.Item label="DeliveryMan" value="delivery" />
+                  <Picker.Item label="Delivery Man" value="delivery" />
                 </Picker>
               </View>
-
               <Text style={styles.wireframeLabel}>Gender:</Text>
               <View style={{ flexDirection: 'row', marginBottom: 15 }}>
                 {['male', 'female'].map((item) => (
@@ -159,16 +242,12 @@ return Alert.alert("Error", error?.message || "An unexpected server error occurr
                   </TouchableOpacity>
                 ))}
               </View>
-
               <Text style={styles.wireframeLabel}>Phone Number:</Text>
               <TextInput style={styles.input} value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" />
-
               <Text style={styles.wireframeLabel}>Age:</Text>
               <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" />
-
               <Text style={styles.wireframeLabel}>Password:</Text>
               <TextInput style={styles.input} value={signUpPassword} onChangeText={setSignUpPassword} secureTextEntry />
-
               <Text style={styles.wireframeLabel}>Confirm Password:</Text>
               <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
 
@@ -176,17 +255,69 @@ return Alert.alert("Error", error?.message || "An unexpected server error occurr
                 <Text style={styles.wireframeSubmitBtnText}>{isLoading ? 'Processing...' : 'Signup'}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setCurrentPage('login')} style={{ marginTop: 20 }}>
-                <Text style={styles.linkTextUnderline}>Already have an account? Log In</Text>
+                <Text style={[styles.linkTextUnderline, { textAlign: 'center' }]}>Already have an account? Log In</Text>
               </TouchableOpacity>
             </View>
           )}
+
+          {currentPage === 'reset_step1' && (
+            <View style={styles.wireframeCard}>
+              <Text style={styles.wireframeLabel}>Email address:</Text>
+              <View style={styles.verifyRow}>
+                <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={resetEmail} onChangeText={setResetEmail} autoCapitalize="none" keyboardType="email-address" />
+                <TouchableOpacity style={styles.wireframeVerifyBtn} onPress={handleVerifyEmail} disabled={isLoading}>
+                  {isLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.wireframeVerifyBtnText}>Verify</Text>}
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.wireframeLabel, { marginTop: 18 }]}>Verification Pin:</Text>
+              <TextInput style={[styles.input, { width: 140 }]} value={pin} onChangeText={setPin} keyboardType="numeric" maxLength={6} placeholder="6-digit" />
+
+              <TouchableOpacity style={[styles.wireframeSubmitBtn, { marginTop: 10 }]} onPress={handleContinueReset}>
+                <Text style={styles.wireframeSubmitBtnText}>Continue</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCurrentPage('login')} style={{ marginTop: 20 }}>
+                <Text style={[styles.linkTextUnderline, { textAlign: 'center' }]}>Back to Login</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {currentPage === 'reset_step2' && (
+            <View style={styles.wireframeCard}>
+              <Text style={styles.wireframeLabel}>New Password:</Text>
+              <TextInput style={styles.input} secureTextEntry={true} value={newPassword} onChangeText={setNewPassword} placeholder="Upper + Num + Symbol" placeholderTextColor="#999" />
+              <Text style={styles.wireframeLabel}>Confirm Password:</Text>
+              <TextInput style={styles.input} secureTextEntry={true} value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
+
+              <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={handleFinalReset} disabled={isLoading}>
+                {isLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.wireframeSubmitBtnText}>Reset Password</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
-// ==================== 2. ROOT NAVIGATOR ====================
+// ==================== 🌟 2. 独立出来的加载和错误组件 ====================
+const RoleCheckScreen = () => (
+  <View style={styles.centerContainer}>
+    <ActivityIndicator size="large" color="#000" />
+    <Text style={{ marginTop: 15, fontWeight: 'bold', fontSize: 16 }}>Verifying Account...</Text>
+  </View>
+);
+
+const ErrorScreen = () => (
+  <View style={styles.centerContainer}>
+    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>Error: Invalid Role.</Text>
+    <TouchableOpacity style={styles.wireframeSubmitBtn} onPress={() => supabase.auth.signOut()}>
+      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+// ==================== 3. ROOT NAVIGATOR ====================
 export default function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -200,9 +331,7 @@ export default function App() {
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      // 🌟 拦截器：如果正在执行 Signup 流程，无视任何登录通知！
       if (isSigningUpFlag) return;
-
       setSession(session);
       if (session) {
         setIsAppLoading(true);
@@ -219,27 +348,12 @@ export default function App() {
   const fetchUserRole = async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('account_type,status')
+      .select('account_type')
       .eq('id', userId)
       .single();
 
     if (!error && data) {
-      const dbStatus = data.status ? data.status.toLowerCase().trim() : 'active';
-      const dbRole = data.account_type ? data.account_type.toLowerCase().trim() : '';
-
-      // 2. 状态判断：【把 Blocked 和 Deleted 分开】
-      if (dbStatus === 'blocked') {
-        setUserRole('BLOCKED');
-      } else if (dbStatus === 'deleted') {
-        setUserRole('DELETED');
-      } else {
-        // 3. 智能兼容角色名
-        if (dbRole === 'user' || dbRole === 'customer') {
-          setUserRole('user(customer)');
-        } else {
-          setUserRole(dbRole);
-        }
-      }
+      setUserRole(data.account_type);
     }
     setIsAppLoading(false);
   };
@@ -253,21 +367,14 @@ export default function App() {
     );
   }
 
+  // 🌟 干净整洁，绝对不会报语法错误的 Navigator
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : !userRole ? (
-          // 🌟 缓冲页面：拿到了 session 但还没拿到 role 时，给一个加载动画，而不是直接丢 Error
-          <Stack.Screen name="RoleCheck">
-            {() => (
-              <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#000" />
-                <Text style={{ marginTop: 15, fontWeight: 'bold', fontSize: 16 }}>Verifying Account...</Text>
-              </View>
-            )}
-          </Stack.Screen>
+          <Stack.Screen name="RoleCheck" component={RoleCheckScreen} />
         ) : (
           <>
             {userRole === 'delivery' && <Stack.Screen name="DeliveryRoot" component={DeliveryNavigator} />}
@@ -275,76 +382,8 @@ export default function App() {
             {userRole === 'vendor' && <Stack.Screen name="VendorRoot" component={VendorNavigator} />}
             {userRole === 'admin' && <Stack.Screen name="AdminRoot" component={AdminNavigator} />}
 
-{/* 🌟 拦截情况 1：账号被 Block 了 */}
-            {userRole === 'BLOCKED' && (
-              <Stack.Screen name="Blocked">
-                {() => (
-                  <View style={styles.centerContainer}>
-                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18, textAlign: 'center', paddingHorizontal: 20 }}>
-                      Error: your account have been blocked within 30 days
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.wireframeSubmitBtn} 
-                      onPress={async () => {
-                        await supabase.auth.signOut();
-                        setSession(null);
-                        setUserRole(null);
-                      }}
-                    >
-                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Stack.Screen>
-            )}
-
-            {/* 🌟 拦截情况 2：账号被 Delete 了 */}
-            {userRole === 'DELETED' && (
-              <Stack.Screen name="Deleted">
-                {() => (
-                  <View style={styles.centerContainer}>
-                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18, textAlign: 'center', paddingHorizontal: 20 }}>
-                      Error: your account have been deleted
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.wireframeSubmitBtn} 
-                      onPress={async () => {
-                        await supabase.auth.signOut();
-                        setSession(null);
-                        setUserRole(null);
-                      }}
-                    >
-                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Stack.Screen>
-            )}
-
-            {/* 🌟 拦截情况 3：账号没被 Block 也没被 Delete，但是角色填错了 */}
-            {userRole !== 'BLOCKED' && userRole !== 'DELETED' && !['delivery', 'user(customer)', 'vendor', 'admin'].includes(userRole) && (
-              <Stack.Screen name="InvalidRole">
-                {() => (
-                  <View style={styles.centerContainer}>
-                    <Text style={{ color: 'red', fontWeight: 'bold', fontSize: 18 }}>
-                      Error: Invalid Role ({userRole})
-                    </Text>
-                    <Text style={{ marginTop: 10, paddingHorizontal: 30, textAlign: 'center', color: '#666' }}>
-                      System doesn't recognize this role. Please ask Admin to edit this account's role to: user(customer), vendor, delivery, or admin.
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.wireframeSubmitBtn} 
-                      onPress={async () => {
-                        await supabase.auth.signOut();
-                        setSession(null);
-                        setUserRole(null);
-                      }}
-                    >
-                      <Text style={styles.wireframeSubmitBtnText}>Log Out</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Stack.Screen>
+            {!['delivery', 'user(customer)', 'vendor', 'admin'].includes(userRole) && (
+              <Stack.Screen name="Error" component={ErrorScreen} />
             )}
           </>
         )}
@@ -356,7 +395,8 @@ export default function App() {
 // ==================== STYLES ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 20, flexDirection: 'row', justifyContent: 'center', paddingTop: Platform.OS === 'ios' ? 10 : 40 },
+  header: { paddingHorizontal: 20, paddingBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 15 : 40 },
+  headerBackBtn: { width: 32, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#000', borderRadius: 6, padding: 2 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', letterSpacing: 1 },
   divider: { height: 2, backgroundColor: '#000' },
   scrollContainer: { padding: 20, paddingBottom: 40 },
@@ -369,9 +409,15 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 15, paddingVertical: 12, marginBottom: 18, backgroundColor: '#fff', fontSize: 14 },
   pickerContainerEdge: { borderWidth: 1.5, borderColor: '#000', marginBottom: 18, height: 50, justifyContent: 'center' },
 
-  wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: '#fff' },
+  verifyRow: { flexDirection: 'row', alignItems: 'center' },
+  wireframeVerifyBtn: { borderWidth: 1.5, borderColor: '#000', width: 75, height: 46, justifyContent: 'center', alignItems: 'center', marginLeft: 10, backgroundColor: '#fff' },
+  wireframeVerifyBtnText: { fontSize: 13, color: '#000', fontWeight: 'bold' },
+
+  wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: '#fff', marginBottom: 15 },
   wireframeSubmitBtnText: { fontWeight: 'bold', color: '#000', fontSize: 15 },
-  linkTextUnderline: { textDecorationLine: 'underline', textAlign: 'center', color: '#000', fontSize: 13 },
+  
+  linksRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: 5 },
+  linkTextUnderline: { textDecorationLine: 'underline', color: '#000', fontSize: 13, fontWeight: '500' },
 
   radioContainer: { flexDirection: 'row', alignItems: 'center', marginRight: 25 },
   radioOuter: { height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: '#000', marginRight: 8, justifyContent: 'center', alignItems: 'center' },

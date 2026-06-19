@@ -1,5 +1,5 @@
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import React, { useState, useContext, useCallback } from 'react';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
 import { Image, ActivityIndicator } from 'react-native'; 
 import { RiderContext } from './RiderProvider'; 
 import { supabase } from '../../supabaseClient';
@@ -12,22 +12,18 @@ import { Ionicons } from '@expo/vector-icons';
 export default function DeliveryMain() {
   const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // 🌟 核心修改点：把 true 改成 false，外卖员一登录默认就是 Offline！
   const [isOnline, setIsOnline] = useState(false); 
-  
   const { avatarUri, riderName } = useContext(RiderContext);
-
   const [shifts, setShifts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 每次回到 Home 页面，自动去拉取最新的排班
   useFocusEffect(
     useCallback(() => {
       fetchMyShifts();
     }, [])
   );
 
+  // 🌟 修复：使用真正的时间对象 (Date Object) 进行比对 🌟
   const fetchMyShifts = async () => {
     setIsLoading(true);
     try {
@@ -43,7 +39,44 @@ export default function DeliveryMain() {
       if (error) {
         Alert.alert("Fetch Error ❌", error.message);
       } else if (data) {
-        setShifts(data);
+        
+        // 1. 获取今天的时间对象，并把时分秒归零，确保公平对比
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const validShifts = [];
+        const expiredShiftIds = [];
+
+        // 2. 遍历拉取到的数据
+        data.forEach(shift => {
+          // 把数据库里 "Thu Jun 18 2026" 这种字符串，还原成真实时间对象
+          const shiftDateObj = new Date(shift.shift_date);
+          shiftDateObj.setHours(0, 0, 0, 0);
+
+          // 3. 完美对比：如果排班的时间 小于 今天的时间
+          if (shiftDateObj < today) {
+            expiredShiftIds.push(shift.id); // 过期！拉出去删掉
+          } else {
+            validShifts.push(shift); // 还没过期，留下来渲染
+          }
+        });
+
+        // 如果发现有过期数据，执行自动删除并弹窗
+        if (expiredShiftIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('rider_shifts')
+            .delete()
+            .in('id', expiredShiftIds); 
+
+          if (!deleteError) {
+            Alert.alert(
+              "Expired Shifts Cleaned 🧹",
+              `We have automatically removed ${expiredShiftIds.length} past shift(s) from your schedule.`
+            );
+          }
+        }
+
+        setShifts(validShifts);
       }
     } catch (error) {
       console.log(error);
@@ -86,11 +119,80 @@ export default function DeliveryMain() {
     );
   };
 
+  const handleToggleOnline = async (newValue) => {
+    setIsOnline(newValue); 
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_online: newValue })
+        .eq('id', session.user.id);
+
+      if (error) {
+        setIsOnline(!newValue);
+        Alert.alert("Network Error", "Failed to update your status.");
+      } else {
+        if (newValue === true) {
+          Alert.alert("🟢 You are Online!", "Radar activated. Waiting for incoming delivery requests...");
+        } else {
+          Alert.alert("⚪ You are Offline", "You will no longer receive delivery requests.");
+        }
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  useEffect(() => {
+    let orderChannel = null;
+
+    if (isOnline) {
+      orderChannel = supabase
+        .channel('rider-order-radar')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'orders' },
+          (payload) => {
+            const newOrder = payload.new;
+            const oldOrder = payload.old; 
+            
+            if (
+              newOrder.status === 'pending_rider' && 
+              oldOrder.status !== 'pending_rider' && 
+              newOrder.order_type === 'delivery'
+            ) {
+              Alert.alert(
+                "🔔 New Order Request!",
+                `Restaurant: ${newOrder.vendor_name}\nEarning: RM ${Number(newOrder.earning).toFixed(2)}\nDestination: ${newOrder.dropoff_location}`,
+                [
+                  {
+                    text: "View Request",
+                    onPress: () => {
+                      navigation.navigate('ProcessRequest', { orderData: newOrder });
+                    }
+                  }
+                ]
+              );
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (orderChannel) {
+        supabase.removeChannel(orderChannel);
+      }
+    };
+  }, [isOnline]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
 
-      {/* 顶部导航栏 */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIconBox} onPress={() => setIsSidebarOpen(true)} activeOpacity={0.7}>
           <Ionicons name="menu" size={28} color="#333" />
@@ -99,7 +201,6 @@ export default function DeliveryMain() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* 主体内容区 */}
       <View style={styles.contentContainer}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Upcoming Shifts</Text>
@@ -138,7 +239,6 @@ export default function DeliveryMain() {
         </ScrollView>
       </View>
 
-      {/* 底部状态栏 */}
       <View style={styles.bottomBarContainer}>
         <View style={styles.bottomBar}>
           <View style={styles.switchWrapper}>
@@ -146,7 +246,7 @@ export default function DeliveryMain() {
               trackColor={{ false: "#E0E0E0", true: "#A5D6A7" }}
               thumbColor={isOnline ? "#00C853" : "#F5F5F5"}
               ios_backgroundColor="#E0E0E0"
-              onValueChange={() => setIsOnline(!isOnline)}
+              onValueChange={handleToggleOnline} 
               value={isOnline}
               style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
             />
@@ -161,7 +261,6 @@ export default function DeliveryMain() {
         <View style={{ height: Platform.OS === 'ios' ? 20 : 45, backgroundColor: '#FFF' }} />
       </View>
 
-      {/* 侧边栏 */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -177,7 +276,10 @@ export default function DeliveryMain() {
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}><Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>PROFILE</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}><Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>WORKING SHIFT</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}><Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>EARNINGS & HISTORY</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); Alert.alert("Notice", "Reset Password clicked"); }}><Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>RESET PASSWORD</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('ResetPassword'); }}>
+                <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
+                <Text style={styles.menuText}>RESET PASSWORD</Text>
+              </TouchableOpacity>
             </ScrollView>
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { setIsSidebarOpen(false); await supabase.auth.signOut(); }} >

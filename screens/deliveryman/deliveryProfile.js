@@ -26,7 +26,7 @@ export default function DeliveryProfile() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true); 
-  const [isSaving, setIsSaving] = useState(false); // 🌟 新增：保存时的 Loading 状态，防误触
+  const [isSaving, setIsSaving] = useState(false);
 
   const { avatarUri, setAvatarUri, riderName, setRiderName } = useContext(RiderContext);
 
@@ -42,7 +42,6 @@ export default function DeliveryProfile() {
     loadRiderProfile();
   }, []);
 
-  // 🌟 读取数据时，把头像链接也一并拿下来
   const loadRiderProfile = async () => {
     try {
       setIsDataLoading(true);
@@ -55,7 +54,6 @@ export default function DeliveryProfile() {
         return;
       }
 
-      // 查询加入了 avatar_url 字段
       const { data, error: dbError } = await supabase
         .from('profiles')
         .select('full_name, gender, age, phone_number, email, avatar_url')
@@ -75,7 +73,6 @@ export default function DeliveryProfile() {
         });
 
         if (data.full_name) setRiderName(data.full_name);
-        // 如果数据库有头像链接，同步到全局状态，侧边栏也会跟着变
         if (data.avatar_url) setAvatarUri(data.avatar_url);
       }
     } catch (e) {
@@ -89,19 +86,15 @@ export default function DeliveryProfile() {
     setProfileData({ ...profileData, [key]: value });
   };
 
-  // 🌟 核心：图片上传至 Supabase Storage 的逻辑
   const uploadAvatar = async (uri, userId) => {
     try {
-      // 1. 将本地图片转换成 Blob 格式
       const response = await fetch(uri);
       const blob = await response.blob();
       
-      // 2. 提取后缀并生成唯一文件名
       const fileExt = uri.split('.').pop() || 'jpeg';
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       const filePath = `public/${fileName}`;
 
-      // 3. 上传到刚才建好的 avatars 桶
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, blob, {
@@ -111,7 +104,6 @@ export default function DeliveryProfile() {
 
       if (uploadError) throw uploadError;
 
-      // 4. 获取公开的图片 URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -123,25 +115,22 @@ export default function DeliveryProfile() {
     }
   };
 
-  // 🌟 点击保存时：先传图片，再存文字
   const handleSave = async () => {
-    setIsSaving(true); // 开启 Loading，防止多次点击
+    setIsSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       let finalAvatarUrl = avatarUri;
 
-      // 如果当前头像是本地路径 (file:// 开头)，说明用户刚选了新照片，需要上传
       if (avatarUri && avatarUri.startsWith('file://')) {
         const uploadedUrl = await uploadAvatar(avatarUri, user.id);
         if (uploadedUrl) {
           finalAvatarUrl = uploadedUrl;
-          setAvatarUri(uploadedUrl); // 把全局状态也替换成网络 URL
+          setAvatarUri(uploadedUrl);
         }
       }
 
-      // 更新所有数据到 profiles 表
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -149,7 +138,7 @@ export default function DeliveryProfile() {
           gender: profileData.gender,
           age: parseInt(profileData.age) || 0,
           phone_number: profileData.phone,
-          avatar_url: finalAvatarUrl // 🌟 这里把头像链接存进去了
+          avatar_url: finalAvatarUrl
         })
         .eq('id', user.id);
 
@@ -214,7 +203,6 @@ export default function DeliveryProfile() {
     <SafeAreaView style={styles.safeArea}>
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
 
-      {/* ==================== 1. 顶部导航栏 ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIconBox} onPress={() => setIsSidebarOpen(true)}>
           <View style={styles.menuIconBorder}>
@@ -226,7 +214,6 @@ export default function DeliveryProfile() {
 
         {isEditing ? (
           <TouchableOpacity style={styles.saveActionBtn} onPress={handleSave} disabled={isSaving}>
-             {/* 🌟 Save 按钮在上传图片时会变成 Loading */}
             {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveActionText}>Save</Text>}
           </TouchableOpacity>
         ) : (
@@ -236,9 +223,7 @@ export default function DeliveryProfile() {
         )}
       </View>
 
-      {/* ==================== 2. 主体内容滚动区 ==================== */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mainScrollContent}>
-
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButtonAbsolute}>
             <Ionicons name="arrow-back" size={20} color="black" />
@@ -250,7 +235,6 @@ export default function DeliveryProfile() {
             ) : (
               <Ionicons name="person" size={50} color="#FFF" />
             )}
-            {/* 只在编辑模式下显示相机小图标 */}
             {isEditing && (
               <View style={styles.cameraBadge}>
                 <Ionicons name="camera" size={16} color="#FFF" />
@@ -258,9 +242,7 @@ export default function DeliveryProfile() {
             )}
           </TouchableOpacity>
           <Text style={styles.partnerName}>{profileData.name}</Text>
-          <View style={styles.statusBadgeOnline}>
-            <Text style={styles.statusBadgeText}>ACTIVE RIDER</Text>
-          </View>
+          {/* 🌟 已经删除了这里的 ACTIVE RIDER 徽章 */}
         </View>
 
         <View style={styles.infoCard}>
@@ -299,7 +281,6 @@ export default function DeliveryProfile() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ==================== 3. 侧边栏 ==================== */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -328,7 +309,7 @@ export default function DeliveryProfile() {
                 <Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>EARNINGS & HISTORY</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); Alert.alert("Notice", "Reset Password clicked"); }}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('ResetPassword'); }}>
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
@@ -399,8 +380,6 @@ const styles = StyleSheet.create({
     borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF'
   },
   partnerName: { fontSize: 22, fontWeight: 'bold', color: '#000', marginTop: 15 },
-  statusBadgeOnline: { backgroundColor: '#E8F5E9', borderColor: '#81C784', borderWidth: 1, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, marginTop: 8 },
-  statusBadgeText: { color: '#2E7D32', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
   
   infoCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#F0F0F0', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingBottom: 10, borderBottomWidth: 1, borderColor: '#F0F0F0' },
