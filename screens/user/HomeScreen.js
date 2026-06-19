@@ -1,16 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react';
+// 🌟 新增 1：在 React 导入中加入 useContext
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, Image,
-  Dimensions, FlatList, Modal, TextInput, Alert
+  Dimensions, FlatList, Modal, TextInput, Alert, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+import { UserContext } from './UserContext';
+import { supabase } from '../../supabaseClient'; // ⚠️ 如果路径不对请自行微调
 
 const { width, height } = Dimensions.get('window');
 const cardWidth = (width - 46) / 3;
 const BANNER_WIDTH = width - 40;
 
-{/* ✅ 精准修改为（加上 checkoutData）：*/ }
-export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCart, clearAutoOpenCart, checkoutData }) {
+// 🌟 核心修复 1：一定要确保这里写了 navigateToVendor 属性！
+export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCart, clearAutoOpenCart, checkoutData, navigateToVendor }) {
+  const { profile } = useContext(UserContext);
+
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const bannerRef = useRef(null);
 
@@ -22,102 +28,192 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
 
   const totalCartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  {/* 🌟 完美修复：不仅自动开包，还把之前传出去的食物和备注 100% 灌回来！*/ }
+  useEffect(() => {
+    const fetchCartFromDB = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('cart')
+          .select(`quantity, food_id, food_item (name, price, image_url)`)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const dbCart = data.map(item => ({
+            id: item.food_id,
+            name: item.food_item?.name || 'Loading...',
+            price: parseFloat(item.food_item?.price) || 0,
+            quantity: item.quantity,
+            image: item.food_item?.image_url || null
+          }));
+          setCartItems(dbCart);
+        }
+      } catch (error) {
+        console.log('Fetch cart DB error:', error.message);
+      }
+    };
+    fetchCartFromDB();
+  }, []);
 
   useEffect(() => {
     if (autoOpenCart) {
-      if (checkoutData && checkoutData.items) {
-        setCartItems(checkoutData.items);
-      }
+      if (checkoutData && checkoutData.items) setCartItems(checkoutData.items);
       setIsCartVisible(true);
       clearAutoOpenCart();
     }
   }, [autoOpenCart]);
 
+  const syncCartToDB = async (foodId, quantity) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      if (quantity === 0) {
+        await supabase.from('cart').delete().match({ user_id: user.id, food_id: foodId });
+      } else {
+        await supabase.from('cart').upsert({ user_id: user.id, food_id: foodId, quantity: quantity }, { onConflict: 'user_id, food_id' });
+      }
+    } catch (error) {
+      console.log("DB Sync Warning:", error.message);
+    }
+  };
+
   const handleAddToCart = (item) => {
     setCartItems(prevItems => {
       const itemExists = prevItems.find(cartItem => cartItem.id === item.id);
+      let newQuantity = 1; let newCart;
       if (itemExists) {
-        return prevItems.map(cartItem =>
-          cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
-        );
+        newQuantity = itemExists.quantity + 1;
+        newCart = prevItems.map(cartItem => cartItem.id === item.id ? { ...cartItem, quantity: newQuantity } : cartItem);
+      } else {
+        const cleanPrice = parseFloat(item.price ? item.price.replace('RM ', '') : '10.00') || 10.00;
+        newCart = [...prevItems, { id: item.id, name: item.name, price: cleanPrice, quantity: 1, image: item.image }];
       }
-      const cleanPrice = parseFloat(item.price ? item.price.replace('RM ', '') : '10.00') || 10.00;
-      return [...prevItems, { id: item.id, name: item.name, price: cleanPrice, quantity: 1, image: item.image }];
+      syncCartToDB(item.id, newQuantity);
+      return newCart;
     });
   };
 
   const increaseQuantity = (id) => {
-    setCartItems(prevItems => prevItems.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item));
+    setCartItems(prevItems => {
+      let newQuantity;
+      const newCart = prevItems.map(item => {
+        if (item.id === id) { newQuantity = item.quantity + 1; return { ...item, quantity: newQuantity }; }
+        return item;
+      });
+      syncCartToDB(id, newQuantity);
+      return newCart;
+    });
   };
 
   const decreaseQuantity = (id) => {
-    setCartItems(prevItems => prevItems.map(item => item.id === id ? { ...item, quantity: item.quantity > 1 ? item.quantity - 1 : 1 } : item));
+    setCartItems(prevItems => {
+      let newQuantity;
+      const newCart = prevItems.map(item => {
+        if (item.id === id) { newQuantity = item.quantity > 1 ? item.quantity - 1 : 1; return { ...item, quantity: newQuantity }; }
+        return item;
+      });
+      syncCartToDB(id, newQuantity);
+      return newCart;
+    });
   };
 
   const removeItemFromCart = (id) => {
     setCartItems(prevItems => prevItems.filter(item => item.id !== id));
+    syncCartToDB(id, 0);
   };
 
-  const bannerAds = [
+  const [bannerAds, setBannerAds] = useState([
     { id: 'b1', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=600' },
-    { id: 'b2', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600' },
-    { id: 'b3', image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=600' },
-  ];
+  ]);
 
-  {/* 完全复原的 6 项今日精选*/ }
-  const todaysPicks = [
-    { id: '1', name: 'Vegan Salad with Mayo', price: 'RM 8.50', ingredient: 'broccoli, lettuce, cherry tomato, vegan mayo', allergen: 'none', calories: '320 kcal', status: null, image: 'https://atelizabethstable.com/wp-content/uploads/2023/07/vegan-broccoli-salad-with-vegan-mayonnaise.jpg' },
-    { id: '2', name: 'Avocado Toast', price: 'RM 11.00', ingredient: 'avocado, sourdough bread, poached egg, pepper', allergen: 'wheat, egg', calories: '450 kcal', status: null, image: 'https://recipesmoms.com/wp-content/uploads/2024/11/Avocado-Toast-Recipe.jpeg' },
-    { id: '3', name: 'Nasi Lemak with Fried Chicken', price: 'RM 15.00', ingredient: 'coconut rice, fried chicken, sambal, cucumber, egg', allergen: 'peanut, spicy', calories: '850 kcal', status: null, image: 'https://www.nasilemakbamboo.my/wp-content/uploads/2023/07/Nasi-Lemak-Ayam-Goreng-Compressed.jpg' },
-    { id: '4', name: 'Fruit Salad in Coconut Shells', price: 'RM 9.50', ingredient: 'watermelon, mango, kiwi, dragon fruit, mint leaves', allergen: 'mango syrup', calories: '210 kcal', status: null, image: 'https://img.magnific.com/premium-photo/photo-tropical-fruit-salad-coconut-shell_1056572-53453.jpg' },
-    { id: '5', name: 'Meat with Boiled egg and Veggies', price: 'RM 14.00', ingredient: 'grilled chicken, soft boiled egg, broccoli, carrots', allergen: 'egg, soy sauce', calories: '520 kcal', status: null, image: 'https://static.vecteezy.com/system/resources/previews/035/327/993/large_2x/ai-generated-salad-with-grilled-chicken-egg-and-cherry-tomatoes-on-black-plate-photo.jpg' },
-    { id: '6', name: 'Kampung Fried Rice with Fried Chicken', price: 'RM 16.00', ingredient: 'rice, water spinach, anchovies, fried chicken, egg', allergen: 'spicy, seafood', calories: '790 kcal', status: null, image: 'https://papparich.my/cdn/shop/files/R11KampungFriedRicewithEgg_FriedChickenWings_6f67f371-0b31-4eb5-8844-d93cbe804d03.jpg?v=1702382146&width=1445' },
-  ];
-
-  {/* 完全复原的 3 项新品*/ }
-  const newItems = [
-    { id: '7', name: 'Roti Cannai with Fish Curry', price: 'RM 6.00', ingredient: 'flour, butter, milk, fish curry gravy', allergen: 'wheat, milk, spicy', calories: '480 kcal', status: 'new', image: 'https://thumbs.dreamstime.com/b/traditional-roti-canai-curry-dhal-served-banana-leaf-delicious-authentic-serving-roti-canai-popular-400619434.jpg' },
-    { id: '8', name: 'Chicken Burger with Cheese', price: 'RM 12.50', ingredient: 'chicken patty, cheddar cheese, burger bun, lettuce', allergen: 'wheat, milk', calories: '610 kcal', status: 'new', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=300' },
-    { id: '9', name: 'Chicken Ham Sandwich with Cheese', price: 'RM 7.00', ingredient: 'sliced chicken ham, mozzarella cheese, white bread', allergen: 'wheat, milk', calories: '390 kcal', status: 'new', image: 'https://images.unsplash.com/photo-1521390188846-e2a3a97453a0?q=80&w=300' },
-  ];
+  useEffect(() => {
+    const fetchBannersFromDB = async () => {
+      try {
+        const { data, error } = await supabase.from('advertising_banners').select('id, image_url');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setBannerAds(data.map(item => ({ id: item.id.toString(), image: item.image_url })));
+        }
+      } catch (error) {
+        console.log('Fetch banners error:', error.message);
+      }
+    };
+    fetchBannersFromDB();
+  }, []);
 
   const onBannerScroll = (event) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / BANNER_WIDTH);
-    if (index !== currentBannerIndex && index >= 0 && index < bannerAds.length) {
-      setCurrentBannerIndex(index);
-    }
+    if (index !== currentBannerIndex && index >= 0 && index < bannerAds.length) setCurrentBannerIndex(index);
   };
 
-  const FoodCard = ({ item }) => (
-    <View style={styles.card}>
-      <TouchableOpacity style={styles.imageContainer} activeOpacity={0.8} onPress={() => { setSelectedFood(item); setIsDetailModalVisible(true); }}>
-        <Image source={{ uri: item.image }} style={styles.foodImage} />
-      </TouchableOpacity>
-      <View style={styles.cardDetails}>
-        <TouchableOpacity style={styles.foodNameWrapper} activeOpacity={0.7} onPress={() => { setSelectedFood(item); setIsDetailModalVisible(true); }}>
-          <Text style={styles.foodName} numberOfLines={3}>{item.name}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.plusButton} activeOpacity={0.7} onPress={() => handleAddToCart(item)}>
-          <Ionicons name="add" size={16} color="#fff" />
-        </TouchableOpacity>
+  const [vendors, setVendors] = useState([]);
+
+  useEffect(() => {
+    const fetchVendorsFromProfiles = async () => {
+      try {
+        const { data, error } = await supabase.from('profiles').select('*').eq('account_type', 'vendor');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const formattedVendors = data.map(vendor => ({
+            id: vendor.id,
+            name: vendor.full_name || vendor.username || 'Unnamed Vendor',
+            image_url: vendor.avatar_url || 'https://via.placeholder.com/150',
+            rating: vendor.rating || 'N/A',
+            category: vendor.category || 'N/A'
+          }));
+          setVendors(formattedVendors);
+        }
+      } catch (error) {
+        console.log('Fetch vendors error:', error.message);
+      }
+    };
+    fetchVendorsFromProfiles();
+  }, []);
+
+  // 🌟 核心修复 2：点击卡片时，调用 navigateToVendor 告诉管家换页
+  const VendorCard = ({ vendor }) => (
+    <TouchableOpacity
+      style={styles.vendorCard}
+      activeOpacity={0.8}
+      onPress={() => {
+        if (navigateToVendor) {
+          navigateToVendor(vendor); // 把商家的资料发给主控制中心
+        } else {
+          Alert.alert("Error", "Navigation not hooked up properly in Main App.js");
+        }
+      }}
+    >
+      <Image source={{ uri: vendor.image_url }} style={styles.vendorImage} />
+      <View style={styles.vendorDetails}>
+        <Text style={styles.vendorName} numberOfLines={1}>{vendor.name}</Text>
+        <View style={styles.vendorRatingRow}>
+          <Ionicons name="star" size={16} color="#FFD700" />
+          <Text style={styles.vendorRatingText}>{vendor.rating}</Text>
+          <Text style={styles.vendorCuisineText}>{vendor.category}</Text>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* 顶部导航条：拉回原本的三条杠跟 Charlotte 头像布局 */}
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.hamburgerBtn} onPress={onOpenMenu}>
           <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
         </TouchableOpacity>
         <View style={styles.profileContainer}>
-          <Ionicons name="person-circle-outline" size={40} color="#000" style={styles.avatarPlaceholder} />
+          {profile?.avatar_url ? (
+            <Image source={{ uri: profile.avatar_url }} style={[styles.avatarPlaceholder, { width: 40, height: 40, borderRadius: 20 }]} />
+          ) : (
+            <Ionicons name="person-circle-outline" size={40} color="#000" style={styles.avatarPlaceholder} />
+          )}
           <View style={styles.profileTextContainer}>
             <Text style={styles.helloText}>Hello!!</Text>
-            <Text style={styles.userNameText}>Charlotte</Text>
+            <Text style={styles.userNameText}>{profile?.full_name || 'Loading...'}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.cartIconButton} onPress={() => setIsCartVisible(true)}>
@@ -132,25 +228,22 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollPadding}>
         <View style={styles.bannerContainer}>
-          <FlatList
-            ref={bannerRef} data={bannerAds} keyExtractor={(item) => item.id} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onBannerScroll} scrollEventThrottle={16}
-            renderItem={({ item }) => (
-              <View style={{ width: BANNER_WIDTH, height: '100%' }}><Image source={{ uri: item.image }} style={styles.bannerFullImage} /></View>
-            )}
-          />
+          <FlatList ref={bannerRef} data={bannerAds} keyExtractor={(item) => item.id} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onBannerScroll} scrollEventThrottle={16} renderItem={({ item }) => (<View style={{ width: BANNER_WIDTH, height: '100%' }}><Image source={{ uri: item.image }} style={styles.bannerFullImage} /></View>)} />
           <View style={styles.dotsIndicatorContainer}>
             {bannerAds.map((_, i) => <View key={i} style={[styles.dotIndicator, i === currentBannerIndex && styles.dotIndicatorActive]} />)}
           </View>
         </View>
 
-        <View style={styles.sectionHeaderRow}><Text style={styles.sectionTitleFont}>Today’s Pick</Text></View>
-        <View style={styles.gridContainer}>{todaysPicks.map((item) => <FoodCard key={item.id} item={item} />)}</View>
+        <View style={[styles.sectionHeaderRow, { marginTop: 35, marginBottom: 20 }]}>
+          <Text style={[styles.sectionTitleFont, { fontSize: 28, letterSpacing: 1 }]}>Vendors</Text>
+        </View>
 
-        <View style={styles.sectionHeaderRow}><Text style={styles.sectionTitleFont}>New Items</Text></View>
-        <View style={styles.gridContainer}>{newItems.map((item) => <FoodCard key={item.id} item={item} />)}</View>
+        <View style={styles.vendorListContainer}>
+          {vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)}
+        </View>
+
       </ScrollView>
 
-      {/* 100% 还原详情 Modal 里的布局（包含所有警告和描述） */}
       <Modal animationType="fade" transparent visible={isDetailModalVisible} onRequestClose={() => setIsDetailModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropCloser} activeOpacity={1} onPress={() => setIsDetailModalVisible(false)} />
@@ -165,10 +258,7 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
               <ScrollView style={styles.popupDetailsScroll} showsVerticalScrollIndicator={false}>
                 <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Ingredient:</Text><Text style={styles.detailValue}>{selectedFood.ingredient}</Text></View>
                 <View style={styles.detailTextGroup}>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
-                    <Ionicons name="warning-outline" size={22} color="#D9383A" style={{ marginRight: 6, marginTop: -2 }} />
-                    <Text style={styles.detailLabel}>Allergen Warning:</Text>
-                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}><Ionicons name="warning-outline" size={22} color="#D9383A" style={{ marginRight: 6, marginTop: -2 }} /><Text style={styles.detailLabel}>Allergen Warning:</Text></View>
                   <Text style={[styles.detailValue, { color: '#000000', fontWeight: '900' }]}>{selectedFood.allergen}</Text>
                 </View>
                 <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Calories:</Text><Text style={styles.detailValue}>{selectedFood.calories}</Text></View>
@@ -181,24 +271,13 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
       </Modal>
 
       <Modal animationType="slide" transparent={false} visible={isCartVisible} onRequestClose={() => setIsCartVisible(false)}>
-        <ShoppingCartView
-          cartItems={cartItems}
-          remarks={remarks}
-          setRemarks={setRemarks}
-          increaseQuantity={increaseQuantity}
-          decreaseQuantity={decreaseQuantity}
-          removeItemFromCart={removeItemFromCart}
-          onClose={() => setIsCartVisible(false)}
-          onGoToCheckout={(items, remarks) => {
-            setIsCartVisible(false);
-            navigateToCheckout(items, remarks);
-          }} />
+        <ShoppingCartView cartItems={cartItems} remarks={remarks} setRemarks={setRemarks} increaseQuantity={increaseQuantity} decreaseQuantity={decreaseQuantity} removeItemFromCart={removeItemFromCart} onClose={() => setIsCartVisible(false)} onGoToCheckout={(items, remarks) => { setIsCartVisible(false); navigateToCheckout(items, remarks); }} />
       </Modal>
     </View>
   );
 }
 
-// 完全复原的硬核购物车 UI组件
+// 购物车逻辑
 function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, decreaseQuantity, removeItemFromCart, onClose, onGoToCheckout }) {
   const [isRemoveModalVisible, setIsRemoveModalVisible] = useState(false);
   const [itemToIdToRemove, setItemToIdToRemove] = useState(null);
@@ -206,7 +285,6 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
 
   const triggerRemovePrompt = (id, name) => { setItemToIdToRemove(id); setItemNameToRemove(name); setIsRemoveModalVisible(true); };
   const confirmRemoveItem = (confirm) => { if (confirm && itemToIdToRemove) removeItemFromCart(itemToIdToRemove); setIsRemoveModalVisible(false); };
-
   const calculateSubtotal = () => {
     const itemsTotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     return itemsTotal === 0 ? "RM 0.00" : `RM ${itemsTotal.toFixed(2)}`;
@@ -214,79 +292,36 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
 
   return (
     <View style={cartStyles.safeArea}>
-      <View style={cartStyles.headerRow}>
-        <View style={{ width: 28 }} />
-        <View style={cartStyles.titleContainer}><Text style={cartStyles.headerTitle}>Shopping Cart</Text></View>
-        <TouchableOpacity style={cartStyles.closeXBtn} onPress={onClose}>
-          <Ionicons name="close" size={28} color="#000" />
-        </TouchableOpacity>
-      </View>
+      <View style={cartStyles.headerRow}><View style={{ width: 28 }} /><View style={cartStyles.titleContainer}><Text style={cartStyles.headerTitle}>Shopping Cart</Text></View><TouchableOpacity style={cartStyles.closeXBtn} onPress={onClose}><Ionicons name="close" size={28} color="#000" /></TouchableOpacity></View>
       <View style={cartStyles.divider} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={cartStyles.scrollContainer}>
         <Text style={cartStyles.sectionTitle}>Order Items</Text>
-        {cartItems.length === 0 ? (
-          <View style={cartStyles.emptyContainer}><Ionicons name="cart-outline" size={64} color="#cccccc" /><Text style={cartStyles.emptyText}>Your cart is empty</Text></View>
-        ) : (
-
+        {cartItems.length === 0 ? (<View style={cartStyles.emptyContainer}><Ionicons name="cart-outline" size={64} color="#cccccc" /><Text style={cartStyles.emptyText}>Your cart is empty</Text></View>) : (
           cartItems.map((item) => (
             <View key={item.id} style={cartStyles.cartCard}>
               <Image source={{ uri: item.image }} style={cartStyles.cartItemImage} />
               <View style={cartStyles.cartItemInfoBox}>
-                {/* 🌟 移除了 numberOfLines={1} 让长名字可以自由显示两行 */}
-                <View style={styles.foodNameWrapperTmp}>
-                  <Text style={cartStyles.itemNameText}>{item.name}</Text>
-                  <Text style={cartStyles.itemPriceText}>Price: RM {item.price.toFixed(2)}</Text>
-                </View>
-
-                {/* 🌟 下方的加减数量 & Remove 按钮会自动被 Flex 推到最下面 */}
+                <View style={styles.foodNameWrapperTmp}><Text style={cartStyles.itemNameText}>{item.name}</Text><Text style={cartStyles.itemPriceText}>Price: RM {item.price.toFixed(2)}</Text></View>
                 <View style={cartStyles.actionRow}>
-                  <View style={cartStyles.quantityController}>
-                    <TouchableOpacity style={cartStyles.qtyBtn} onPress={() => decreaseQuantity(item.id)}>
-                      <Ionicons name="remove" size={14} color="#000" />
-                    </TouchableOpacity>
-                    <Text style={cartStyles.qtyText}>{item.quantity}</Text>
-                    <TouchableOpacity style={cartStyles.qtyBtn} onPress={() => increaseQuantity(item.id)}>
-                      <Ionicons name="add" size={14} color="#000" />
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity style={cartStyles.removeButton} onPress={() => triggerRemovePrompt(item.id, item.name)}>
-                    <Text style={cartStyles.removeButtonText}>Remove</Text>
-                  </TouchableOpacity>
+                  <View style={cartStyles.quantityController}><TouchableOpacity style={cartStyles.qtyBtn} onPress={() => decreaseQuantity(item.id)}><Ionicons name="remove" size={14} color="#000" /></TouchableOpacity><Text style={cartStyles.qtyText}>{item.quantity}</Text><TouchableOpacity style={cartStyles.qtyBtn} onPress={() => increaseQuantity(item.id)}><Ionicons name="add" size={14} color="#000" /></TouchableOpacity></View>
+                  <TouchableOpacity style={cartStyles.removeButton} onPress={() => triggerRemovePrompt(item.id, item.name)}><Text style={cartStyles.removeButtonText}>Remove</Text></TouchableOpacity>
                 </View>
               </View>
             </View>
           ))
         )}
         <Text style={cartStyles.sectionTitle}>Special Remarks:</Text>
-        <View style={cartStyles.remarksInputWrapper}>
-          <TextInput style={cartStyles.remarksInput} multiline numberOfLines={4} textAlignVertical="top" value={remarks} onChangeText={setRemarks} placeholder="Please type remark here" placeholderTextColor="#999999" />
-        </View>
-        <View style={cartStyles.priceRow}>
-          <Text style={cartStyles.totalLabel}>Subtotal</Text>
-          <Text style={cartStyles.totalPriceText}>{calculateSubtotal()}</Text>
-        </View>
+        <View style={cartStyles.remarksInputWrapper}><TextInput style={cartStyles.remarksInput} multiline numberOfLines={4} textAlignVertical="top" value={remarks} onChangeText={setRemarks} placeholder="Please type remark here" placeholderTextColor="#999999" /></View>
+        <View style={cartStyles.priceRow}><Text style={cartStyles.totalLabel}>Subtotal</Text><Text style={cartStyles.totalPriceText}>{calculateSubtotal()}</Text></View>
       </ScrollView>
-
-      <View style={cartStyles.fixedFooter}>
-        <TouchableOpacity
-          style={[cartStyles.checkoutButton, cartItems.length === 0 && cartStyles.checkoutButtonDisabled]}
-          disabled={cartItems.length === 0}
-          onPress={() => {
-            onGoToCheckout(cartItems, remarks); // 🌟 触发传递并跳转
-          }}
-        >
-          <Text style={cartStyles.checkoutButtonText}>Go to Checkout</Text>
-        </TouchableOpacity>
-
-      </View>
+      <View style={cartStyles.fixedFooter}><TouchableOpacity style={[cartStyles.checkoutButton, cartItems.length === 0 && cartStyles.checkoutButtonDisabled]} disabled={cartItems.length === 0} onPress={() => { onGoToCheckout(cartItems, remarks); }}><Text style={cartStyles.checkoutButtonText}>Go to Checkout</Text></TouchableOpacity></View>
       <Modal animationType="fade" transparent visible={isRemoveModalVisible}>
         <View style={cartStyles.modalOverlay}>
           <View style={cartStyles.promptCardBody}>
             <View style={cartStyles.promptHeader}><Ionicons name="warning-outline" size={24} color="#000" style={{ marginRight: 6 }} /><Text style={cartStyles.promptTitleText}>Remove Item?</Text></View>
             <Text style={cartStyles.promptContentText}>Are you sure to remove "{itemNameToRemove}"?</Text>
             <View style={cartStyles.promptActionRow}>
-              <TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnNo]} onPress={() => confirmRemoveItem(false)}><Text style={cartStyles.promptBtnNoText}>No</Text></TouchableOpacity>
-              <TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnYes]} onPress={() => confirmRemoveItem(true)}><Text style={cartStyles.promptBtnYesText}>Yes</Text></TouchableOpacity>
+              <TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnNo]} onPress={() => confirmRemoveItem(false)}><Text style={cartStyles.promptBtnNoText}>No</Text></TouchableOpacity><TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnYes]} onPress={() => confirmRemoveItem(true)}><Text style={cartStyles.promptBtnYesText}>Yes</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -295,6 +330,7 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
   );
 }
 
+// 样式表
 const styles = StyleSheet.create({
   scrollPadding: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: 10, backgroundColor: '#ffffff', zIndex: 10 },
@@ -314,20 +350,19 @@ const styles = StyleSheet.create({
   dotsIndicatorContainer: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
   dotIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.4)', marginHorizontal: 4 },
   dotIndicatorActive: { width: 14, backgroundColor: '#ffffff' },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 25, marginBottom: 12 },
-  sectionTitleFont: { fontSize: 26, fontWeight: 'bold', fontFamily: 'serif', color: '#000000' },
-  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { width: cardWidth, backgroundColor: '#ffffff', borderRadius: 10, borderWidth: 1.5, borderColor: '#000000', marginBottom: 12, overflow: 'hidden', height: 210, justifyContent: 'space-between' },
-  imageContainer: { width: '100%', height: 100, position: 'relative' },
-  foodImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  cardDetails: { padding: 6, paddingBottom: 8, flex: 1, justifyContent: 'space-between', position: 'relative' },
-  foodNameWrapper: { width: '100%', height: 68, marginBottom: 2 },
-  foodName: { fontSize: 12, fontWeight: '700', color: '#000000', lineHeight: 15 },
-  plusButton: { backgroundColor: '#FF8C32', width: 28, height: 28, borderRadius: 20, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 6, right: 6 },
-  foodNameWrapperTmp: {
-    width: '100%',
-    flex: 1,
-  },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitleFont: { fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', color: '#000000' },
+
+  vendorListContainer: { paddingBottom: 20 },
+  vendorCard: { flexDirection: 'row', width: '100%', marginBottom: 20, alignItems: 'center', paddingHorizontal: 2 },
+  vendorImage: { width: 105, height: 105, borderRadius: 16, borderWidth: 1.5, borderColor: '#000000', resizeMode: 'cover', zIndex: 2, backgroundColor: '#fff' },
+  vendorDetails: { flex: 1, height: 80, backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#000000', borderLeftWidth: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12, justifyContent: 'center', paddingLeft: 16, paddingRight: 10, marginLeft: -2, zIndex: 1 },
+  vendorName: { fontSize: 18, fontWeight: 'bold', color: '#000000', marginBottom: 6 },
+  vendorRatingRow: { flexDirection: 'row', alignItems: 'center' },
+  vendorRatingText: { fontSize: 15, fontWeight: 'bold', color: '#000000', marginLeft: 6, marginRight: 12 },
+  vendorCuisineText: { fontSize: 14, fontWeight: 'bold', color: '#000000' },
+
+  foodNameWrapperTmp: { width: '100%', flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   modalBackdropCloser: { position: 'absolute', width: width, height: height },
   popupCardBody: { width: width * 0.86, maxHeight: height * 0.85, backgroundColor: '#ffffff', borderWidth: 3, borderColor: '#000000', borderRadius: 16, padding: 18, justifyContent: 'space-between', elevation: 8 },
@@ -355,29 +390,9 @@ const cartStyles = StyleSheet.create({
   divider: { height: 2, backgroundColor: '#000000', width: '100%' },
   scrollContainer: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '900', color: '#000000', marginVertical: 14, fontFamily: 'serif' },
-
-  // 🌟 调整：将整张卡片（外层高度约束）从 115 扩大到 125，给下方留出更多空间
   cartCard: { flexDirection: 'row', width: '100%', marginBottom: 21, height: 125, alignItems: 'center' },
-
-  // 🌟 调整：把食物图片和它的黑框等比例变大一点点（从 113x115 变成 120x125），圆角保持 12
   cartItemImage: { width: 120, height: 125, borderRadius: 12, borderWidth: 1.7, borderColor: '#000000', resizeMode: 'cover' },
-
-  // 🌟 调整：右边盒子维持经典的 105 高度不随图片变大！这样图片大、名字框小的层次感更明显，且内部由于上下拉伸，按钮会完美下沉，拉开与字体的距离！
-  cartItemInfoBox: {
-    flex: 1,
-    height: 110,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#000000',
-    paddingHorizontal: 12,
-    justifyContent: 'space-between',       // 👈 关键：依然让名字死守顶部，按钮沉在底部
-    paddingVertical: 10,
-    borderLeftWidth: 0,
-    marginLeft: 0,
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-  },
-
+  cartItemInfoBox: { flex: 1, height: 110, backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#000000', paddingHorizontal: 12, justifyContent: 'space-between', paddingVertical: 10, borderLeftWidth: 0, marginLeft: 0, borderTopRightRadius: 4, borderBottomRightRadius: 4 },
   itemNameText: { fontSize: 14, fontWeight: 'bold', color: '#000000', lineHeight: 16, paddingRight: 4 },
   itemPriceText: { fontSize: 13, fontWeight: '700', color: '#444444', marginTop: 3 },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
