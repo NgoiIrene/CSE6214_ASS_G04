@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   hamburgerLine: { width: 20, height: 2, backgroundColor: '#000' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', letterSpacing: 2 },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
-  sidebar: { position: 'absolute', top: 0, left: 0, height: SCREEN_HEIGHT, width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100, paddingTop: Platform.OS === 'ios' ? 44 : 40 },
+  sidebar: { position: 'absolute', top: 0, left: 0, height: SCREEN_HEIGHT + 60, width: SIDEBAR_WIDTH, backgroundColor: '#ffffff', borderRightWidth: 2, borderColor: '#000000', zIndex: 100, paddingTop: Platform.OS === 'ios' ? 44 : 40 },
   sidebarHeader: { height: 65, justifyContent: 'center', paddingLeft: 15, paddingTop: Platform.OS === 'ios' ? 0 : 20 },
   userSection: { alignItems: 'center', paddingVertical: 15 },
   avatarCircle: { width: 55, height: 55, borderRadius: 27.5, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 5 },
@@ -244,6 +244,6 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 14, fontWeight: 'bold', textAlign: 'left', color: '#000', paddingLeft: 30 },
   logoutBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingBottom: Platform.OS === 'ios' ? 40 : 20, borderTopWidth: 2, borderColor: '#0f100f', backgroundColor: '#fff' },
   logoutText: { fontSize: 16, fontWeight: 'bold', color: '#070707', marginLeft: 8 },
-  overlayWrapper: { position: 'absolute', top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 90 },
+  overlayWrapper: { position: 'absolute', top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT + 90, backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 90 },
   overlayClickableArea: { flex: 1 }
 });
