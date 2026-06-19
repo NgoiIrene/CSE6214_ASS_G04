@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 // 引入 Expo 原生或通用的日期选择器（仅保留日期选择即可）
 import DateTimePicker from '@react-native-community/datetimepicker';
+// 🌟 核心修改 1：引入 Supabase 客户端
+import { supabase } from '../../supabaseClient';
 
 export default function CheckoutScreen({ route, navigation }) {
   // 1. 接收来自主页/购物车的共享数据
@@ -128,8 +130,8 @@ export default function CheckoutScreen({ route, navigation }) {
   const deliveryFee = orderType === 'Delivery' ? 5.00 : 0.00;
   const totalPayment = subtotalWithTax + deliveryFee;
 
-  // 下单时电子钱包余额精准校验与充值引导
-  const handlePlaceOrder = () => {
+  // 🌟 核心修改 2：打通 Supabase 真实下单存入数据库逻辑
+  const handlePlaceOrder = async () => {
     if (walletBalance < totalPayment) {
       const shortAmount = totalPayment - walletBalance;
       Alert.alert(
@@ -144,27 +146,68 @@ export default function CheckoutScreen({ route, navigation }) {
       return;
     }
 
-    const newBalance = walletBalance - totalPayment;
+    try {
+      // 1. 获取当前买家用户的 Session ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const customerId = session?.user?.id || 'anonymous_customer';
 
-    Alert.alert(
-      "Payment Successful! 🎉",
-      `Your order has been placed!\n\n` +
-      `📅 Date: ${formatDate(date)}\n` +
-      `⏰ Time: ${timingSelection === 'Order Now' ? 'ASAP' : selectedSlot}\n` +
-      `💰 Total Paid: RM ${totalPayment.toFixed(2)}\n` +
-      `📱 eWallet Balance: RM ${newBalance.toFixed(2)}\n\n`,
-      [
-        {
-          text: "View Order Status",
-          onPress: () => {
-            navigation.navigate('OrderTracking', {
-              orderDate: formatDate(date),
-              orderTime: timingSelection === 'Order Now' ? 'ASAP' : selectedSlot
-            });
+      // 2. 将购物车里的菜品数组格式化为单条字符串文本，方便商家和骑手直接阅读
+      const formattedFoodDetails = items.map(item => `${item.quantity}x ${item.name}`).join('\n');
+
+      // 3. 随机生成一个订单流水编号（例如 #3672），模拟真实交易号
+      const generatedRef = '#' + Math.floor(1000 + Math.random() * 9000);
+
+      // 4. 将打包好的订单对象写入 Supabase 数据库
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([{
+          customer_id: customerId,
+          customer_name: 'Cindy Kiki', // 默认买家名称，对应后续业务流展示
+          order_ref: generatedRef,
+          vendor_name: 'Rasa Syiokk',  // 对应商家名称
+          pickup_location: 'MMU Campus Cafeteria',
+          dropoff_location: orderType === 'Delivery' ? campusBuilding : 'Self Pick-up',
+          food_details: formattedFoodDetails,
+          order_type: orderType.toLowerCase(), // 'delivery' 或 'pick up'
+          timing_type: timingSelection.toLowerCase(), // 'order now' 或 'preorder'
+          preorder_date: timingSelection === 'Preorder' ? date.toISOString().split('T')[0] : null,
+          preorder_time_slot: timingSelection === 'Preorder' ? selectedSlot : null,
+          total_price: totalPayment,
+          earning: deliveryFee, // 骑手跑腿配送费收益
+          status: 'pending_vendor', // 🌟 关键：此时订单状态设为等待商家接单
+          remarks: remarks
+        }])
+        .select();
+
+      if (error) throw error;
+
+      const newBalance = walletBalance - totalPayment;
+
+      Alert.alert(
+        "Payment Successful! 🎉",
+        `Your order has been placed!\n\n` +
+        `📅 Date: ${formatDate(date)}\n` +
+        `⏰ Time: ${timingSelection === 'Order Now' ? 'ASAP' : selectedSlot}\n` +
+        `💰 Total Paid: RM ${totalPayment.toFixed(2)}\n` +
+        `📱 eWallet Balance: RM ${newBalance.toFixed(2)}\n\n`,
+        [
+          {
+            text: "View Order Status",
+            onPress: () => {
+              // 带着新鲜生成的真实订单数据跳转到订单追踪页
+              navigation.navigate('OrderTracking', {
+                orderData: data[0],
+                orderDate: formatDate(date),
+                orderTime: timingSelection === 'Order Now' ? 'ASAP' : selectedSlot
+              });
+            }
           }
-        }
-      ]
-    );
+        ]
+      );
+
+    } catch (dbError) {
+      Alert.alert("Order Failed ❌", dbError.message);
+    }
   };
 
   return (
@@ -190,7 +233,6 @@ export default function CheckoutScreen({ route, navigation }) {
             <View style={styles.badge}><Text style={styles.badgeText}>{items.length} Items</Text></View>
           </View>
 
-          {/* 🌟 核心修改：用 map 动态渲染购物车里真实的食物数据，彻底打通连接！ */}
           {items && items.length > 0 ? (
             items.map((item, index) => (
               <View style={styles.itemRow} key={index}>
@@ -200,7 +242,6 @@ export default function CheckoutScreen({ route, navigation }) {
               </View>
             ))
           ) : (
-            // 安全退路：如果没有数据传过来，显示一个提示
             <Text style={{ color: '#999', fontSize: 14, marginVertical: 10 }}>No items in order</Text>
           )}
 
@@ -392,7 +433,7 @@ export default function CheckoutScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* ==================== 6. IN-LINE ACTION BAR (跟随滚动) ==================== */}
+        {/* ==================== 6. ACTION BAR ==================== */}
         <View style={styles.inlineActionBarVertical}>
           <View style={styles.totalRowSplit}>
             <Text style={styles.totalStickyLabel}>Total Payment</Text>
@@ -410,49 +451,18 @@ export default function CheckoutScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA'
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 2,
-    borderColor: '#000000',
-    paddingTop: StatusBar.currentHeight - 35,
-    height: 20 + StatusBar.currentHeight,
-  },
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#ffffff', borderBottomWidth: 2, borderColor: '#000000', paddingTop: StatusBar.currentHeight - 35, height: 20 + StatusBar.currentHeight },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#111', letterSpacing: 0.3 },
-
-  scrollPadding: {
-    paddingHorizontal: 15,
-    paddingTop: 19,
-    paddingBottom: 100
-  },
-
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  scrollPadding: { paddingHorizontal: 15, paddingTop: 19, paddingBottom: 100 },
+  card: { backgroundColor: '#ffffff', borderRadius: 14, padding: 16, marginBottom: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
   badge: { backgroundColor: '#FFF0E5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { color: '#FF8C32', fontSize: 12, fontWeight: '700' },
-
   operationBadge: { backgroundColor: '#F0F4FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   operationBadgeText: { color: '#2B6CB0', fontSize: 11, fontWeight: '700' },
-
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 6 },
   itemQty: { fontSize: 14, fontWeight: '700', color: '#FF8C32', width: 26 },
   itemName: { fontSize: 14, fontWeight: '500', color: '#333', flex: 1, paddingRight: 10, lineHeight: 18 },
@@ -460,33 +470,21 @@ const styles = StyleSheet.create({
   dashedDivider: { height: 1, borderStyle: 'dashed', borderWidth: 0.6, borderColor: '#DDD', marginVertical: 12 },
   remarkLabel: { fontSize: 12, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginBottom: 2 },
   remarkValue: { fontSize: 14, color: '#444', fontStyle: 'italic', lineHeight: 20, marginTop: 2 },
-
   toggleContainer: { flexDirection: 'row', backgroundColor: '#EFEFEF', borderRadius: 25, padding: 4, marginBottom: 14 },
   toggleBtn: { flex: 1, flexDirection: 'row', height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
   toggleBtnActive: { backgroundColor: '#22252A', elevation: 2 },
   toggleText: { fontSize: 14, fontWeight: '600', color: '#666', marginLeft: 6 },
   toggleTextActive: { color: '#FFF', fontWeight: '700' },
-
   inputHeading: { fontSize: 13, fontWeight: '700', color: '#666', marginBottom: 8 },
-  selectorSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F5F6F8',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
+  selectorSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F5F6F8', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 10 },
   selectorValueText: { fontSize: 14, fontWeight: '600', color: '#111' },
   addressText: { fontSize: 14, fontWeight: '500', color: '#555', flex: 1, lineHeight: 18 },
   rowAlign: { flexDirection: 'row', alignItems: 'center' },
-
   segmentedControl: { flexDirection: 'row', backgroundColor: '#F0F1F3', borderRadius: 10, padding: 3, marginBottom: 12 },
   segmentOption: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   segmentOptionActive: { backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 1 },
   segmentText: { fontSize: 13, fontWeight: '600', color: '#777' },
   segmentTextActive: { color: '#000', fontWeight: '700' },
-
   dateTimeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
   dateTimeBlock: { flex: 0.48, backgroundColor: '#F5F6F8', padding: 10, borderRadius: 10 },
   dateTimeLabel: { fontSize: 11, fontWeight: '600', color: '#888', marginBottom: 4 },
@@ -494,35 +492,16 @@ const styles = StyleSheet.create({
   dateTimeValue: { fontSize: 13, fontWeight: '700', color: '#222', marginLeft: 6 },
   asapInfoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF6F0', padding: 12, borderRadius: 10, marginTop: 4 },
   asapText: { fontSize: 13, color: '#A0521D', flex: 1, fontWeight: '500' },
-
-  slotsDropdownContainer: {
-    backgroundColor: '#FAFAFA',
-    borderWidth: 1.5,
-    borderColor: '#EAEAEA',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 10
-  },
+  slotsDropdownContainer: { backgroundColor: '#FAFAFA', borderWidth: 1.5, borderColor: '#EAEAEA', borderRadius: 10, padding: 10, marginTop: 10 },
   slotsHeading: { fontSize: 12, fontWeight: '700', color: '#666', marginBottom: 8, textTransform: 'uppercase' },
   slotsScrollView: { maxHeight: 150 },
   slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  slotItemBtn: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 6,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginBottom: 8
-  },
+  slotItemBtn: { width: '48%', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDD', borderRadius: 6, paddingVertical: 10, alignItems: 'center', marginBottom: 8 },
   slotItemBtnActive: { backgroundColor: '#22252A', borderColor: '#22252A' },
   slotItemText: { fontSize: 13, fontWeight: '600', color: '#333' },
   slotItemTextActive: { color: '#FFFFFF', fontWeight: '700' },
-
   closedNoticeBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF6F0', padding: 10, borderRadius: 8, marginTop: 12 },
   closedNoticeText: { fontSize: 12, color: '#A0521D', flex: 1, fontWeight: '500' },
-
   paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   walletIconContainer: { backgroundColor: '#FF8C32', width: 38, height: 38, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   paymentMethodName: { fontSize: 14, fontWeight: '700', color: '#111' },
@@ -530,58 +509,13 @@ const styles = StyleSheet.create({
   balanceContainer: { alignItems: 'flex-end' },
   balanceLabel: { fontSize: 11, color: '#888', fontWeight: '500' },
   balanceValue: { fontSize: 15, fontWeight: '800', color: '#2E7D32', marginTop: 2 },
-
   priceDetailRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 5 },
   priceDetailLabel: { fontSize: 15, color: '#000000' },
   priceDetailValue: { fontSize: 14, fontWeight: '600', color: '#222' },
-
-  inlineActionBarVertical: {
-    width: '100%',
-    paddingHorizontal: 16,
-    marginTop: 15,
-    marginBottom: 20,
-  },
-  totalRowSplit: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 16, // 与下方按钮拉开舒适的间距
-  },
-
-  totalStickyLabel: { 
-  fontSize: 16,          
-  fontWeight: '600', 
-  color: '#666' 
-},
-totalStickyPrice: { 
-  fontSize: 18,          
-  fontWeight: '800', 
-  color: '#111', 
-  marginTop: 2 
-},
-
-
-
-  placeOrderCenterBtn: {
-    backgroundColor: '#1a1611d4',
-    flexDirection: 'row',
-    width: '100%',         // 撑满容器，保持长方形在中心
-    height: 52,            // 稍微加高，让长方形按钮更大气
-    borderRadius: 14,      //  复刻图三硬核圆边长方形的关键（12 - 14 最佳）
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#454542',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-
-  placeOrderText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.3
-  }
+  inlineActionBarVertical: { width: '100%', paddingHorizontal: 16, marginTop: 15, marginBottom: 20 },
+  totalRowSplit: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 16 },
+  totalStickyLabel: { fontSize: 16, fontWeight: '600', color: '#666' },
+  totalStickyPrice: { fontSize: 18, fontWeight: '800', color: '#111', marginTop: 2 },
+  placeOrderCenterBtn: { backgroundColor: '#1a1611d4', flexDirection: 'row', width: '100%', height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', shadowColor: '#454542', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4 },
+  placeOrderText: { color: '#ffffff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 }
 });
