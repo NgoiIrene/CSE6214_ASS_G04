@@ -1,47 +1,198 @@
-import { useNavigation } from '@react-navigation/native';
-import React, { useState } from 'react';
-import { useContext } from 'react';
-import { Image } from 'react-native'; // 确保引入了 Image
-import { RiderContext } from './RiderProvider'; // 确保路径正确
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
+import { Image, ActivityIndicator } from 'react-native'; 
+import { RiderContext } from './RiderProvider'; 
+import { supabase } from '../../supabaseClient';
 import {
-  Dimensions,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View
+  Dimensions, Platform, SafeAreaView, ScrollView, StyleSheet,
+  Switch, Text, TouchableOpacity, View, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width, height } = Dimensions.get('window');
-
 export default function DeliveryMain() {
-  const navigation = useNavigation(); 
+  const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-
-// 🌟 顺便把 riderName 也一起解构出来
+  const [isOnline, setIsOnline] = useState(false); 
   const { avatarUri, riderName } = useContext(RiderContext);
+  const [shifts, setShifts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [shifts, setShifts] = useState([
-    { id: '1', date: '2/6/2026 (Tue)', time: '8.00AM - 10.30AM', duration: '2hrs 30min' },
-    { id: '2', date: '3/6/2026 (Wed)', time: '10.30AM - 12.30PM', duration: '2hrs' },
-  ]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchMyShifts();
+    }, [])
+  );
+
+  // 🌟 修复：使用真正的时间对象 (Date Object) 进行比对 🌟
+  const fetchMyShifts = async () => {
+    setIsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { data, error } = await supabase
+        .from('rider_shifts')
+        .select('*')
+        .eq('rider_id', session.user.id)
+        .order('shift_date', { ascending: true }); 
+
+      if (error) {
+        Alert.alert("Fetch Error ❌", error.message);
+      } else if (data) {
+        
+        // 1. 获取今天的时间对象，并把时分秒归零，确保公平对比
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const validShifts = [];
+        const expiredShiftIds = [];
+
+        // 2. 遍历拉取到的数据
+        data.forEach(shift => {
+          // 把数据库里 "Thu Jun 18 2026" 这种字符串，还原成真实时间对象
+          const shiftDateObj = new Date(shift.shift_date);
+          shiftDateObj.setHours(0, 0, 0, 0);
+
+          // 3. 完美对比：如果排班的时间 小于 今天的时间
+          if (shiftDateObj < today) {
+            expiredShiftIds.push(shift.id); // 过期！拉出去删掉
+          } else {
+            validShifts.push(shift); // 还没过期，留下来渲染
+          }
+        });
+
+        // 如果发现有过期数据，执行自动删除并弹窗
+        if (expiredShiftIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('rider_shifts')
+            .delete()
+            .in('id', expiredShiftIds); 
+
+          if (!deleteError) {
+            Alert.alert(
+              "Expired Shifts Cleaned 🧹",
+              `We have automatically removed ${expiredShiftIds.length} past shift(s) from your schedule.`
+            );
+          }
+        }
+
+        setShifts(validShifts);
+      }
+    } catch (error) {
+      console.log(error);
+      Alert.alert("System Error", "Something went wrong while pulling your shifts.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDeleteShift = (id) => {
-    setShifts(shifts.filter(shift => shift.id !== id));
+    Alert.alert(
+      "Delete Shift",
+      "Are you sure you want to drop this shift?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Yes, Delete", 
+          style: "destructive",
+          onPress: async () => {
+            const { data, error } = await supabase
+              .from('rider_shifts')
+              .delete()
+              .eq('id', id)
+              .select();
+            
+            if (error) {
+              Alert.alert("Error ❌", error.message);
+              return;
+            }
+
+            if (!data || data.length === 0) {
+              Alert.alert("Blocked by Database 🚫", "Delete failed! Please check if your RLS policy uses 'auth.uid() = rider_id'.");
+              return;
+            }
+
+            setShifts(shifts.filter(shift => shift.id !== id));
+          }
+        }
+      ]
+    );
   };
+
+  const handleToggleOnline = async (newValue) => {
+    setIsOnline(newValue); 
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_online: newValue })
+        .eq('id', session.user.id);
+
+      if (error) {
+        setIsOnline(!newValue);
+        Alert.alert("Network Error", "Failed to update your status.");
+      } else {
+        if (newValue === true) {
+          Alert.alert("🟢 You are Online!", "Radar activated. Waiting for incoming delivery requests...");
+        } else {
+          Alert.alert("⚪ You are Offline", "You will no longer receive delivery requests.");
+        }
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  useEffect(() => {
+    let orderChannel = null;
+
+    if (isOnline) {
+      orderChannel = supabase
+        .channel('rider-order-radar')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'orders' },
+          (payload) => {
+            const newOrder = payload.new;
+            const oldOrder = payload.old; 
+            
+            if (
+              newOrder.status === 'pending_rider' && 
+              oldOrder.status !== 'pending_rider' && 
+              newOrder.order_type === 'delivery'
+            ) {
+              Alert.alert(
+                "🔔 New Order Request!",
+                `Restaurant: ${newOrder.vendor_name}\nEarning: RM ${Number(newOrder.earning).toFixed(2)}\nDestination: ${newOrder.dropoff_location}`,
+                [
+                  {
+                    text: "View Request",
+                    onPress: () => {
+                      navigation.navigate('ProcessRequest', { orderData: newOrder });
+                    }
+                  }
+                ]
+              );
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (orderChannel) {
+        supabase.removeChannel(orderChannel);
+      }
+    };
+  }, [isOnline]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
-      {/* 状态栏防撞区 */}
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
 
-      {/* ==================== 1. 专业级顶部导航栏 ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIconBox} onPress={() => setIsSidebarOpen(true)} activeOpacity={0.7}>
           <Ionicons name="menu" size={28} color="#333" />
@@ -50,7 +201,6 @@ export default function DeliveryMain() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* ==================== 2. 主体内容区 (悬浮卡片式设计) ==================== */}
       <View style={styles.contentContainer}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Upcoming Shifts</Text>
@@ -60,27 +210,27 @@ export default function DeliveryMain() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {shifts.map((shift) => (
-            <View key={shift.id} style={styles.shiftCard}>
-              <View style={styles.shiftIconBox}>
-                <Ionicons name="calendar" size={24} color="#00C853" />
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />
+          ) : (
+            shifts.map((shift) => (
+              <View key={shift.id} style={styles.shiftCard}>
+                <View style={styles.shiftIconBox}>
+                  <Ionicons name="calendar" size={24} color="#00C853" />
+                </View>
+                <View style={styles.shiftInfo}>
+                  <Text style={styles.shiftDate}>{shift.shift_date}</Text>
+                  <Text style={styles.shiftTime}>{shift.shift_time}</Text>
+                  <Text style={styles.shiftDuration}>Duration: {shift.duration}</Text>
+                </View>
+                <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteShift(shift.id)} activeOpacity={0.6}>
+                  <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+                </TouchableOpacity>
               </View>
-              <View style={styles.shiftInfo}>
-                <Text style={styles.shiftDate}>{shift.date}</Text>
-                <Text style={styles.shiftTime}>{shift.time}</Text>
-                <Text style={styles.shiftDuration}>Duration: {shift.duration}</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.deleteButton} 
-                onPress={() => handleDeleteShift(shift.id)}
-                activeOpacity={0.6}
-              >
-                <Ionicons name="trash-outline" size={22} color="#FF3B30" />
-              </TouchableOpacity>
-            </View>
-          ))}
-          
-          {shifts.length === 0 ? (
+            ))
+          )}
+
+          {!isLoading && shifts.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="calendar-clear-outline" size={48} color="#CCC" />
               <Text style={styles.emptyStateText}>No upcoming shifts.</Text>
@@ -89,7 +239,6 @@ export default function DeliveryMain() {
         </ScrollView>
       </View>
 
-      {/* ==================== 3. 底部状态栏 (沉浸式操作区) ==================== */}
       <View style={styles.bottomBarContainer}>
         <View style={styles.bottomBar}>
           <View style={styles.switchWrapper}>
@@ -97,12 +246,11 @@ export default function DeliveryMain() {
               trackColor={{ false: "#E0E0E0", true: "#A5D6A7" }}
               thumbColor={isOnline ? "#00C853" : "#F5F5F5"}
               ios_backgroundColor="#E0E0E0"
-              onValueChange={() => setIsOnline(!isOnline)}
+              onValueChange={handleToggleOnline} 
               value={isOnline}
-              style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }} 
+              style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
             />
           </View>
-          
           <View style={[styles.statusBox, isOnline ? styles.statusBoxOnline : styles.statusBoxOffline]}>
             <View style={[styles.statusDot, { backgroundColor: isOnline ? '#FFF' : '#999' }]} />
             <Text style={[styles.statusText, { color: isOnline ? '#FFF' : '#666' }]}>
@@ -113,8 +261,6 @@ export default function DeliveryMain() {
         <View style={{ height: Platform.OS === 'ios' ? 20 : 45, backgroundColor: '#FFF' }} />
       </View>
 
-      {/* ==================== 4. 侧边栏 (高级抽屉效果) ==================== */}
-      {/* ==================== 4. 侧边栏 (🌟 HOME 激活状态) ==================== */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -125,35 +271,18 @@ export default function DeliveryMain() {
               </View>
               <Text style={styles.profileName}>{riderName}</Text>
             </View>
-
             <ScrollView style={styles.menuList}>
-              <TouchableOpacity style={styles.menuItemActive} onPress={() => setIsSidebarOpen(false)}>
-                <Ionicons name="home" size={22} color="#424242" style={styles.menuIconLeft} />
-                <Text style={styles.menuTextActive}>HOME</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}>
-                <Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>PROFILE</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}>
-                <Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>WORKING SHIFT</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}>
-                <Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} />
-                <Text style={styles.menuText}>EARNINGS & HISTORY</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); Alert.alert("Notice", "Reset Password clicked"); }}>
+              <TouchableOpacity style={styles.menuItemActive} onPress={() => setIsSidebarOpen(false)}><Ionicons name="home" size={22} color="#424242" style={styles.menuIconLeft} /><Text style={styles.menuTextActive}>HOME</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('Profile'); }}><Ionicons name="person-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>PROFILE</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}><Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>WORKING SHIFT</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}><Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>EARNINGS & HISTORY</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('ResetPassword'); }}>
                 <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.menuIconLeft} />
                 <Text style={styles.menuText}>RESET PASSWORD</Text>
               </TouchableOpacity>
             </ScrollView>
-
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { 
-              setIsSidebarOpen(false); 
-              await supabase.auth.signOut(); 
-            }} >
+              <TouchableOpacity style={styles.logoutButton} activeOpacity={0.7} onPress={async () => { setIsSidebarOpen(false); await supabase.auth.signOut(); }} >
                 <Ionicons name="log-out-outline" size={22} color="#FF3B30" style={{ marginRight: 12 }} />
                 <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
@@ -162,174 +291,38 @@ export default function DeliveryMain() {
           </View>
         </View>
       ) : null}
-
     </SafeAreaView>
   );
 }
 
-// ==================== 商业级样式表 (CSS) ====================
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F8F9FA', 
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    paddingTop: 10,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  menuIconBox: {
-    padding: 5,
-    marginLeft: -5,
-  },
-  headerTitle: {
-    fontSize: 18, 
-    fontWeight: '800',
-    color: '#000',
-    letterSpacing: 1,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  badge: {
-    backgroundColor: '#00C853',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginLeft: 10,
-  },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  shiftCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-  },
-  shiftIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#E8F5E9', 
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  shiftInfo: {
-    flex: 1,
-  },
-  shiftDate: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 4,
-  },
-  shiftTime: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '600',
-  },
-  shiftDuration: {
-    fontSize: 13,
-    color: '#888',
-    marginTop: 4,
-  },
-  deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFF5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 50,
-  },
-  emptyStateText: {
-    fontSize: 15,
-    color: '#999',
-    marginTop: 10,
-  },
-  bottomBarContainer: {
-    backgroundColor: '#FFF',
-    borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  switchWrapper: {
-    marginRight: 15,
-  },
-  statusBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 25,
-    paddingVertical: 12,
-  },
-  statusBoxOnline: {
-    backgroundColor: '#00C853', 
-  },
-  statusBoxOffline: {
-    backgroundColor: '#F0F0F0',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  statusText: {
-    fontWeight: 'bold',
-    fontSize: 14,
-    letterSpacing: 0.5,
-  },
-  // 🌟 统一的侧边栏样式表（完全同步自 workingshift 风格）
+  safeArea: { flex: 1, backgroundColor: '#F8F9FA', },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 10, backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: '#E0E0E0', },
+  menuIconBox: { padding: 5, marginLeft: -5, },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#000', letterSpacing: 1, },
+  contentContainer: { flex: 1, },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 20, },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', },
+  badge: { backgroundColor: '#00C853', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 10, },
+  badgeText: { color: '#FFF', fontSize: 12, fontWeight: 'bold', },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 20, },
+  shiftCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 15, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, borderWidth: 1, borderColor: '#F0F0F0', },
+  shiftIconBox: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center', marginRight: 15, },
+  shiftInfo: { flex: 1, },
+  shiftDate: { fontSize: 15, fontWeight: 'bold', color: '#000', marginBottom: 4, },
+  shiftTime: { fontSize: 14, color: '#333', fontWeight: '600', },
+  shiftDuration: { fontSize: 13, color: '#888', marginTop: 4, },
+  deleteButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF5F5', justifyContent: 'center', alignItems: 'center', },
+  emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 50, },
+  emptyStateText: { fontSize: 15, color: '#999', marginTop: 10, },
+  bottomBarContainer: { backgroundColor: '#FFF', borderTopWidth: 1, borderColor: '#E0E0E0', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 5, },
+  bottomBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, },
+  switchWrapper: { marginRight: 15, },
+  statusBox: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 25, paddingVertical: 12, },
+  statusBoxOnline: { backgroundColor: '#00C853', },
+  statusBoxOffline: { backgroundColor: '#F0F0F0', },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8, },
+  statusText: { fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5, },
   sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
   closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
   sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },
