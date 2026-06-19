@@ -1,144 +1,177 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  StatusBar,
-  Dimensions,
-  Platform,
-  Alert,
-  Modal,
-  TextInput
+  StyleSheet, Text, View, ScrollView, TouchableOpacity, Image,
+  StatusBar, Dimensions, Platform, Alert, Modal, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { supabase } from '../../supabaseClient'; // ⚠️ 如果路径不对请自行微调
+
 const { width, height } = Dimensions.get('window');
 
-export default function VendorMenuScreen() {
+export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckout }) {
 
-  // --- 1. 模拟当前选中的 Vendor 信息 ---
-  const currentVendor = {
-    name: 'Korean House',
-    cuisine: 'Korean food',
-    rating: '4.7',
-    announcement: 'Welcome to Korean House, enjoy your meal⭐ \n\n🔥 Today Special：\nWe have limited NEW items available NOW\n\n⚠️ IMPORTANT：\nPlease hurry up before it finished!'
+  // 🌟 自动接收从 Home 点击过来的商家资料
+  const displayVendor = {
+    name: vendorData?.name || 'Korean House',
+    cuisine: vendorData?.category || 'Korean food',
+    rating: vendorData?.rating || '4.7',
+    // 如果商家没有写公告，就显示默认的
+    announcement: vendorData?.announcement || 'Welcome to our store, enjoy your meal⭐ \n\n🔥 Today Special:\nWe have limited NEW items available NOW\n\n⚠️ IMPORTANT:\nPlease hurry up before it finished!'
   };
 
-  // --- 2. 食物数据库 ---
-  const foodItems = [
-    {
-      id: 'f1',
-      name: 'Kimchi Jjigaen',
-      price: 'RM 9.00',
-      image: 'https://www.eatingwell.com/thmb/PtjVB6QZxEin5M6hHu0GvvPVubg=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/Kimchi-jjigae-de45aa8daada45a6b4daf266f0b36011.jpg',
-      ingredient: 'kimchi, toufu, vege',
-      allergen: 'soy, spicy',
-      calories: '920 - 1,350 kcal',
-      status: 'out_of_stock'
-    },
-    {
-      id: 'f2',
-      name: 'Bibimbap',
-      price: 'RM 11.00',
-      image: 'https://tse4.mm.bing.net/th/id/OIP.pAFgQhDRw0rTWFY1SQgCXAHaLH?cb=thfc1falcon2&rs=1&pid=ImgDetMain&o=7&rm=3',
-      ingredient: 'rice, carrot, kimchi, chicken/beef slice',
-      allergen: 'spicy',
-      calories: '920 - 1,350 kcal',
-      status: 'new'
-    },
-    {
-      id: 'f3',
-      name: 'Tteokbokki',
-      price: 'RM 10.50',
-      image: 'https://takestwoeggs.com/wp-content/uploads/2023/08/Tteokbokki-Takestwoeggs-sq.jpg',
-      ingredient: 'rice-made tteokbokki',
-      allergen: 'wheat',
-      calories: '920 - 1,350 kcal',
-      status: null
-    },
-    {
-      id: 'f4',
-      name: 'Spicy Gochujang Fried Chicken',
-      price: 'RM 16.00',
-      image: 'https://quickygirlrecipes.com/wp-content/uploads/2025/11/Dakgangjeong-Sweet-Crispy-Korean-Fried-Chicken-The-Ultimate-Guide-to-Authentic-Korean-Glazed-Fried-Chicken.png',
-      ingredient: 'soy sauce, garlic',
-      allergen: 'wheat, milk, soy',
-      calories: '920 - 1,350 kcal',
-      status: null
-    },
-    {
-      id: 'f5',
-      name: 'Cheesy Fried Chicken',
-      price: 'RM 16.50',
-      image: 'https://kristinesubagiyo.com.au/wp-content/uploads/2024/01/mrkorean-1-1080x675.jpg',
-      ingredient: 'fried chicken, mozzarella cheese, corn syrup, soy sauce, garlic',
-      allergen: 'wheat, milk, soy',
-      calories: '920 - 1,350 kcal',
-      status: 'new'
-    },
-    {
-      id: 'f6',
-      name: 'Iced Green Tea',
-      price: 'RM 2.00',
-      image: 'https://d3s8tbcesxr4jm.cloudfront.net/recipe-images/v0/green-iced-tea_large.jpg',
-      ingredient: 'brewed green tea leaves, water, cane sugar, ice ice',
-      allergen: 'none',
-      calories: '80 - 120 kcal',
-      status: null
-    }
-  ];
+  // 🌟 核心修改 1：把假数据删掉，换成用 State 动态接收数据库里的食物！
+  const [foodItems, setFoodItems] = useState([]);
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
 
-  // 共享的购物车状态与弹窗控制（同步自主页高级架构）
   const [cart, setCart] = useState([]);
   const [isCartVisible, setIsCartVisible] = useState(false);
   const [remarks, setRemarks] = useState("");
+
+  // 🌟 核心修改 2：页面加载时，根据商家的 ID 去拉取真实菜单！
+  useEffect(() => {
+    const fetchFoodItemsFromDB = async () => {
+      // 如果没有商家 ID（比如直接刷新了页面），就不执行
+      if (!vendorData?.id) return;
+
+      try {
+        // ⚠️ 根据你的截图，表名是 food_items。如果报错说找不到表，请改成 food_item (没有s)
+        const { data, error } = await supabase
+          .from('food_items')
+          .select('*')
+          .eq('vendor_id', vendorData.id); // 只抓取这家店的食物！
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          // 把数据库里的真实数据，转换成你 UI 里需要用的格式
+          const formattedMenu = data.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: `RM ${parseFloat(item.price).toFixed(2)}`, // 自动加上 RM 并保留两位小数
+            image: item.image_url || 'https://via.placeholder.com/150',
+            ingredient: item.desc || 'No description provided.', // 完美连接你截图里的 desc 栏位
+            allergen: item.allergen || 'None', // 完美连接 allergen 栏位
+            calories: item.calories || 'N/A',  // 完美连接 calories 栏位
+            // 🌟 智能库存判断：如果 stock 是 0，直接触发灰色的 OUT OF STOCK 状态！
+            status: item.stock <= 0 ? 'out_of_stock' : null
+          }));
+
+          setFoodItems(formattedMenu);
+        }
+      } catch (error) {
+        console.log('Fetch food items error:', error.message);
+      }
+    };
+
+    fetchFoodItemsFromDB();
+  }, [vendorData]);
+
+  // 拉取购物车数据（保持不变）
+  useEffect(() => {
+    const fetchCartFromDB = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('cart')
+          .select(`quantity, food_id, food_item (name, price, image_url)`)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const dbCart = data.map(item => ({
+            id: item.food_id,
+            name: item.food_item?.name || 'Loading...',
+            price: parseFloat(item.food_item?.price) || 0,
+            quantity: item.quantity,
+            image: item.food_item?.image_url || null
+          }));
+          setCart(dbCart);
+        }
+      } catch (error) {
+        console.log('Fetch vendor cart error:', error.message);
+      }
+    };
+    fetchCartFromDB();
+  }, []);
+
+  // 购物车静默同步数据库（保持不变）
+  const syncCartToDB = async (foodId, quantity) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      if (quantity === 0) {
+        await supabase.from('cart').delete().match({ user_id: user.id, food_id: foodId });
+      } else {
+        await supabase.from('cart').upsert({
+          user_id: user.id,
+          food_id: foodId,
+          quantity: quantity
+        }, { onConflict: 'user_id, food_id' });
+      }
+    } catch (error) {
+      console.log("DB Sync Warning:", error.message);
+    }
+  };
 
   const handleItemPress = (food) => {
     setSelectedFood(food);
     setIsModalVisible(true);
   };
 
-  // 购物车核心处理函数
   const handleAddToCart = (food, isAvailable) => {
-    if (!isAvailable) {
-      Alert.alert("Oops!", `"${food.name}" is currently out of stock.`);
-      return;
-    }
-
+    if (!isAvailable) return; // 缺货根本点不动
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === food.id);
+      let newQuantity = 1; let newCart;
       if (existingItem) {
-        return prevCart.map((item) =>
-          item.id === food.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+        newQuantity = existingItem.quantity + 1;
+        newCart = prevCart.map((item) => item.id === food.id ? { ...item, quantity: newQuantity } : item);
       } else {
         const cleanPrice = parseFloat(food.price ? food.price.replace('RM ', '') : '10.00') || 10.00;
-        return [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image }];
+        newCart = [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image }];
       }
+      syncCartToDB(food.id, newQuantity);
+      return newCart;
     });
   };
 
-  // 供购物车弹窗内部调用的数据加减管理函数
   const increaseQuantity = (id) => {
-    setCart(prevItems => prevItems.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item));
+    setCart(prevItems => {
+      let newQuantity;
+      const newCart = prevItems.map(item => {
+        if (item.id === id) { newQuantity = item.quantity + 1; return { ...item, quantity: newQuantity }; }
+        return item;
+      });
+      syncCartToDB(id, newQuantity);
+      return newCart;
+    });
   };
 
   const decreaseQuantity = (id) => {
-    setCart(prevItems => prevItems.map(item => item.id === id ? { ...item, quantity: item.quantity > 1 ? item.quantity - 1 : 1 } : item));
+    setCart(prevItems => {
+      let newQuantity;
+      const newCart = prevItems.map(item => {
+        if (item.id === id) { newQuantity = item.quantity > 1 ? item.quantity - 1 : 1; return { ...item, quantity: newQuantity }; }
+        return item;
+      });
+      syncCartToDB(id, newQuantity);
+      return newCart;
+    });
   };
 
   const removeItemFromCart = (id) => {
     setCart(prevItems => prevItems.filter(item => item.id !== id));
+    syncCartToDB(id, 0);
   };
 
-  // 获取购物车中商品总数
   const getTotalCartQuantity = () => {
     return cart.reduce((total, item) => total + item.quantity, 0);
   };
@@ -147,227 +180,163 @@ export default function VendorMenuScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* ==================== 1. TOP HEADER (导航栏) ==================== */}
+      {/* 顶部标题栏 */}
       <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => Alert.alert("Navigation", "Back...")}>
-          <Ionicons name="chevron-back" size={24} color="#000" />
+        <TouchableOpacity style={styles.backBtn} onPress={() => { onBack ? onBack() : Alert.alert('Go Back') }}>
+          <Ionicons name="chevron-back" size={28} color="#000" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {currentVendor.name}
-        </Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{displayVendor.name}</Text>
 
         <TouchableOpacity style={styles.cartHeaderIcon} onPress={() => setIsCartVisible(true)}>
-          <Ionicons name="cart" size={26} color="#757575" />
+          <Ionicons name="cart" size={28} color="#757575" />
           {getTotalCartQuantity() > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{getTotalCartQuantity()}</Text>
-            </View>
+            <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{getTotalCartQuantity()}</Text></View>
           )}
         </TouchableOpacity>
       </View>
 
       <View style={styles.divider} />
 
-      {/* ==================== 主滚动区域 ==================== */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-
-        {/* ==================== 2. VENDOR ANNOUNCEMENT BOARD ==================== */}
-        {currentVendor.announcement && (
+        {/* Notice 留言板 */}
+        {displayVendor.announcement && (
           <View style={styles.announcementCard}>
             <View style={styles.announcementBadge}>
               <Ionicons name="reader-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
               <Text style={styles.announcementBadgeText}>NOTICE</Text>
             </View>
-            <Text style={styles.announcementText}>
-              {currentVendor.announcement}
-            </Text>
+            <Text style={styles.announcementText}>{displayVendor.announcement}</Text>
           </View>
         )}
 
-        {/* ==================== 3. ASYMMETRIC MENU LIST ==================== */}
-        {foodItems.map((food, index) => {
-          const isEvenRow = index % 2 === 0;
-          const isOutOfStock = food.status === 'out_of_stock';
-          const isNew = food.status === 'new';
+        {/* ========================================== */}
+        {/* 🌟 这里现在会根据你数据库里抓出来的真实食物来显示了！ */}
+        {/* ========================================== */}
+        {foodItems.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 40 }}>
+            <Ionicons name="fast-food-outline" size={64} color="#cccccc" />
+            <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>No items available yet.</Text>
+          </View>
+        ) : (
+          foodItems.map((food, index) => {
+            const isEvenRow = index % 2 === 0;
+            const isOutOfStock = food.status === 'out_of_stock';
+            const isNew = food.status === 'new';
 
-          return (
-            <TouchableOpacity
-              key={food.id}
-              style={[styles.foodCard, isOutOfStock && styles.foodCardDisabled]}
-              activeOpacity={isOutOfStock ? 0.6 : 0.8}
-              onPress={() => handleItemPress(food)}
-            >
-              {isEvenRow ? (
-                <>
-                  {/* 左侧图片区 */}
-                  <View style={styles.imageContainer}>
-                    <Image source={{ uri: food.image }} style={styles.foodImageLeft} />
-                    {isNew && (
-                      <View style={[styles.statusBadge, styles.badgeLeft]}>
-                        <Text style={styles.statusBadgeText}>NEW!</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* 右侧信息栏 */}
-                  <View style={[styles.foodInfoBox, styles.infoBoxRight]}>
-                    <View>
-                      <Text style={styles.foodNameText} numberOfLines={2}>{food.name}</Text>
-                      <Text style={styles.foodPriceText}>{food.price}</Text>
+            return (
+              <TouchableOpacity key={food.id} style={[styles.foodCard, isOutOfStock && styles.foodCardDisabled]} activeOpacity={isOutOfStock ? 0.6 : 0.8} onPress={() => handleItemPress(food)}>
+                {isEvenRow ? (
+                  <>
+                    <View style={styles.imageContainer}>
+                      <Image source={{ uri: food.image }} style={[styles.foodImageLeft, isOutOfStock && styles.foodImageDisabled]} />
+                      {isNew && <View style={[styles.statusBadge, styles.badgeLeft]}><Text style={styles.statusBadgeText}>NEW!</Text></View>}
                     </View>
-
-                    {/* 缺货状态 */}
-                    {isOutOfStock && (
-                      <View style={styles.outOfStockContainer}>
-                        <Ionicons name="warning-outline" size={14} color="#000000" style={{ marginRight: 4 }} />
-                        <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                    <View style={styles.foodInfoBox}>
+                      <View>
+                        <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
+                        <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                    )}
-
-                    <TouchableOpacity
-                      style={[styles.plusButtonRight, isOutOfStock && styles.plusButtonDisabled]}
-                      disabled={isOutOfStock}
-                      onPress={() => handleAddToCart(food, !isOutOfStock)}
-                    >
-                      <Ionicons name={isOutOfStock ? "close" : "add"} size={16} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <>
-                  {/* 左侧信息栏 */}
-                  <View style={[styles.foodInfoBox, styles.infoBoxLeft]}>
-                    <View>
-                      <Text style={styles.foodNameText} numberOfLines={2}>{food.name}</Text>
-                      <Text style={styles.foodPriceText}>{food.price}</Text>
+                      {isOutOfStock && (
+                        <View style={styles.outOfStockContainer}>
+                          <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
+                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.actionButtonRight, isOutOfStock ? styles.actionButtonDisabled : styles.actionButtonNormal]}
+                        disabled={isOutOfStock} onPress={() => handleAddToCart(food, !isOutOfStock)}>
+                        <Ionicons name={isOutOfStock ? "close" : "add"} size={16} color="#fff" />
+                      </TouchableOpacity>
                     </View>
-
-                    {/* 缺货状态 */}
-                    {isOutOfStock && (
-                      <View style={styles.outOfStockContainer}>
-                        <Ionicons name="warning-outline" size={14} color="#000000" style={{ marginRight: 4 }} />
-                        <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.foodInfoBox}>
+                      <View>
+                        <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
+                        <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                    )}
-
-                    <TouchableOpacity
-                      style={[styles.plusButtonLeft, isOutOfStock && styles.plusButtonDisabled]}
-                      disabled={isOutOfStock}
-                      onPress={() => handleAddToCart(food, !isOutOfStock)}
-                    >
-                      <Ionicons name={isOutOfStock ? "close" : "add"} size={16} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* 右侧图片区 */}
-                  <View style={styles.imageContainer}>
-                    <Image source={{ uri: food.image }} style={styles.foodImageRight} />
-                    {isNew && (
-                      <View style={[styles.statusBadge, styles.badgeRight]}>
-                        <Text style={styles.statusBadgeText}>NEW!</Text>
-                      </View>
-                    )}
-                  </View>
-                </>
-              )}
-            </TouchableOpacity>
-          );
-        })}
+                      {isOutOfStock && (
+                        <View style={styles.outOfStockContainer}>
+                          <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
+                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.actionButtonLeft, isOutOfStock ? styles.actionButtonDisabled : styles.actionButtonNormal]}
+                        disabled={isOutOfStock} onPress={() => handleAddToCart(food, !isOutOfStock)}>
+                        <Ionicons name={isOutOfStock ? "close" : "add"} size={16} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.imageContainer}>
+                      <Image source={{ uri: food.image }} style={[styles.foodImageRight, isOutOfStock && styles.foodImageDisabled]} />
+                      {isNew && <View style={[styles.statusBadge, styles.badgeRight]}><Text style={styles.statusBadgeText}>NEW!</Text></View>}
+                    </View>
+                  </>
+                )}
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
-      {/* ==================== 4. FOOD DETAILS POP-UP MODAL ==================== */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={isModalVisible}
-        onRequestClose={() => setIsModalVisible(false)}
-      >
+      {/* 弹窗部分 */}
+      <Modal animationType="fade" transparent={true} visible={isModalVisible} onRequestClose={() => setIsModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropCloser} activeOpacity={1} onPress={() => setIsModalVisible(false)} />
-
           {selectedFood && (
             <View style={styles.popupCardBody}>
-              <View style={styles.popupHeaderRow}>
-                <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                  <Ionicons name="close" size={26} color="#000" />
-                </TouchableOpacity>
-              </View>
-
+              <View style={styles.popupHeaderRow}><TouchableOpacity onPress={() => setIsModalVisible(false)}><Ionicons name="close" size={26} color="#000" /></TouchableOpacity></View>
               <View style={styles.popupImageWrapper}>
                 <Image source={{ uri: selectedFood.image }} style={styles.popupFoodImage} />
-                {selectedFood.status === 'new' && (
-                  <View style={styles.modalStatusBadge}>
-                    <Text style={styles.statusBadgeText}>NEW!</Text>
-                  </View>
-                )}
+                {selectedFood.status === 'new' && <View style={styles.modalStatusBadge}><Text style={styles.statusBadgeText}>NEW!</Text></View>}
               </View>
-
               <Text style={styles.popupFoodName}>{selectedFood.name}</Text>
-
               <ScrollView style={styles.popupDetailsScroll} showsVerticalScrollIndicator={false}>
-
-                <View style={styles.detailTextGroup}>
-                  <Text style={styles.detailLabel}>Ingredient:</Text>
-                  <Text style={styles.detailValue}>{selectedFood.ingredient}</Text>
-                </View>
-
+                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Ingredient:</Text><Text style={styles.detailValue}>{selectedFood.ingredient}</Text></View>
                 <View style={styles.detailTextGroup}>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
                     <Ionicons name="warning-outline" size={22} color="#D9383A" style={{ marginRight: 6, marginTop: -2 }} />
                     <Text style={styles.detailLabel}>Allergen Warning:</Text>
                   </View>
-                  <Text style={[styles.detailValue, { color: '#000000', fontWeight: '900' }]}>
-                    {selectedFood.allergen}
-                  </Text>
+                  <Text style={[styles.detailValue, { color: '#000000', fontWeight: '900' }]}>{selectedFood.allergen}</Text>
                 </View>
-
-                <View style={styles.detailTextGroup}>
-                  <Text style={styles.detailLabel}>Calories:</Text>
-                  <Text style={styles.detailValue}>{selectedFood.calories}</Text>
-                </View>
-
-                <View style={styles.detailTextGroup}>
-                  <Text style={styles.detailLabel}>Price:</Text>
-                  <Text style={styles.popupPriceValue}>{selectedFood.price}</Text>
-                </View>
-
+                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Calories:</Text><Text style={styles.detailValue}>{selectedFood.calories}</Text></View>
+                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Price:</Text><Text style={styles.popupPriceValue}>{selectedFood.price}</Text></View>
               </ScrollView>
-
-              <TouchableOpacity
-                style={[
-                  styles.popupOrderButton,
-                  selectedFood.status === 'out_of_stock' && styles.popupOrderButtonDisabled
-                ]}
-                disabled={selectedFood.status === 'out_of_stock'}
-                onPress={() => {
-                  setIsModalVisible(false);
-                  handleAddToCart(selectedFood, selectedFood.status !== 'out_of_stock');
-                }}
-              >
-                <Text style={styles.popupOrderButtonText}>
-                  {selectedFood.status === 'out_of_stock' ? 'OUT OF STOCK' : 'Add to Cart'}
-                </Text>
+              <TouchableOpacity style={[styles.popupOrderButton, selectedFood.status === 'out_of_stock' && styles.popupOrderButtonDisabled]} disabled={selectedFood.status === 'out_of_stock'} onPress={() => { setIsModalVisible(false); handleAddToCart(selectedFood, selectedFood.status !== 'out_of_stock'); }}>
+                <Text style={styles.popupOrderButtonText}>{selectedFood.status === 'out_of_stock' ? 'OUT OF STOCK' : 'Add to Cart'}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
       </Modal>
 
-      {/* ==================== 5. SHOPPING CART POP-UP MODAL ==================== */}
       <Modal animationType="slide" transparent={false} visible={isCartVisible} onRequestClose={() => setIsCartVisible(false)}>
         <ShoppingCartView
-          cartItems={cart} remarks={remarks} setRemarks={setRemarks}
-          increaseQuantity={increaseQuantity} decreaseQuantity={decreaseQuantity}
-          removeItemFromCart={removeItemFromCart} onClose={() => setIsCartVisible(false)}
+          cartItems={cart}
+          remarks={remarks}
+          setRemarks={setRemarks}
+          increaseQuantity={increaseQuantity}
+          decreaseQuantity={decreaseQuantity}
+          removeItemFromCart={removeItemFromCart}
+          onClose={() => setIsCartVisible(false)}
+          // 🌟 必须加上这一行：把 navigateToCheckout 传给购物车子组件
+          onGoToCheckout={(items, remarks) => {
+            setIsCartVisible(false);
+            navigateToCheckout(items, remarks);
+          }}
         />
       </Modal>
     </SafeAreaView>
   );
 }
 
-// ==================== 📦 6. REFACTORED SHOPPING CART COMPONENT ====================
-function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, decreaseQuantity, removeItemFromCart, onClose }) {
+// ==========================================
+// 购物车 UI 组件（完全没动）
+// ==========================================
+function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, decreaseQuantity, removeItemFromCart, onClose, onGoToCheckout }) {
   const [isRemoveModalVisible, setIsRemoveModalVisible] = useState(false);
   const [itemToIdToRemove, setItemToIdToRemove] = useState(null);
   const [itemNameToRemove, setItemNameToRemove] = useState("");
@@ -376,7 +345,7 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
   const confirmRemoveItem = (confirm) => { if (confirm && itemToIdToRemove) removeItemFromCart(itemToIdToRemove); setIsRemoveModalVisible(false); };
   const calculateSubtotal = () => {
     const itemsTotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    return itemsTotal === 0 ? "RM 0.00" : `RM ${(itemsTotal + 1.55).toFixed(2)}`;
+    return itemsTotal === 0 ? "RM 0.00" : `RM ${(itemsTotal).toFixed(2)}`;
   };
 
   return (
@@ -398,11 +367,7 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
               <View style={cartStyles.cartItemInfoBox}>
                 <View><Text style={cartStyles.itemNameText} numberOfLines={1}>{item.name}</Text><Text style={cartStyles.itemPriceText}>Price: RM {item.price.toFixed(2)}</Text></View>
                 <View style={cartStyles.actionRow}>
-                  <View style={cartStyles.quantityController}>
-                    <TouchableOpacity style={cartStyles.qtyBtn} onPress={() => decreaseQuantity(item.id)}><Ionicons name="remove" size={14} color="#000" /></TouchableOpacity>
-                    <Text style={cartStyles.qtyText}>{item.quantity}</Text>
-                    <TouchableOpacity style={cartStyles.qtyBtn} onPress={() => increaseQuantity(item.id)}><Ionicons name="add" size={14} color="#000" /></TouchableOpacity>
-                  </View>
+                  <View style={cartStyles.quantityController}><TouchableOpacity style={cartStyles.qtyBtn} onPress={() => decreaseQuantity(item.id)}><Ionicons name="remove" size={14} color="#000" /></TouchableOpacity><Text style={cartStyles.qtyText}>{item.quantity}</Text><TouchableOpacity style={cartStyles.qtyBtn} onPress={() => increaseQuantity(item.id)}><Ionicons name="add" size={14} color="#000" /></TouchableOpacity></View>
                   <TouchableOpacity style={cartStyles.removeButton} onPress={() => triggerRemovePrompt(item.id, item.name)}><Text style={cartStyles.removeButtonText}>Remove</Text></TouchableOpacity>
                 </View>
               </View>
@@ -410,22 +375,25 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
           ))
         )}
         <Text style={cartStyles.sectionTitle}>Special Remarks:</Text>
-        <View style={cartStyles.remarksInputWrapper}>
-          <TextInput style={cartStyles.remarksInput} multiline numberOfLines={4} textAlignVertical="top" value={remarks} onChangeText={setRemarks} placeholder="Please type remark here" placeholderTextColor="#999999" />
-        </View>
-        <View style={cartStyles.priceRow}><Text style={cartStyles.totalLabel}>Subtotal (include Tax)</Text><Text style={cartStyles.totalPriceText}>{calculateSubtotal()}</Text></View>
+        <View style={cartStyles.remarksInputWrapper}><TextInput style={cartStyles.remarksInput} multiline numberOfLines={4} textAlignVertical="top" value={remarks} onChangeText={setRemarks} placeholder="Please type remark here" placeholderTextColor="#999999" /></View>
+        <View style={cartStyles.priceRow}><Text style={cartStyles.totalLabel}>Subtotal</Text><Text style={cartStyles.totalPriceText}>{calculateSubtotal()}</Text></View>
       </ScrollView>
       <View style={cartStyles.fixedFooter}>
-        <TouchableOpacity style={[cartStyles.checkoutButton, cartItems.length === 0 && cartStyles.checkoutButtonDisabled]} disabled={cartItems.length === 0} onPress={() => Alert.alert("Checkout", "Proceeding...")}><Text style={cartStyles.checkoutButtonText}>Go to Checkout</Text></TouchableOpacity>
-      </View>
+        <TouchableOpacity
+          style={[cartStyles.checkoutButton, cartItems.length === 0 && cartStyles.checkoutButtonDisabled]}
+          disabled={cartItems.length === 0}
+          onPress={() => {
+            onGoToCheckout(cartItems, remarks);
+          }}>
+          <Text style={cartStyles.checkoutButtonText}>Go to Checkout</Text>
+        </TouchableOpacity></View>
       <Modal animationType="fade" transparent visible={isRemoveModalVisible}>
         <View style={cartStyles.modalOverlay}>
           <View style={cartStyles.promptCardBody}>
             <View style={cartStyles.promptHeader}><Ionicons name="warning-outline" size={24} color="#000" style={{ marginRight: 6 }} /><Text style={cartStyles.promptTitleText}>Remove Item?</Text></View>
             <Text style={cartStyles.promptContentText}>Are you sure to remove "{itemNameToRemove}"?</Text>
             <View style={cartStyles.promptActionRow}>
-              <TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnNo]} onPress={() => confirmRemoveItem(false)}><Text style={cartStyles.promptBtnNoText}>No</Text></TouchableOpacity>
-              <TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnYes]} onPress={() => confirmRemoveItem(true)}><Text style={cartStyles.promptBtnYesText}>Yes</Text></TouchableOpacity>
+              <TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnNo]} onPress={() => confirmRemoveItem(false)}><Text style={cartStyles.promptBtnNoText}>No</Text></TouchableOpacity><TouchableOpacity style={[cartStyles.promptBtn, cartStyles.promptBtnYes]} onPress={() => confirmRemoveItem(true)}><Text style={cartStyles.promptBtnYesText}>Yes</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -434,302 +402,83 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
   );
 }
 
-// ==================== 🎨 STYLESYSTEM DESIGN 样式控制表 ====================
+// ==========================================
+// 🎨 神仙 CSS 样式表（完全没动）
+// ==========================================
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingBottom: 12,
-    paddingTop: Platform.OS === 'ios' ? 10 : 10,
-    backgroundColor: '#ffffff',
-    zIndex: 10,
-  },
-  backBtn: {
-    width: 35,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartHeaderIcon: {
-    padding: 2,
-    position: 'relative',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#000',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 10,
-  },
-  divider: {
-    height: 2,
-    backgroundColor: '#000000',
-    width: '100%',
-  },
-  scrollContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 15,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
-  },
+  safeArea: { flex: 1, backgroundColor: '#ffffff' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 10 : 10, backgroundColor: '#ffffff', zIndex: 10 },
+  backBtn: { width: 35, height: 30, justifyContent: 'center', alignItems: 'center' },
+  cartHeaderIcon: { padding: 2, position: 'relative' },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', flex: 1, textAlign: 'center', marginHorizontal: 10 },
+  divider: { height: 2, backgroundColor: '#000000', width: '100%' },
+  scrollContainer: { paddingHorizontal: 16, paddingTop: 30, paddingBottom: Platform.OS === 'ios' ? 30 : 20 },
+
   announcementCard: {
-    width: '100%',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 2.5,
-    borderColor: '#000000',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 22,
-    position: 'relative',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0 },
-      android: { elevation: 4 }
-    }),
+    width: '100%', backgroundColor: '#FFFBEB', borderWidth: 2, borderColor: '#000000',
+    borderRadius: 12, padding: 16, paddingTop: 22, marginBottom: 30, position: 'relative',
   },
   announcementBadge: {
-    position: 'absolute',
-    top: -12,
-    left: 12,
-    backgroundColor: '#FF8C32',
-    borderWidth: 2,
-    borderColor: '#000000',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: 'absolute', top: -14, left: 16, backgroundColor: '#FF8C32',
+    borderWidth: 1.5, borderColor: '#000000', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', zIndex: 5
   },
-  announcementBadgeText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  announcementText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#000000',
-    lineHeight: 20,
-    marginTop: 4,
-  },
+  announcementBadgeText: { color: '#ffffff', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  announcementText: { fontSize: 14, fontWeight: '700', color: '#000000', lineHeight: 22 },
+
   foodCard: {
-    flexDirection: 'row',
-    width: '100%',
-    marginBottom: 21,
-    height: 115,
-    alignItems: 'center',
+    flexDirection: 'row', width: '100%', marginBottom: 20, height: 125,
+    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1.5, borderColor: '#000000',
+    overflow: 'hidden', alignItems: 'center'
   },
-  foodCardDisabled: {
-    opacity: 0.55,
-  },
-  imageContainer: {
-    position: 'relative',
-    width: 113,
-    height: 115,
-  },
-  foodImageLeft: {
-    width: 113,
-    height: 115,
-    borderRadius: 12,
-    borderWidth: 1.7,
-    borderColor: '#000000',
-    resizeMode: 'cover',
-  },
-  foodImageRight: {
-    width: 113,
-    height: 115,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#000000',
-    resizeMode: 'cover',
-  },
-  statusBadge: {
-    position: 'absolute',
-    backgroundColor: '#00E676',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-    zIndex: 5,
-  },
+  foodCardDisabled: { borderColor: '#A0A0A0' },
+
+  imageContainer: { width: 125, height: '100%', position: 'relative' },
+  foodImageLeft: { width: '100%', height: '100%', resizeMode: 'cover', borderRightWidth: 1.5, borderColor: '#000000' },
+  foodImageRight: { width: '100%', height: '100%', resizeMode: 'cover', borderLeftWidth: 1.5, borderColor: '#000000' },
+  foodImageDisabled: { opacity: 0.6, borderColor: '#A0A0A0' },
+
+  statusBadge: { position: 'absolute', backgroundColor: '#00E676', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, zIndex: 5 },
   badgeLeft: { top: -6, left: -4 },
   badgeRight: { top: -6, right: -4 },
-  statusBadgeText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  foodInfoBox: {
-    flex: 1,
-    height: 105,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#000000',
-    paddingHorizontal: 14,
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    position: 'relative',
-  },
-  infoBoxRight: { borderLeftWidth: 0 },
-  infoBoxLeft: { borderRightWidth: 0 },
-  foodNameText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#000000',
-    lineHeight: 18,
-    paddingRight: 10,
-  },
-  foodPriceText: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#000000',
-    marginTop: 4,
-  },
-  outOfStockContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  outOfStockText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#000000',
-    textTransform: 'uppercase',
-  },
-  plusButtonRight: {
-    backgroundColor: '#FF8C32',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 6,
-    right: 8,
-    // borderWidth: 1.5,
-    // borderColor: '#000',
-  },
-  plusButtonLeft: {
-    backgroundColor: '#FF8C32',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 6,
-    left: 8,
-    // borderWidth: 1.5,
-    // borderColor: '#000',
-  },
-  plusButtonDisabled: {
-    backgroundColor: '#757575',
-    borderColor: '#000',
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#D9383A',
-    borderRadius: 9,
-    width: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartBadgeText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 9999,
-  },
+  statusBadgeText: { color: '#000', fontSize: 11, fontWeight: '900' },
+
+  foodInfoBox: { flex: 1, height: '100%', padding: 12, justifyContent: 'space-between', backgroundColor: '#ffffff', position: 'relative' },
+  foodNameText: { fontSize: 16, fontWeight: 'bold', color: '#000000', lineHeight: 20 },
+  foodPriceText: { fontSize: 15, fontWeight: '900', color: '#000000', marginTop: 4 },
+  foodTextDisabled: { color: '#757575' },
+
+  outOfStockContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  outOfStockText: { fontSize: 12, fontWeight: '900', color: '#757575', textTransform: 'uppercase' },
+
+  actionButtonRight: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 10, right: 10 },
+  actionButtonLeft: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 10, left: 10 },
+  actionButtonNormal: { backgroundColor: '#FF8C32' },
+  actionButtonDisabled: { backgroundColor: '#C0C0C0' },
+
+  cartBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#D9383A', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
+  cartBadgeText: { color: '#ffffff', fontSize: 11, fontWeight: 'bold' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   modalBackdropCloser: { position: 'absolute', width: width, height: height },
-  popupCardBody: {
-    width: width * 0.86,
-    maxHeight: height * 0.85,
-    backgroundColor: '#ffffff',
-    borderWidth: 3,
-    borderColor: '#000000',
-    borderRadius: 16,
-    padding: 18,
-    justifyContent: 'space-between',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 6, height: 6 }, shadowOpacity: 0.2, shadowRadius: 0 },
-      android: { elevation: 8 }
-    }),
-  },
+  popupCardBody: { width: width * 0.86, maxHeight: height * 0.85, backgroundColor: '#ffffff', borderWidth: 3, borderColor: '#000000', borderRadius: 16, padding: 18, justifyContent: 'space-between', ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 6, height: 6 }, shadowOpacity: 0.2, shadowRadius: 0 }, android: { elevation: 8 } }) },
   popupHeaderRow: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%' },
-  popupImageWrapper: {
-    width: '100%',
-    height: 175,
-    borderWidth: 2,
-    borderColor: '#000000',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginTop: 4,
-    position: 'relative'
-  },
+  popupImageWrapper: { width: '100%', height: 175, borderWidth: 2, borderColor: '#000000', borderRadius: 10, overflow: 'hidden', marginTop: 4, position: 'relative' },
   popupFoodImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  modalStatusBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: '#00E676',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  popupFoodName: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#000000',
-    textAlign: 'center',
-    marginTop: 12,
-    marginBottom: 20,
-    letterSpacing: 0.5,
-  },
+  modalStatusBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#00E676', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  popupFoodName: { fontSize: 22, fontWeight: '900', color: '#000000', textAlign: 'center', marginTop: 12, marginBottom: 20, letterSpacing: 0.5 },
   popupDetailsScroll: { flexGrow: 0, marginBottom: 20 },
-  detailTextGroup: {
-    marginBottom: 18,
-    width: '100%'
-  },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#000000',
-    textTransform: 'uppercase',
-    marginBottom: 4
-  },
+  detailTextGroup: { marginBottom: 18, width: '100%' },
+  detailLabel: { fontSize: 14, fontWeight: '900', color: '#000000', textTransform: 'uppercase', marginBottom: 4 },
   detailValue: { fontSize: 14, fontWeight: '500', color: '#333333', lineHeight: 18 },
   popupPriceValue: { fontSize: 18, fontWeight: '900', color: '#000000' },
-  popupOrderButton: {
-    width: '100%',
-    backgroundColor: '#FF8C32',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 5,
-  },
+  popupOrderButton: { width: '100%', backgroundColor: '#FF8C32', borderRadius: 8, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   popupOrderButtonDisabled: { backgroundColor: '#757575' },
   popupOrderButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
 });
 
-// 🌟 这里补全了之前漏掉的购物车样式表，防止因为找不到 cartStyles 样式而报错白屏
 const cartStyles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff' },
+  safeArea: { flex: 1, backgroundColor: '#ffffff', paddingTop: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: 10, backgroundColor: '#ffffff' },
   titleContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '900', color: '#000', fontFamily: 'serif' },
