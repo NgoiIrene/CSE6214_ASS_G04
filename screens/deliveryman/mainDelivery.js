@@ -113,22 +113,27 @@ export default function DeliveryMain() {
     }
   };
 
-  // 🌟🌟 核心：接单雷达监听器 🌟🌟
+  // 🌟🌟 核心：接单雷达监听器 (已修复为 UPDATE 监听) 🌟🌟
   useEffect(() => {
     let orderChannel = null;
 
     if (isOnline) {
-      // 开启大喇叭监听 orders 表的新增数据 (INSERT)
+      // 开启大喇叭监听 orders 表的更新数据 (UPDATE)
       orderChannel = supabase
         .channel('rider-order-radar')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'orders' },
+          { event: 'UPDATE', schema: 'public', table: 'orders' },
           (payload) => {
             const newOrder = payload.new;
+            const oldOrder = payload.old; 
             
-            // 筛选过滤器：必须是外卖单(delivery) 并且没有人接过单(pending_rider)
-            if (newOrder.status === 'pending_rider' && newOrder.order_type === 'delivery') {
+            // 筛选过滤器：状态刚刚被商家变成 pending_rider，且是外卖单(delivery)
+            if (
+              newOrder.status === 'pending_rider' && 
+              oldOrder.status !== 'pending_rider' && 
+              newOrder.order_type === 'delivery'
+            ) {
               Alert.alert(
                 "🔔 New Order Request!",
                 `Restaurant: ${newOrder.vendor_name}\nEarning: RM ${Number(newOrder.earning).toFixed(2)}\nDestination: ${newOrder.dropoff_location}`,

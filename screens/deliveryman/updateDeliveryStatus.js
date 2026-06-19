@@ -1,7 +1,7 @@
-import { useNavigation, useRoute } from '@react-navigation/native'; // 🌟 引入 useRoute
+import { useNavigation, useRoute } from '@react-navigation/native'; 
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import {
   Alert, Image, Platform, SafeAreaView, ScrollView,
@@ -23,7 +23,6 @@ export default function UpdateDeliveryProgress() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
   const mapRef = useRef(null);
 
-  // 🌟 动态数据绑定
   const orderRef = orderData?.order_ref || '#8680';
   const customerName = orderData?.customer_name || 'Cindy Kiki';
   const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
@@ -38,6 +37,53 @@ export default function UpdateDeliveryProgress() {
   const currentRiderCoords = stage === 1
     ? { latitude: 2.9278, longitude: 101.6415 }
     : { latitude: 2.9290, longitude: 101.6425 };
+
+  // ==========================================
+  // 🚨 Debug 专用探测器 (找出不绿的原因) 🚨
+  // ==========================================
+  useEffect(() => {
+    if (!orderData?.id) {
+      Alert.alert(
+        "⚠️ 严重警告：假数据模式", 
+        "当前页面没有获取到真实的数据库 ID！你现在看到的是写死的假数据。\n\n因为是假数据，所以你去数据库怎么改，这里都不会变绿！"
+      );
+    } else {
+      Alert.alert(
+        "🟢 监听器已连接！", 
+        `数据库连接成功！\n\n请去 Supabase 的 orders 表，找到 ID 包含：\n\n${orderData.id.substring(0, 8)}...\n\n把这一行的 status 改成 ready_for_pickup 试试！`
+      );
+    }
+  }, []);
+  // ==========================================
+
+  // 🌟 核心：实时监听当前订单的状态，等待商家出餐
+  useEffect(() => {
+    if (!orderData?.id) return;
+
+    const statusChannel = supabase
+      .channel(`order-status-${orderData.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderData.id}` 
+        },
+        (payload) => {
+          const updatedOrder = payload.new;
+          if (updatedOrder.status === 'ready_for_pickup') {
+            setVendorReady(true);
+            Alert.alert("🔔 Food Ready!", "The vendor has finished preparing the food. Please pick it up.");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(statusChannel);
+    };
+  }, [orderData?.id]);
 
   const simulateVendorReady = () => {
     setVendorReady(true);
@@ -69,15 +115,29 @@ export default function UpdateDeliveryProgress() {
     setPhotoFromResult(result);
   };
 
-  const handleConfirmDelivered = () => {
-    Alert.alert("Delivery Completed!", "Order moved to delivery history.", [
-      {
-        text: "OK",
-        onPress: () => {
-          navigation.navigate('Home'); // 完成后直接回主页继续接单！
-        }
+  const handleConfirmDelivered = async () => {
+    try {
+      if (orderData?.id) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: 'completed' })
+          .eq('id', orderData.id);
+
+        if (error) throw error;
       }
-    ]);
+
+      Alert.alert("Delivery Completed!", "Order moved to delivery history.", [
+        {
+          text: "OK",
+          onPress: () => {
+            navigation.navigate('Home'); 
+          }
+        }
+      ]);
+    } catch (e) {
+      Alert.alert("Error", "Could not update delivery status.");
+      console.log(e);
+    }
   };
 
   return (
@@ -144,7 +204,7 @@ export default function UpdateDeliveryProgress() {
               <Ionicons name="document-text-outline" size={20} color="#F57C00" style={{ marginTop: 2 }} />
               <View style={{ marginLeft: 10, flex: 1 }}>
                 <Text style={styles.remarksLabel}>User Remarks:</Text>
-                <Text style={styles.remarksText}>Please put the order on the white table outside the lobby. Thank you so much!</Text>
+                <Text style={styles.remarksText}>{orderData?.remarks || 'Please put the order on the white table outside the lobby. Thank you so much!'}</Text>
               </View>
             </View>
 
