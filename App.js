@@ -54,7 +54,9 @@ const AuthScreen = () => {
     if (error) {
       setIsLoading(false);
       isSigningUpFlag = false; // 🟢 发生错误，恢复绿灯
-      return Alert.alert("Error", error.message);
+      //return Alert.alert("Error", error.message);
+      console.error("Signup Raw Error: ", error); // 在终端打印完整错误，方便追踪
+return Alert.alert("Error", error?.message || "An unexpected server error occurred.");
     }
 
     // 2. 存入 Profile 资料
