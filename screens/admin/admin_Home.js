@@ -271,7 +271,7 @@ export default function HomeScreen() {
       // 🌟 核心修复：完全匹配你真实的 order 表结构！
       const ordersPromise = supabase
         .from('orders') // 换成了你真实的表名: order
-        .select('order_ref, total_price, status, created_at') // 换成了你真实的列名
+        .select('order_ref, subtotal, status, created_at') // 换成了你真实的列名
         .order('created_at', { ascending: false }) // 默认用 Supabase 自带的 created_at 排序
         .limit(5);
 
