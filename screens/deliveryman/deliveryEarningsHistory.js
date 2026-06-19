@@ -38,7 +38,7 @@ export default function EarningsAndHistory() {
   const [historyData, setHistoryData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 每次进入此页面，自动从 Supabase 拉取外卖员的已完成订单
+  // 🌟 每次进入此页面，自动从 Supabase 的 orders 表拉取已完成订单
   useFocusEffect(
     useCallback(() => {
       fetchHistory();
@@ -51,16 +51,32 @@ export default function EarningsAndHistory() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
+      // 🌟 核心修改：直接查 orders 表，且只看 completed 的单子！
       const { data, error } = await supabase
-        .from('delivery_history')
+        .from('orders')
         .select('*')
         .eq('rider_id', session.user.id)
-        .order('date', { ascending: false }); // 最新的排在最上面
+        .eq('status', 'completed') // 🎯 只要已完成的订单
+        .order('created_at', { ascending: false }); // 最新的排在最上面
 
       if (error) {
         Alert.alert("Fetch Error", error.message);
       } else if (data) {
-        setHistoryData(data);
+        // 🌟 将 orders 里的 created_at 格式化为日历能读懂的结构
+        const formattedData = data.map(item => {
+          const dateObj = new Date(item.created_at);
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          
+          return {
+            ...item,
+            calendar_date: `${year}-${month}-${day}`, // 专门给日历过滤用的 YYYY-MM-DD
+            display_time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) // 显示用的 14:30 PM
+          };
+        });
+
+        setHistoryData(formattedData);
       }
     } catch (error) {
       console.log(error);
@@ -122,10 +138,10 @@ export default function EarningsAndHistory() {
     return marks;
   }, [selectedDate, activeTab]);
 
-  // 根据日历选中的区间，过滤显示数据库里的订单
+  // 🌟 根据日历选中的区间过滤数据 (对比 calendar_date)
   const filteredData = useMemo(() => {
     const activeMarkedDates = Object.keys(markedDates);
-    return historyData.filter(item => activeMarkedDates.includes(item.date));
+    return historyData.filter(item => activeMarkedDates.includes(item.calendar_date));
   }, [markedDates, historyData]);
 
   // 计算所选区间的总收入
@@ -200,24 +216,29 @@ export default function EarningsAndHistory() {
             filteredData.map((item) => (
               <TouchableOpacity key={item.id} style={styles.historyCard} activeOpacity={0.7}>
                 <View style={styles.cardLeft}>
-                  <Text style={styles.timeText}>{item.date} ({item.time_window})</Text>
-                  <Text style={styles.orderIdText}>{item.order_id} ({item.order_ref})</Text>
+                  {/* 🌟 日期与时间 */}
+                  <Text style={styles.timeText}>{item.calendar_date} • {item.display_time}</Text>
                   
+                  {/* 🌟 订单编号 */}
+                  <Text style={styles.orderIdText}>Order {item.order_ref}</Text>
+                  
+                  {/* 🌟 顾客名字 */}
                   <View style={styles.customerRow}>
                     <Ionicons name="person" size={12} color="#666" />
                     <Text style={styles.customerText}>{item.customer_name}</Text>
                   </View>
                   
-                  {/* 🌟 新增：食物详细信息展示 */}
+                  {/* 🌟 食物详情 */}
                   <View style={styles.foodRow}>
                     <Ionicons name="restaurant-outline" size={12} color="#888" />
-                    <Text style={styles.foodText} numberOfLines={1}>{item.food_details}</Text>
+                    <Text style={styles.foodText} numberOfLines={2}>{item.food_details}</Text>
                   </View>
 
                 </View>
                 <View style={styles.cardRight}>
+                  {/* 🌟 外卖员收益 */}
                   <Text style={styles.earningText}>RM {Number(item.earning).toFixed(2)}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#CCC" style={{ marginLeft: 5 }} />
+                  <Ionicons name="checkmark-circle" size={18} color="#00C853" style={{ marginLeft: 6 }} />
                 </View>
               </TouchableOpacity>
             ))
@@ -327,11 +348,11 @@ const styles = StyleSheet.create({
   historyCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: '#FFF' },
   cardLeft: { flex: 1, paddingRight: 10 },
   timeText: { fontSize: 13, fontWeight: 'bold', color: '#333', marginBottom: 4 },
-  orderIdText: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 6 },
+  orderIdText: { fontSize: 15, fontWeight: 'bold', color: '#000', marginBottom: 6 },
   customerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   customerText: { fontSize: 12, color: '#666', marginLeft: 6 },
-  foodRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  foodText: { fontSize: 12, color: '#888', marginLeft: 6, flex: 1 },
+  foodRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 2 },
+  foodText: { fontSize: 12, color: '#888', marginLeft: 6, flex: 1, lineHeight: 16 },
   cardRight: { flexDirection: 'row', alignItems: 'center' },
   earningText: { fontSize: 18, fontWeight: '900', color: '#000' },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
