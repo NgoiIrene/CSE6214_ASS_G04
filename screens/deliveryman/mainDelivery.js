@@ -12,12 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 export default function DeliveryMain() {
   const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // 🌟 外卖员一登录默认就是 Offline
   const [isOnline, setIsOnline] = useState(false); 
-  
   const { avatarUri, riderName } = useContext(RiderContext);
-
   const [shifts, setShifts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -27,6 +23,7 @@ export default function DeliveryMain() {
     }, [])
   );
 
+  // 🌟 修复：使用真正的时间对象 (Date Object) 进行比对 🌟
   const fetchMyShifts = async () => {
     setIsLoading(true);
     try {
@@ -42,7 +39,44 @@ export default function DeliveryMain() {
       if (error) {
         Alert.alert("Fetch Error ❌", error.message);
       } else if (data) {
-        setShifts(data);
+        
+        // 1. 获取今天的时间对象，并把时分秒归零，确保公平对比
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const validShifts = [];
+        const expiredShiftIds = [];
+
+        // 2. 遍历拉取到的数据
+        data.forEach(shift => {
+          // 把数据库里 "Thu Jun 18 2026" 这种字符串，还原成真实时间对象
+          const shiftDateObj = new Date(shift.shift_date);
+          shiftDateObj.setHours(0, 0, 0, 0);
+
+          // 3. 完美对比：如果排班的时间 小于 今天的时间
+          if (shiftDateObj < today) {
+            expiredShiftIds.push(shift.id); // 过期！拉出去删掉
+          } else {
+            validShifts.push(shift); // 还没过期，留下来渲染
+          }
+        });
+
+        // 如果发现有过期数据，执行自动删除并弹窗
+        if (expiredShiftIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('rider_shifts')
+            .delete()
+            .in('id', expiredShiftIds); 
+
+          if (!deleteError) {
+            Alert.alert(
+              "Expired Shifts Cleaned 🧹",
+              `We have automatically removed ${expiredShiftIds.length} past shift(s) from your schedule.`
+            );
+          }
+        }
+
+        setShifts(validShifts);
       }
     } catch (error) {
       console.log(error);
@@ -85,7 +119,6 @@ export default function DeliveryMain() {
     );
   };
 
-  // 🌟 核心：切换上下线状态，并同步到数据库
   const handleToggleOnline = async (newValue) => {
     setIsOnline(newValue); 
 
@@ -113,12 +146,10 @@ export default function DeliveryMain() {
     }
   };
 
-  // 🌟🌟 核心：接单雷达监听器 (已修复为 UPDATE 监听) 🌟🌟
   useEffect(() => {
     let orderChannel = null;
 
     if (isOnline) {
-      // 开启大喇叭监听 orders 表的更新数据 (UPDATE)
       orderChannel = supabase
         .channel('rider-order-radar')
         .on(
@@ -128,7 +159,6 @@ export default function DeliveryMain() {
             const newOrder = payload.new;
             const oldOrder = payload.old; 
             
-            // 筛选过滤器：状态刚刚被商家变成 pending_rider，且是外卖单(delivery)
             if (
               newOrder.status === 'pending_rider' && 
               oldOrder.status !== 'pending_rider' && 
@@ -141,7 +171,6 @@ export default function DeliveryMain() {
                   {
                     text: "View Request",
                     onPress: () => {
-                      // 带着新鲜滚烫的真实订单数据，闪现到处理订单页面！
                       navigation.navigate('ProcessRequest', { orderData: newOrder });
                     }
                   }
@@ -153,7 +182,6 @@ export default function DeliveryMain() {
         .subscribe();
     }
 
-    // 清理机制：当外卖员 Offline 或者离开软件时，自动断开监听，省电省流量
     return () => {
       if (orderChannel) {
         supabase.removeChannel(orderChannel);
@@ -165,7 +193,6 @@ export default function DeliveryMain() {
     <SafeAreaView style={styles.safeArea}>
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
 
-      {/* 顶部导航栏 */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIconBox} onPress={() => setIsSidebarOpen(true)} activeOpacity={0.7}>
           <Ionicons name="menu" size={28} color="#333" />
@@ -174,7 +201,6 @@ export default function DeliveryMain() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* 主体内容区 */}
       <View style={styles.contentContainer}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Upcoming Shifts</Text>
@@ -213,7 +239,6 @@ export default function DeliveryMain() {
         </ScrollView>
       </View>
 
-      {/* 底部状态栏 */}
       <View style={styles.bottomBarContainer}>
         <View style={styles.bottomBar}>
           <View style={styles.switchWrapper}>
@@ -236,7 +261,6 @@ export default function DeliveryMain() {
         <View style={{ height: Platform.OS === 'ios' ? 20 : 45, backgroundColor: '#FFF' }} />
       </View>
 
-      {/* 侧边栏 */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
