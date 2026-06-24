@@ -135,12 +135,12 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         }
         setVendorId(user.id);
 
-        // 2. 并发读取商家 Profile、分类、菜品、以及【新增：公告信息】
+        // 2. 并发读取商家 Profile、分类、菜品、以及公告信息
         const [profileRes, categoriesRes, foodRes, announcementRes] = await Promise.all([
           supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single(),
           supabase.from('categories').select('name').eq('vendor_id', user.id).order('created_at', { ascending: true }),
           supabase.from('food_items').select('*').eq('vendor_id', user.id).order('created_at', { ascending: true }),
-          supabase.from('announcements').select('content, image_url').eq('vendor_id', user.id).maybeSingle() // 👈 动态抓取公告
+          supabase.from('announcements').select('content, image_url').eq('vendor_id', user.id).maybeSingle()
         ]);
 
         // 绑定侧边栏个人信息
@@ -149,7 +149,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           setProfileAvatar(profileRes.data.avatar_url || null);
         }
 
-        // 绑定公告栏内容 (如果没有配置过则保留默认文本)
+        // 绑定公告栏内容
         if (announcementRes.data) {
           setWelcomeText(announcementRes.data.content || 'Welcome to our store! Hope you have a nice day.');
           setImageUri(announcementRes.data.image_url || null);
@@ -166,6 +166,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           const mappedFoods = foodRes.data.map(item => ({
             id: item.id,
             category: item.category,
+            category_id: item.category_id,
             code: item.code,
             name: item.name,
             price: item.price.toString(),
@@ -203,10 +204,8 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     setActiveTab(nextTab);
   };
 
-  // 保存公告内容并真正更新同步到 Supabase
   const handleSaveAnnouncement = async () => {
     try {
-      // 通过 upsert 实现：如果有当前商家的记录则覆盖更新，没有则新增
       const { error } = await supabase
         .from('announcements')
         .upsert(
@@ -376,66 +375,83 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     const stockInt = parseInt(formStock, 10) || 0;
     const finalName = formName.toUpperCase();
 
-    if (editingFoodId) {
-      const { error } = await supabase
-        .from('food_items')
-        .update({
-          name: finalName,
-          price: priceNum,
-          stock: stockInt,
-          desc: formDesc,
-          image_url: formImg
-        })
-        .eq('id', editingFoodId)
-        .eq('vendor_id', vendorId);
-
-      if (error) {
-        Alert.alert("Error", error.message);
-        return;
-      }
-
-      setFoodItems(foodItems.map(item => item.id === editingFoodId ? {
-        ...item, name: finalName, price: formPrice, stock: formStock, desc: formDesc, img: formImg
-      } : item));
-    } else {
-      const currentCatCount = foodItems.filter(i => i.category === activeTab).length;
-      const newCode = `${activeTab.substring(0, 1)}0${currentCatCount + 1}`;
-
-      const { data, error } = await supabase
-        .from('food_items')
-        .insert([{
-          vendor_id: vendorId,
-          category: activeTab,
-          code: newCode,
-          name: finalName,
-          price: priceNum,
-          stock: stockInt,
-          desc: formDesc,
-          image_url: formImg
-        }])
-        .select()
+    try {
+      // 获取当前分类的 category_id，以便绑定新菜品
+      const { data: catData } = await supabase
+        .from('categories')
+        .select('category_id')
+        .eq('vendor_id', vendorId)
+        .eq('name', activeTab)
         .single();
 
-      if (error) {
-        Alert.alert("Error", error.message);
-        return;
-      }
+      const currentCategoryId = catData ? catData.category_id : null;
 
-      const newFood = {
-        id: data.id,
-        category: activeTab,
-        code: newCode,
-        name: finalName,
-        price: formPrice,
-        stock: formStock || '0',
-        desc: formDesc,
-        img: formImg
-      };
-      setFoodItems([...foodItems, newFood]);
+      if (editingFoodId) {
+        const { error } = await supabase
+          .from('food_items')
+          .update({
+            name: finalName,
+            price: priceNum,
+            stock: stockInt,
+            desc: formDesc,
+            image_url: formImg
+          })
+          .eq('id', editingFoodId)
+          .eq('vendor_id', vendorId);
+
+        if (error) {
+          Alert.alert("Error", error.message);
+          return;
+        }
+
+        setFoodItems(foodItems.map(item => item.id === editingFoodId ? {
+          ...item, name: finalName, price: formPrice, stock: formStock, desc: formDesc, img: formImg
+        } : item));
+      } else {
+        const currentCatCount = foodItems.filter(i => i.category === activeTab).length;
+        const newCode = `${activeTab.substring(0, 1)}0${currentCatCount + 1}`;
+
+        const { data, error } = await supabase
+          .from('food_items')
+          .insert([{
+            vendor_id: vendorId,
+            category: activeTab,
+            category_id: currentCategoryId,
+            code: newCode,
+            name: finalName,
+            price: priceNum,
+            stock: stockInt,
+            desc: formDesc,
+            image_url: formImg
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          Alert.alert("Error", error.message);
+          return;
+        }
+
+        const newFood = {
+          id: data.id,
+          category: activeTab,
+          category_id: currentCategoryId,
+          code: newCode,
+          name: finalName,
+          price: formPrice,
+          stock: formStock || '0',
+          desc: formDesc,
+          img: formImg
+        };
+        setFoodItems([...foodItems, newFood]);
+      }
+      setFoodModalVisible(false);
+    } catch (e) {
+      console.error(e);
     }
-    setFoodModalVisible(false);
   };
 
+  // ==================== 🛠️ 终极安全级联删除分类函数 ====================
   const handleDeleteCategory = () => {
     if (activeTab === 'ANNOUNCEMENT') return;
 
@@ -445,30 +461,66 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          const { error } = await supabase
-            .from('categories')
-            .delete()
-            .eq('vendor_id', vendorId)
-            .eq('name', activeTab);
+          try {
+            // 1. 根据分类的英文名称 (name) 查出其真实的唯一主键主键主键 ID (category_id)
+            const { data: catData, error: catFetchError } = await supabase
+              .from('categories')
+              .select('category_id')
+              .eq('vendor_id', vendorId)
+              .eq('name', activeTab)
+              .single();
 
-          if (error) {
-            Alert.alert("Error", error.message);
-            return;
+            if (catFetchError || !catData) {
+              Alert.alert("Error", "Failed to retrieve category info: " + (catFetchError?.message || "Not found"));
+              return;
+            }
+
+            const targetCategoryId = catData.category_id;
+
+            // 2. 解除外键约束限制：优先去菜品表里把关联了这个 category_id 的全部菜品数据清除
+            const { error: foodDeleteError } = await supabase
+              .from('food_items')
+              .delete()
+              .eq('vendor_id', vendorId)
+              .eq('category_id', targetCategoryId); 
+
+            if (foodDeleteError) {
+              Alert.alert("Error", "Failed to clear associated food items: " + foodDeleteError.message);
+              return;
+            }
+
+            // 3. 约束阻碍完全扫清后，顺理成章、安全地删除分类本身
+            const { error: catDeleteError } = await supabase
+              .from('categories')
+              .delete()
+              .eq('vendor_id', vendorId)
+              .eq('category_id', targetCategoryId);
+
+            if (catDeleteError) {
+              Alert.alert("Error", "Failed to delete category: " + catDeleteError.message);
+              return;
+            }
+
+            // 4. 同步页面前端导航和 Tabs UI 状态
+            const currentIndex = tabs.indexOf(activeTab);
+            let nextTargetTab = 'ANNOUNCEMENT';
+            if (currentIndex < tabs.length - 1) {
+              nextTargetTab = tabs[currentIndex + 1];
+            } else if (currentIndex > 0) {
+              nextTargetTab = tabs[currentIndex - 1];
+            }
+
+            if (nextTargetTab === 'ANNOUNCEMENT') setIsEditing(false);
+
+            setTabs(tabs.filter(t => t !== activeTab));
+            setFoodItems(foodItems.filter(item => item.category_id !== targetCategoryId));
+            setActiveTab(nextTargetTab);
+
+            Alert.alert("Success", "Category and items deleted successfully.");
+          } catch (err) {
+            console.error("Delete failed: ", err);
+            Alert.alert("Error", "An unexpected runtime error occurred.");
           }
-
-          const currentIndex = tabs.indexOf(activeTab);
-          let nextTargetTab = 'ANNOUNCEMENT';
-          if (currentIndex < tabs.length - 1) {
-            nextTargetTab = tabs[currentIndex + 1];
-          } else if (currentIndex > 0) {
-            nextTargetTab = tabs[currentIndex - 1];
-          }
-
-          if (nextTargetTab === 'ANNOUNCEMENT') setIsEditing(false);
-
-          setTabs(tabs.filter(t => t !== activeTab));
-          setFoodItems(foodItems.filter(item => item.category !== activeTab));
-          setActiveTab(nextTargetTab);
         }
       }
     ]);
@@ -638,7 +690,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                     <Ionicons name="image-outline" size={24} color="#000" />
                   </TouchableOpacity>
                 </View>
-                {/* 🔧 这里改为触发 handleSaveAnnouncement 函数，保存进数据库 */}
                 <TouchableOpacity style={styles.saveButton} onPress={handleSaveAnnouncement}>
                   <Text style={styles.saveButtonText}>SAVE</Text>
                 </TouchableOpacity>
@@ -654,7 +705,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                 )}
 
                 <View style={styles.cardHeader}>
-                  {/* 🔧 这里的头像和店名不再写死，而是同步真实的用户 Profile 数据 */}
                   {profileAvatar ? (
                     <Image source={{ uri: profileAvatar }} style={[styles.avatarIcon, { width: 60, height: 60, borderRadius: 30 }]} />
                   ) : (

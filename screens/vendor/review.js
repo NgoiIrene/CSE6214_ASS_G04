@@ -66,19 +66,55 @@ export default function ReviewScreen({ navigateToScreen }) {
     fetchUserProfile();
   }, []);
 
-  // ⚙️ 副作用 2：从 Supabase 数据库拉取真实的 Reviews 数据
+  // ⚙️ 副作用 2：从 Supabase 数据库拉取真实的 Reviews 数据并动态关联用户信息
   useEffect(() => {
     const fetchReviewsFromDB = async () => {
       try {
         setIsReviewsLoading(true);
-        // 🎯 从你的 reviews 表中捞取所有评价数据
-        const { data, error } = await supabase
+        // 1. 从 reviews 表中捞取所有评价数据
+        const { data: reviewsData, error: reviewsError } = await supabase
           .from('reviews')
           .select('*');
 
-        if (error) throw error;
-        if (data) {
-          setDbReviews(data);
+        if (reviewsError) throw reviewsError;
+
+        if (reviewsData && reviewsData.length > 0) {
+          // 2. 提取评价中所有不重复的 user_id
+          const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+
+          let profileMap = {};
+          if (userIds.length > 0) {
+            // 3. 根据 user_id 列表批量拉取用户的 profiles 数据（获取 full_name 和 avatar_url）
+            const { data: profilesData, error: profilesError } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .in('id', userIds);
+
+            if (profilesError) throw profilesError;
+
+            if (profilesData) {
+              profilesData.forEach(p => {
+                profileMap[p.id] = {
+                  fullName: p.full_name,
+                  avatarUrl: p.avatar_url
+                };
+              });
+            }
+          }
+
+          // 4. 将用户信息（如 customer 全名和头像）动态拼接注入到评价数据中
+          const enrichedReviews = reviewsData.map(r => {
+            const profile = profileMap[r.user_id];
+            return {
+              ...r,
+              customer: profile?.fullName || 'Customer',
+              avatarUrl: profile?.avatarUrl || null
+            };
+          });
+
+          setDbReviews(enrichedReviews);
+        } else {
+          setDbReviews([]);
         }
       } catch (error) {
         console.log('Fetch reviews error:', error.message);
@@ -338,7 +374,14 @@ export default function ReviewScreen({ navigateToScreen }) {
               <View style={styles.cardHeader}>
                 <View style={styles.userInfoContainer}>
                   <View style={styles.commentAvatarCircle}>
-                    <Ionicons name="person-outline" size={20} color="#000" />
+                    {review.avatarUrl ? (
+                      <Image 
+                        source={{ uri: review.avatarUrl }} 
+                        style={{ width: 26, height: 26, borderRadius: 13 }} 
+                      />
+                    ) : (
+                      <Ionicons name="person-outline" size={20} color="#000" />
+                    )}
                   </View>
                   <View style={styles.nameTimeContainer}>
                     <Text style={styles.customerName}>{review.customer}</Text>
