@@ -11,6 +11,8 @@ import MenuScreen from './MenuScreen';
 import OrderHistoryScreen from './OrderHistoryScreen';
 import UserProfileScreen from './ProfileScreen';
 import VendorMenuScreen from './VendorMenuScreen';
+import DeliveryOrderTrack from './DeliveryTrackingScreen';
+import PickupOrderTrack from './PickupTrackingScreen';
 
 import { UserContext, UserProvider } from './UserContext';
 
@@ -161,6 +163,12 @@ function MainLayout() {
                         </View>
                     </View>
                 );
+
+            case 'DeliveryOrderTrack':
+                return <DeliveryOrderTrack {...props} />;
+
+            case 'PickupOrderTrack':
+                return <PickupOrderTrack {...props} />;
 
             default:
                 return renderHome();
