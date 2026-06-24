@@ -58,15 +58,17 @@ export default function ProcessDeliveryRequest() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      // 1. 去数据库把这单抢下来！把状态改成 accepted，并填上自己的 rider_id
+      // 🌟 动态判断：如果已经是 ready_for_pickup，接单后保持 ready_for_pickup，否则变成 accepted
+      const nextStatus = orderData?.status === 'ready_for_pickup' ? 'ready_for_pickup' : 'accepted';
+
+      // 1. 去数据库把这单抢下来！
       const { data, error } = await supabase
         .from('orders')
         .update({ 
-          status: 'accepted',
+          status: nextStatus,
           rider_id: session.user.id 
         })
         .eq('id', orderData.id)
-        // .eq('status', 'pending_rider') 
         .in('status', ['pending_rider', 'ready_for_pickup'])
         .select();
 
