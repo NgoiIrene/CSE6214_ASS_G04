@@ -12,10 +12,11 @@ import HomeScreen from './admin_Home';
 import ManageAccounts from './admin_manageAccounts';
 import ManageAdvertisingBanner from './admin_manageAdvertising';
 import ManageContent from './admin_manageContent';
-import ProcessApplicationApproval from "./admin_processApplicantApproval";
+//import ProcessApplicationApproval from "./admin_processApplicantApproval";
 import GenerateReport from './admin_reports';
 import ConfigureSystemSettings from './admin_systemSettings';
 import AdminProfileScreen from './admin_profile';
+import AdminResetPasswordScreen from './admin_ResetPassword'; 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SIDEBAR_WIDTH = 280;
@@ -110,17 +111,13 @@ export default function App() {
         return <ConfigureSystemSettings />;
       case 'Manage Advertising Board':
         return <ManageAdvertisingBanner />;
-      case 'Process Application Approval':
-        return <ProcessApplicationApproval />;
+     // case 'Process Application Approval':
+       // return <ProcessApplicationApproval />;
       case 'Profile':
         //把 fetchSidebarProfile 作为 prop 传给 Profile 页面
         return <AdminProfileScreen onProfileUpdate={fetchSidebarProfile} />;
       case 'Reset Password':
-        return (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ fontSize: 20 }}>{currentPage} Page is coming soon...</Text>
-          </View>
-        );
+        return <AdminResetPasswordScreen onResetSuccess={() => setCurrentPage('Home')} />;
       default:
         return <HomeScreen />;
     }
