@@ -220,7 +220,7 @@ export default function EarningsAndHistory() {
                   <Text style={styles.timeText}>{item.calendar_date} • {item.display_time}</Text>
                   
                   {/* 🌟 订单编号 */}
-                  <Text style={styles.orderIdText}>Order {item.order_ref}</Text>
+                  <Text style={styles.orderIdText}>Order {item.order_number}</Text>
                   
                   {/* 🌟 顾客名字 */}
                   <View style={styles.customerRow}>
