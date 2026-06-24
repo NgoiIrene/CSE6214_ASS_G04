@@ -23,7 +23,7 @@ export default function UpdateDeliveryProgress() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
   const mapRef = useRef(null);
 
-  const orderRef = orderData?.order_ref || '#8680';
+  const orderRef = orderData?.order_number || '#8680';
   const customerName = orderData?.customer_name || 'Cindy Kiki';
   const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
   const pickupLocation = orderData?.pickup_location || 'MMU Starbees';

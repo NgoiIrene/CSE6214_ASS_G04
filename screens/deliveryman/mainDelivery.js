@@ -159,23 +159,26 @@ export default function DeliveryMain() {
             const newOrder = payload.new;
             const oldOrder = payload.old; 
             
+            // 🌟 修复：允许 pending_rider 或 ready_for_pickup 状态触发通知
+            const waitingStatuses = ['pending_rider', 'ready_for_pickup'];
+            
             if (
-              newOrder.status === 'pending_rider' && 
-              oldOrder.status !== 'pending_rider' && 
+              waitingStatuses.includes(newOrder.status) && 
+              !waitingStatuses.includes(oldOrder.status) && 
               newOrder.order_type === 'delivery'
             ) {
-              Alert.alert(
-                "🔔 New Order Request!",
-                `Restaurant: ${newOrder.vendor_name}\nEarning: RM ${Number(newOrder.earning).toFixed(2)}\nDestination: ${newOrder.dropoff_location}`,
-                [
-                  {
-                    text: "View Request",
-                    onPress: () => {
-                      navigation.navigate('ProcessRequest', { orderData: newOrder });
-                    }
-                  }
-                ]
-              );
+            Alert.alert(
+              "🔔 New Order Request!",
+              `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${Number(newOrder.earning || 0).toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
+              [
+              {
+              text: "View Request",
+              onPress: () => {
+              navigation.navigate('ProcessRequest', { orderData: newOrder });
+               }
+            }
+          ]
+      );
             }
           }
         )
