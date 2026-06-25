@@ -8,8 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { supabase } from '../../supabaseClient'; // ⚠️ 如果路径不对请自行微调
 
-import { useFocusEffect } from '@react-navigation/native'; // 确保加上这一行
-
 const { width, height } = Dimensions.get('window');
 
 export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckout }) {
@@ -24,7 +22,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   };
 
   const [foodItems, setFoodItems] = useState([]);
-  const [announcementContent, setAnnouncementContent] = useState('Loading notice...');
+
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
 
@@ -32,115 +30,73 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const [isCartVisible, setIsCartVisible] = useState(false);
   const [remarks, setRemarks] = useState("");
 
-  // // 页面加载时，根据商家的 ID 去拉取真实菜单！
-  // useEffect(() => {
-  //   const fetchFoodItemsFromDB = async () => {
-  //     if (!vendorData?.id) return;
-
-  //     try {
-  //       const { data, error } = await supabase
-  //         .from('food_items')
-  //         .select('*')
-  //         .eq('vendor_id', vendorData.id);
-
-  //       if (error) throw error;
-
-  //       if (data && data.length > 0) {
-  //         const formattedMenu = data.map(item => ({
-  //           id: item.id,
-  //           name: item.name,
-  //           price: `RM ${parseFloat(item.price).toFixed(2)}`,
-  //           image: item.image_url || 'https://via.placeholder.com/150',
-  //           ingredient: item.desc || 'No description provided.',
-  //           allergen: item.allergen || 'None',
-  //           calories: item.calories || 'N/A',
-  //           status: item.stock <= 0 ? 'out_of_stock' : null
-  //         }));
-
-  //         setFoodItems(formattedMenu);
-  //       }
-  //     } catch (error) {
-  //       console.log('Fetch food items error:', error.message);
-  //     }
-  //   };
-
-  //   fetchFoodItemsFromDB();
-  // }, [vendorData]);
-
-  // // 🌟 1. 每次进入页面，强制从数据库读最新数据，解决不同步
-  // useFocusEffect(
-  //   React.useCallback(() => {
-  //     fetchCartFromDB();
-  //   }, [])
-  // );
-
-
-  // 🌟 1. 定义获取购物车函数 (这是唯一的一份)
-  const fetchCartFromDB = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('carts')
-        .select(`quantity, food_id, food_items (name, price, image_url, vendor_id)`)
-        .eq('user_id', user.id)
-        .eq('is_ordered', false);
-
-      if (error) throw error;
-
-      if (data) {
-        const dbCart = data.map(item => ({
-          id: item.food_id,
-          name: item.food_items?.name || 'Loading...',
-          price: parseFloat(item.food_items?.price) || 0,
-          quantity: item.quantity,
-          image: item.food_items?.image_url || null,
-          vendor_id: item.food_items?.vendor_id
-        }));
-        setCart(dbCart);
-      }
-    } catch (error) {
-      console.log('Fetch error:', error.message);
-    }
-  };
-
-  // 🌟 2. 只需要这一个 hook，它负责当你进入页面时自动刷新数据
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchCartFromDB();
-    }, [])
-  );
-
-  // 🌟 新增：根据商家 ID 去 announcements 表拉取公告
+  // 页面加载时，根据商家的 ID 去拉取真实菜单！
   useEffect(() => {
-    const fetchAnnouncement = async () => {
+    const fetchFoodItemsFromDB = async () => {
       if (!vendorData?.id) return;
+
       try {
         const { data, error } = await supabase
-          .from('announcements')
-          .select('content')
-          .eq('vendor_id', vendorData.id)
-          .maybeSingle(); // 使用 maybeSingle，因为有些商家可能还没写公告
+          .from('food_items')
+          .select('*')
+          .eq('vendor_id', vendorData.id);
 
         if (error) throw error;
-        
-        if (data && data.content) {
-          setAnnouncementContent(data.content);
-        } else {
-          // 🌟 修改：数据库里找不到对应公告时，显示这个
-          setAnnouncementContent('waiting to update...'); 
+
+        if (data && data.length > 0) {
+          const formattedMenu = data.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: `RM ${parseFloat(item.price).toFixed(2)}`,
+            image: item.image_url || 'https://via.placeholder.com/150',
+            ingredient: item.desc || 'No description provided.',
+            allergen: item.allergen || 'None',
+            calories: item.calories || 'N/A',
+            status: item.stock <= 0 ? 'out_of_stock' : null
+          }));
+
+          setFoodItems(formattedMenu);
         }
       } catch (error) {
-        console.log('Fetch announcement error:', error.message);
-        // 🌟 修改：网络错误或抓取失败时，也显示这个
-        setAnnouncementContent('waiting to update...'); 
+        console.log('Fetch food items error:', error.message);
       }
     };
 
-    fetchAnnouncement();
+    fetchFoodItemsFromDB();
   }, [vendorData]);
 
+  // 🌟 修改 1：拉取购物车数据，连接 carts 表 和 food_items 表
+  useEffect(() => {
+    const fetchCartFromDB = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('carts') // 换成 carts
+          .select(`quantity, food_id, food_items (name, price, image_url, vendor_id)`)
+          .eq('user_id', user.id)
+          .eq('is_ordered', false);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const dbCart = data.map(item => ({
+            id: item.food_id,
+            name: item.food_items?.name || 'Loading...',
+            price: parseFloat(item.food_items?.price) || 0,
+            quantity: item.quantity,
+            image: item.food_items?.image_url || null,
+            vendor_id: item.food_items?.vendor_id
+          }));
+          setCart(dbCart);
+        }
+      } catch (error) {
+        console.log('Fetch vendor cart error:', error.message);
+      }
+    };
+    fetchCartFromDB();
+  }, []);
 
   // 🌟 最新修复版：完美适配干净的 carts 表，解决存不进数据库的问题
   const syncCartToDB = async (foodId, quantity) => {
@@ -217,11 +173,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
               await supabase.from('carts').delete().eq('user_id', user.id).eq('is_ordered', false);
               // 2. 彻底清空本地状态
               setCart([]);
-
-              // 3. 强制触发一次同步，确保数据是最新的
-              await fetchCartFromDB();
-
-              // 4. 在完全清空后，再添加这一个新商品 (不再触发其他逻辑)
+              // 3. 在完全清空后，再添加这一个新商品 (不再触发其他逻辑)
               performAddToCart(food, currentVendorId);
             }
           }
@@ -245,7 +197,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
         const cleanPrice = parseFloat(food.price ? food.price.replace('RM ', '') : '10.00') || 10.00;
         newCart = [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image, vendor_id: vendorId }];
       }
-
+      
       // 添加完后，手动调用一次同步到数据库
       syncCartToDB(food.id, existingItem ? existingItem.quantity + 1 : 1);
       return newCart;
@@ -319,13 +271,13 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
         {/* Notice 留言板 */}
-       {announcementContent && (
+        {displayVendor.announcement && (
           <View style={styles.announcementCard}>
             <View style={styles.announcementBadge}>
               <Ionicons name="reader-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
               <Text style={styles.announcementBadgeText}>NOTICE</Text>
             </View>
-           <Text style={styles.announcementText}>{announcementContent}</Text>
+            <Text style={styles.announcementText}>{displayVendor.announcement}</Text>
           </View>
         )}
 
@@ -353,12 +305,12 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                     {isOutOfStock && (
-                      <View style={styles.outOfStockContainerRightBtn}>
-                        <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
-                        <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                      {isOutOfStock && (
+                        <View style={styles.outOfStockContainer}>
+                          <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
+                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
                         </View>
-                        )}
+                      )}
                       <TouchableOpacity
                         style={[styles.actionButtonRight, isOutOfStock ? styles.actionButtonDisabled : styles.actionButtonNormal]}
                         disabled={isOutOfStock} onPress={() => handleAddToCart(food, !isOutOfStock)}>
@@ -373,11 +325,11 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                     {isOutOfStock && (
-                      <View style={styles.outOfStockContainerLeftBtn}>
-                       <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
-                       <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
-                      </View>
+                      {isOutOfStock && (
+                        <View style={styles.outOfStockContainer}>
+                          <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
+                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                        </View>
                       )}
                       <TouchableOpacity
                         style={[styles.actionButtonLeft, isOutOfStock ? styles.actionButtonDisabled : styles.actionButtonNormal]}
@@ -563,21 +515,13 @@ const styles = StyleSheet.create({
   foodPriceText: { fontSize: 15, fontWeight: '900', color: '#000000', marginTop: 4 },
   foodTextDisabled: { color: '#757575' },
 
-
-  // 🌟 替换掉原来的 outOfStockContainer
-  outOfStockContainerRightBtn: {
+  //outOfStockContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10,  marginLeft: 0,},
+  outOfStockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute', 
-    bottom: 14,            
-    left: 12, // 按钮在右边，文字正常靠左
-  },
-  outOfStockContainerLeftBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'absolute', 
-    bottom: 14,            
-    left: 45, // 🌟 关键：按钮在左边时，给按钮留出 45px 的空间，文字就不会被挡住了
+    position: 'absolute', // 保持绝对定位
+    bottom: 5,            // 👈 调小这个数值（例如 5），它会更贴近底部
+    left: 10,             // 👈 调整这个数值（例如 10），它会向右移一点
   },
   outOfStockText: { fontSize: 12, fontWeight: '900', color: '#757575', textTransform: 'uppercase' },
 
