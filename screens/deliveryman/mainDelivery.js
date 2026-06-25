@@ -213,54 +213,61 @@ export default function DeliveryMain() {
     if (isOnline) {
       const uniqueChannelName = `rider-order-radar-${Date.now()}`;
       
+      const notifyIfReadyOrder = async (newOrder, oldOrder) => {
+        const waitingStatuses = ['pending_rider', 'ready_for_pickup'];
+
+        if (
+          newOrder.order_type !== 'delivery' ||
+          !waitingStatuses.includes(newOrder.status) ||
+          (oldOrder && waitingStatuses.includes(oldOrder.status))
+        ) {
+          return;
+        }
+
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) return;
+
+          const { data: activeOrders, error } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('rider_id', session.user.id)
+            .in('status', ['accepted_by_rider', 'pickup_rider', 'otw_delivery']);
+
+          if (error) throw error;
+          if (activeOrders && activeOrders.length > 0) return;
+
+          Alert.alert(
+            "🔔 New Order Request!",
+            `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${Number(newOrder.earning || 0).toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
+            [
+              {
+                text: "View Request",
+                onPress: () => {
+                  navigation.navigate('ProcessRequest', { orderData: newOrder });
+                }
+              }
+            ]
+          );
+        } catch (err) {
+          console.log("Check active order error:", err);
+        }
+      };
+
       orderChannel = supabase
         .channel(uniqueChannelName)
         .on(
           'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders' },
+          async (payload) => {
+            await notifyIfReadyOrder(payload.new, null);
+          }
+        )
+        .on(
+          'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'orders' },
-          async (payload) => { 
-            const newOrder = payload.new;
-            const oldOrder = payload.old; 
-            
-            const waitingStatuses = ['pending_rider', 'ready_for_pickup'];
-            
-            if (
-              waitingStatuses.includes(newOrder.status) && 
-              !waitingStatuses.includes(oldOrder.status) && 
-              newOrder.order_type === 'delivery'
-            ) {
-              try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session?.user) return;
-
-                const { data: activeOrders, error } = await supabase
-                  .from('orders')
-                  .select('id')
-                  .eq('rider_id', session.user.id)
-                  .in('status', ['accepted_by_rider', 'pickup_rider', 'otw_delivery']);
-
-                if (error) throw error;
-
-                if (activeOrders && activeOrders.length > 0) {
-                  return;
-                }
-
-                Alert.alert(
-                  "🔔 New Order Request!",
-                  `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${Number(newOrder.earning || 0).toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
-                  [
-                    {
-                      text: "View Request",
-                      onPress: () => {
-                        navigation.navigate('ProcessRequest', { orderData: newOrder });
-                      }
-                    }
-                  ]
-                );
-              } catch (err) {
-                console.log("Check active order error:", err);
-              }
-            }
+          async (payload) => {
+            await notifyIfReadyOrder(payload.new, payload.old);
           }
         )
         .subscribe();
