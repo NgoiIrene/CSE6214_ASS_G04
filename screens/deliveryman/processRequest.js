@@ -122,7 +122,7 @@ export default function ProcessDeliveryRequest() {
       const { data, error } = await supabase
         .from('orders')
         .update({ 
-          status: 'accepted_by_rider',
+          status: 'preparing',
           rider_id: session.user.id,
           earning: calculatedEarning // 顺手把算好的钱存回去，保底
         })
