@@ -46,7 +46,7 @@ export default function HomeScreen() {
       // 🌟 核心修复：完全匹配你真实的 order 表结构！
       const ordersPromise = supabase
         .from('orders') // 换成了你真实的表名: order
-        .select('order_ref, subtotal, status, created_at') // 换成了你真实的列名
+        .select('id, order_number,total_price, status, created_at') // 换成了你真实的列名
         .order('created_at', { ascending: false }) // 默认用 Supabase 自带的 created_at 排序
         .limit(5);
 
@@ -69,7 +69,7 @@ export default function HomeScreen() {
 
     } catch (error) {
       console.log("Error fetching dashboard data:", error.message);
-      // Alert.alert("Data Error", "Failed to load dashboard data.");
+      Alert.alert("Data Error", "Failed to load dashboard data.");
     } finally {
       setIsLoading(false);
     }
@@ -144,16 +144,23 @@ export default function HomeScreen() {
                 <Text style={{ color: '#888', fontStyle: 'italic' }}>No recent orders found.</Text>
               </View>
             ) : (
-              recentOrders.map((order, index) => (
-                <View key={order.order_ref || index} style={[styles.orderRow, index === recentOrders.length - 1 && { borderBottomWidth: 0 }]}>
-                  <View style={{ flex: 1 }}>
-                    {/* 修复：使用真实的 order_ref */}
-                    <Text style={styles.orderIdText}>Order #{String(order.order_ref || 'N/A').substring(0, 6).toUpperCase()}</Text>
-                    {renderStatusBadge(order.status)}
-                  </View>
-                  {/* 修复：使用真实的 total_price */}
-                  <Text style={styles.orderAmountText}>RM {parseFloat(order.total_price || 0).toFixed(2)}</Text>
-                </View>
+             recentOrders.map((order, index) => (
+  <View key={order.id || index} style={[styles.orderRow, index === recentOrders.length - 1 && { borderBottomWidth: 0 }]}>
+    <View style={{ flex: 1 }}>
+      {/* 🌟 修复 1：使用 order_number (如果没有 order_number 则使用 id) */}
+      <Text style={styles.orderIdText}>
+        Order #{String(order.order_number || order.id || 'N/A').substring(0, 8).toUpperCase()}
+      </Text>
+      
+      {/* 状态徽章 */}
+      {renderStatusBadge(order.status)}
+    </View>
+    
+    {/* 🌟 修复 2：使用 total_price */}
+    <Text style={styles.orderAmountText}>
+      RM {parseFloat(order.total_price || 0).toFixed(2)}
+    </Text>
+  </View>
               ))
             )}
           </View>
