@@ -5,6 +5,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
+import 'react-native-url-polyfill/auto';
 import { supabase } from '../../supabaseClient';
 
 export default function AdminProfileScreen({ onProfileUpdate }) {
@@ -21,6 +24,7 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
     account_type: 'admin', 
     avatar_url: null
   });
+
 
   const [pendingProfile, setPendingProfile] = useState({ ...profile });
 
@@ -61,7 +65,12 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
         setPendingProfile(fetchedData);
       }
     } catch (error) {
-      Alert.alert("Error Fetching Profile", error.message);
+     console.error("Save Error Details:", error);
+      // 🌟 将错误对象转成字符串，直接在手机上弹窗显示，方便我们诊断
+      Alert.alert(
+        "报错详情请看这里", 
+        JSON.stringify(error, null, 2) || error.message
+      );
     } finally {
       setIsLoading(false);
     }
@@ -100,14 +109,27 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
       setIsLoading(true);
       let finalAvatarUrl = pendingProfile.avatar_url;
 
+<<<<<<< HEAD
 
       if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
         
+=======
+      // 🌟 新增的图片上传逻辑
+      if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
+        
+        // 1. 使用 FileSystem 读取本地图片为 Base64
+       const base64 = await FileSystem.readAsStringAsync(finalAvatarUrl, {
+          encoding: 'base64',
+        });
+        
+        // 2. 生成一个唯一的文件名
+>>>>>>> 4ef8f30d0f0693d48eabed19c8f5745e8a450408
         const fileExt = finalAvatarUrl.split('.').pop() || 'jpeg';
         const mimeType = fileExt.toLowerCase() === 'jpg' ? 'jpeg' : fileExt.toLowerCase(); 
         const fileName = `${profile.id}_${Date.now()}.${fileExt}`;
         const filePath = `admin_avatars/${fileName}`;
 
+<<<<<<< HEAD
        
         const formData = new FormData();
         formData.append('file', {
@@ -122,6 +144,14 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           .upload(filePath, formData, {
              cacheControl: '3600',
              upsert: false 
+=======
+        // 3. 使用 decode 将 Base64 转为 ArrayBuffer 并上传
+        const { error: uploadError } = await supabase.storage
+          .from('avatars') 
+          .upload(filePath, decode(base64), {
+            contentType: `image/${fileExt}`,
+            upsert: true
+>>>>>>> 4ef8f30d0f0693d48eabed19c8f5745e8a450408
           });
 
         if (uploadError) {
@@ -135,7 +165,8 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           .getPublicUrl(filePath);
 
         finalAvatarUrl = publicUrlData.publicUrl;
-      }
+      } 
+      // ⚠️ 很多时候就是不小心删掉了上面这个闭合 if 语句的大括号！
 
      
       const { error: dbUpdateError } = await supabase
@@ -163,6 +194,7 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
         onProfileUpdate();
       }
     } catch (error) {
+      console.error("Save Error:", error);
       Alert.alert("Save Failed", error.message);
     } finally {
       setIsLoading(false);

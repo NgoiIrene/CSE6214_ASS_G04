@@ -13,7 +13,6 @@ export default function UpdateDeliveryProgress() {
   const navigation = useNavigation();
   const route = useRoute();
   
-  // 🌟 接住上一页传过来的真实订单数据！
   const orderData = route.params?.orderData;
 
   const [stage, setStage] = useState(1); 
@@ -21,24 +20,203 @@ export default function UpdateDeliveryProgress() {
   const [photoUri, setPhotoUri] = useState(null);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  const [vendorProfileName, setVendorProfileName] = useState(null);
+  const [customerProfileName, setCustomerProfileName] = useState(null);
+  const [vendorProfileAddress, setVendorProfileAddress] = useState(null);
+  const [customerProfileAddress, setCustomerProfileAddress] = useState(null);
   const mapRef = useRef(null);
+  
+  // 🌟 一模一样的逻辑，抓取 earning
+  const [calculatedEarning, setCalculatedEarning] = useState(5.00); 
 
-  const orderRef = orderData?.order_number || '#8680';
-  const customerName = orderData?.customer_name || 'Cindy Kiki';
-  const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
-  const pickupLocation = orderData?.pickup_location || 'MMU Starbees';
-  const dropoffLocation = orderData?.dropoff_location || 'Hostel HB3 & 4';
-  const foodDetails = orderData?.food_details || '2x Nasi Lemak w Ayam Rendang\n1x Teh Tarik (Ice)';
-  const earningPrice = orderData?.earning ? `RM ${Number(orderData.earning).toFixed(2)}` : 'RM 5.00';
+  useEffect(() => {
+    const fetchBaseFee = async () => {
+      if (orderData?.vendor_id) {
+        const { data, error } = await supabase
+          .from('delivery_zones')
+          .select('base_fee')
+          .eq('vendor_id', orderData.vendor_id)
+          .single();
+
+        if (data && data.base_fee) {
+          setCalculatedEarning(data.base_fee - 1); // 永远 base_fee - 1
+        }
+      } else if (orderData?.earning) {
+        setCalculatedEarning(Number(orderData.earning));
+      }
+    };
+
+    const fetchProfileNames = async () => {
+      if (!orderData) return;
+      const ids = [];
+      if (orderData.vendor_id) ids.push(orderData.vendor_id);
+      if (orderData.user_id) ids.push(orderData.user_id);
+      if (orderData.customer_id) ids.push(orderData.customer_id);
+      if (ids.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, address')
+        .in('id', ids);
+
+      if (!error && data) {
+        data.forEach((profile) => {
+          if (profile.id === orderData.vendor_id) {
+            setVendorProfileName(profile.full_name);
+            setVendorProfileAddress(profile.address || null);
+          }
+          if (profile.id === orderData.user_id || profile.id === orderData.customer_id) {
+            setCustomerProfileName(profile.full_name);
+            setCustomerProfileAddress(profile.address || null);
+          }
+        });
+      }
+    };
+
+    fetchBaseFee();
+    fetchProfileNames();
+  }, [orderData]);
+
+  // 🌟 统一使用数据库真实的字段名称
+  const [orderRef] = useState('ORD-' + Math.floor(100000 + Math.random() * 900000));
+  const customerName = customerProfileName || orderData?.customer_name || orderData?.customer?.full_name || orderData?.customer || orderData?.user_name || 'Cindy Kiki';
+  const vendorName = vendorProfileName || orderData?.vendor_name || orderData?.vendor?.full_name || orderData?.vendor || 'Rasa Syiokk';
+  const pickupLocation = vendorName;
+  const dropoffLocation = orderData?.delivery_building || orderData?.dropoff_location || orderData?.building || customerProfileAddress || 'Hostel HB3 & 4';
+  const foodDetails = orderData?.food_details || orderData?.notes || '2x Nasi Lemak w Ayam Rendang\n1x Teh Tarik (Ice)';
+  
+  const earningValue = orderData?.earning != null ? Number(orderData.earning) : calculatedEarning;
+  const earningPrice = `RM ${earningValue.toFixed(2)}`;
 
   const starbeesCoords = { latitude: 2.9278, longitude: 101.6415 };
-  const customerCoords = { latitude: 2.9305, longitude: 101.6440 };
+  const deliveryManStartCoords = { latitude: 2.9273, longitude: 101.6422 };
 
-  const currentRiderCoords = stage === 1
-    ? { latitude: 2.9278, longitude: 101.6415 }
-    : { latitude: 2.9290, longitude: 101.6425 };
+  const customerLocationMap = {
+    'Hostel HB 1': { latitude: 2.9300, longitude: 101.6443, icon: 'home', color: '#FF3B30' },
+    'Hostel HB 2': { latitude: 2.9298, longitude: 101.6438, icon: 'home', color: '#FF3B30' },
+    'Hostel HB 3 & 4': { latitude: 2.9305, longitude: 101.6440, icon: 'home', color: '#FF3B30' },
+    'FCI Building': { latitude: 2.9284, longitude: 101.6439, icon: 'business', color: '#4A90E2' },
+    'FOM Building': { latitude: 2.9270, longitude: 101.6432, icon: 'business', color: '#4A90E2' },
+    'Main Library': { latitude: 2.9292, longitude: 101.6420, icon: 'book', color: '#7B1FA2' },
+  };
 
-  // 🌟 核心：实时监听当前订单的状态，等待商家出餐
+  const pickupRouteCoordinates = [
+    deliveryManStartCoords,
+    { latitude: 2.9275, longitude: 101.6426 },
+    { latitude: 2.9277, longitude: 101.6430 },
+    starbeesCoords
+  ];
+
+  const routePathMap = {
+    'Hostel HB 1': [
+      starbeesCoords,
+      { latitude: 2.9288, longitude: 101.6422 },
+      { latitude: 2.9295, longitude: 101.6433 },
+      { latitude: 2.9300, longitude: 101.6443 }
+    ],
+    'Hostel HB 2': [
+      starbeesCoords,
+      { latitude: 2.9286, longitude: 101.6420 },
+      { latitude: 2.9293, longitude: 101.6430 },
+      { latitude: 2.9298, longitude: 101.6438 }
+    ],
+    'Hostel HB 3 & 4': [
+      starbeesCoords,
+      { latitude: 2.9289, longitude: 101.6423 },
+      { latitude: 2.9297, longitude: 101.6436 },
+      { latitude: 2.9305, longitude: 101.6440 }
+    ],
+    'FCI Building': [
+      starbeesCoords,
+      { latitude: 2.9281, longitude: 101.6422 },
+      { latitude: 2.9284, longitude: 101.6439 }
+    ],
+    'FOM Building': [
+      starbeesCoords,
+      { latitude: 2.9274, longitude: 101.6418 },
+      { latitude: 2.9270, longitude: 101.6432 }
+    ],
+    'Main Library': [
+      starbeesCoords,
+      { latitude: 2.9284, longitude: 101.6419 },
+      { latitude: 2.9292, longitude: 101.6420 }
+    ]
+  };
+
+  const selectedCustomerLocation = customerLocationMap[dropoffLocation] || { latitude: 2.9305, longitude: 101.6440, icon: 'home', color: '#FF3B30' };
+  const routeCoordinates = routePathMap[dropoffLocation] || [starbeesCoords, selectedCustomerLocation];
+  const customerCoords = routeCoordinates[routeCoordinates.length - 1];
+  const customerIconName = selectedCustomerLocation.icon;
+  const customerIconColor = selectedCustomerLocation.color;
+  const currentStageRoute = stage === 1 ? pickupRouteCoordinates : routeCoordinates;
+  const initialRegion = {
+    latitude: (currentStageRoute[0].latitude + currentStageRoute[currentStageRoute.length - 1].latitude) / 2,
+    longitude: (currentStageRoute[0].longitude + currentStageRoute[currentStageRoute.length - 1].longitude) / 2,
+    latitudeDelta: Math.max(Math.abs(currentStageRoute[0].latitude - currentStageRoute[currentStageRoute.length - 1].latitude) * 2, 0.01),
+    longitudeDelta: Math.max(Math.abs(currentStageRoute[0].longitude - currentStageRoute[currentStageRoute.length - 1].longitude) * 2, 0.01),
+  };
+  const [riderCoords, setRiderCoords] = useState(deliveryManStartCoords);
+  const [remainingMinutes, setRemainingMinutes] = useState(2);
+  const animationIntervalRef = useRef(null);
+
+  const animateRiderAlongRoute = (path, durationMs = 120000) => {
+    if (animationIntervalRef.current) {
+      clearInterval(animationIntervalRef.current);
+      animationIntervalRef.current = null;
+    }
+
+    if (!path || path.length < 2) {
+      setRiderCoords(deliveryManStartCoords);
+      return;
+    }
+
+    const startTime = Date.now();
+    setRiderCoords(path[0]);
+    setRemainingMinutes(Math.ceil(durationMs / 60000));
+
+    animationIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remainingMs = Math.max(durationMs - elapsed, 0);
+      const remaining = Math.ceil(remainingMs / 60000);
+      const progress = Math.min(elapsed / durationMs, 1);
+      const totalSegments = path.length - 1;
+      const pathPosition = progress * totalSegments;
+      const segmentIndex = Math.min(Math.floor(pathPosition), totalSegments - 1);
+      const segmentProgress = pathPosition - segmentIndex;
+      const from = path[segmentIndex];
+      const to = path[segmentIndex + 1];
+      const nextCoords = {
+        latitude: from.latitude + (to.latitude - from.latitude) * segmentProgress,
+        longitude: from.longitude + (to.longitude - from.longitude) * segmentProgress,
+      };
+
+      setRiderCoords(nextCoords);
+      setRemainingMinutes(remaining);
+
+      if (progress >= 1) {
+        clearInterval(animationIntervalRef.current);
+        animationIntervalRef.current = null;
+        setRemainingMinutes(0);
+      }
+    }, 1000);
+  };
+
+  useEffect(() => {
+    if (stage === 1) {
+      // 🌟 让骑手图标开始沿着去餐厅的路线移动
+      animateRiderAlongRoute(pickupRouteCoordinates, 60000); // 15秒开到餐厅
+    }
+  }, [stage]);
+
+  useEffect(() => {
+    return () => {
+      if (animationIntervalRef.current) {
+        clearInterval(animationIntervalRef.current);
+        animationIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!orderData?.id) return;
 
@@ -72,15 +250,56 @@ export default function UpdateDeliveryProgress() {
     Alert.alert("System Notification", "Vendor has prepared the food! Customer and you are notified.");
   };
 
-  const handlePickedUp = () => {
-    setStage(2);
-    setTimeout(() => {
-      mapRef.current?.fitToCoordinates([currentRiderCoords, customerCoords], {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-        animated: true,
-      });
-    }, 500);
-    Alert.alert("Order Picked Up", "Customer has been notified. Please follow the GPS to drop-off point.");
+  const currentPickupRoute = pickupRouteCoordinates;
+
+  // 🌟 动作 1：确认取餐 (对应 Picked up by Delivery Man)
+  const handleConfirmPickUp = async () => {
+    try {
+      if (orderData?.id) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: 'pickup_rider' }) // 更新状态为 pickup
+          .eq('id', orderData.id);
+        if (error) throw error;
+      }
+      setStage(2); // 进入准备出发阶段
+      setRiderCoords(starbeesCoords);
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(pickupRouteCoordinates, {
+          edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+          animated: true,
+        });
+      }, 500);
+      Alert.alert("Order Picked Up ✅", "Food is secured. Click 'Start Delivery' when you are ready to hit the road.");
+    } catch (e) {
+      Alert.alert("Error", "Could not update status.");
+      console.log(e);
+    }
+  };
+
+  // 🌟 动作 2：开始配送 (对应 Out for Delivery)
+  const handleStartDelivery = async () => {
+    try {
+      if (orderData?.id) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: 'otw_delivery' }) // 更新状态为 delivery
+          .eq('id', orderData.id);
+        if (error) throw error;
+      }
+      setStage(3); // 进入配送阶段
+      setRemainingMinutes(2);
+      animateRiderAlongRoute(routeCoordinates, 120000);
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(routeCoordinates, {
+          edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+          animated: true,
+        });
+      }, 500);
+    } catch (e) {
+      Alert.alert("Error", "Could not update status.");
+      console.log(e);
+    }
   };
 
   const setPhotoFromResult = (result) => {
@@ -148,21 +367,44 @@ export default function UpdateDeliveryProgress() {
         )}
 
         <View style={styles.mapContainer}>
-          <MapView ref={mapRef} style={styles.realMap} initialRegion={{ latitude: 2.9290, longitude: 101.6425, latitudeDelta: 0.008, longitudeDelta: 0.008 }}>
-            <Marker coordinate={currentRiderCoords} title="You" zIndex={2}><View style={[styles.customMarkerContainer, { backgroundColor: '#4CAF50' }]}><MaterialIcons name="delivery-dining" size={18} color="white" /></View></Marker>
-            <Marker coordinate={starbeesCoords} title={vendorName} zIndex={1}><View style={[styles.customMarkerContainer, { backgroundColor: '#2196F3' }]}><Ionicons name="restaurant" size={18} color="white" /></View></Marker>
-            <Marker coordinate={customerCoords} title={customerName} zIndex={1}><View style={[styles.customMarkerContainer, { backgroundColor: '#FF3B30' }]}><Ionicons name="home" size={18} color="white" /></View></Marker>
-            {stage === 2 && <Polyline coordinates={[currentRiderCoords, customerCoords]} strokeColor="#00C853" strokeWidth={4} lineDashPattern={[5, 5]} />}
+          {/* 🌟 加上了 onMapReady 来自动缩放聚焦 */}
+          <MapView 
+            ref={mapRef} 
+            style={styles.realMap} 
+            initialRegion={initialRegion}
+            onMapReady={() => {
+              if (stage === 1) {
+                mapRef.current?.fitToCoordinates(pickupRouteCoordinates, {
+                  edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+                  animated: true,
+                });
+              }
+            }}
+          >
+            <Marker coordinate={riderCoords} title="You" zIndex={3}><View style={[styles.customMarkerContainer, { backgroundColor: '#4CAF50' }]}><MaterialIcons name="delivery-dining" size={18} color="white" /></View></Marker>
+            <Marker coordinate={starbeesCoords} title={vendorName} zIndex={2}><View style={[styles.customMarkerContainer, { backgroundColor: '#2196F3' }]}><Ionicons name="restaurant" size={18} color="white" /></View></Marker>
+            <Marker coordinate={customerCoords} title={dropoffLocation} zIndex={1}><View style={[styles.customMarkerContainer, { backgroundColor: customerIconColor }]}><Ionicons name={customerIconName} size={18} color="white" /></View></Marker>
+            {stage === 1 && <Polyline coordinates={pickupRouteCoordinates} strokeColor="#2196F3" strokeWidth={4} lineDashPattern={[4, 4]} />}
+            {stage === 3 && <Polyline coordinates={routeCoordinates} strokeColor="#00C853" strokeWidth={4} lineDashPattern={[5, 5]} />}
           </MapView>
         </View>
 
         <View style={styles.locationRow}>
-          <View style={styles.iconWrapper}><Ionicons name={stage === 1 ? "restaurant-outline" : "person-outline"} size={22} color="black" /></View>
+          <View style={styles.iconWrapper}><Ionicons name={stage <= 2 ? "restaurant-outline" : "person-outline"} size={22} color="black" /></View>
           <View style={styles.locationTextContainer}>
-            <Text style={styles.locationTitle}>{stage === 1 ? vendorName : `${customerName} (${orderRef})`}</Text>
-            <Text style={styles.locationSub}>{stage === 1 ? `Pickup Point • ${pickupLocation}` : `Drop-off Point • ${dropoffLocation}`}</Text>
+            <Text style={styles.locationTitle}>{stage <= 2 ? vendorName : `${customerName} (${orderRef})`}</Text>
+            <Text style={styles.locationSub}>{stage <= 2 ? `Pickup Point • ${pickupLocation}` : `Drop-off Point • ${dropoffLocation}`}</Text>
           </View>
-          <Text style={styles.timeEst}>{stage === 1 ? "Wait" : "2 mins"}</Text>
+          {/* 🌟 动态判断：在车还在走时显示时间，到了才显示 Wait */}
+          <Text style={styles.timeEst}>
+            {stage === 1 && remainingMinutes > 0 
+              ? `${remainingMinutes} min` 
+              : stage <= 2 
+                ? "Wait" 
+                : remainingMinutes > 0 
+                  ? `${remainingMinutes} min${remainingMinutes > 1 ? 's' : ''}` 
+                  : "< 1 min"}
+          </Text>
         </View>
 
         <TouchableOpacity style={styles.orderSummaryRow} onPress={() => setIsDetailsExpanded(!isDetailsExpanded)} activeOpacity={0.7}>
@@ -180,7 +422,7 @@ export default function UpdateDeliveryProgress() {
           </View>
         )}
 
-        {stage === 2 && (
+        {stage === 3 && (
           <View>
             <View style={styles.remarksRow}>
               <Ionicons name="document-text-outline" size={20} color="#F57C00" style={{ marginTop: 2 }} />
@@ -219,8 +461,12 @@ export default function UpdateDeliveryProgress() {
 
       <View style={styles.footerActionArea}>
         {stage === 1 ? (
-          <TouchableOpacity style={[styles.acceptBtn, !vendorReady && styles.btnDisabled]} onPress={handlePickedUp} disabled={!vendorReady} activeOpacity={0.8}>
-            <Text style={[styles.acceptBtnText, !vendorReady && styles.btnTextDisabled]}>{vendorReady ? "Picked Up" : "Waiting for Food..."}</Text>
+          <TouchableOpacity style={[styles.acceptBtn, !vendorReady && styles.btnDisabled]} onPress={handleConfirmPickUp} disabled={!vendorReady} activeOpacity={0.8}>
+            <Text style={[styles.acceptBtnText, !vendorReady && styles.btnTextDisabled]}>{vendorReady ? "Confirm Pick Up" : "Waiting for Food..."}</Text>
+          </TouchableOpacity>
+        ) : stage === 2 ? (
+          <TouchableOpacity style={styles.acceptBtn} onPress={handleStartDelivery} activeOpacity={0.8}>
+            <Text style={styles.acceptBtnText}>Start Delivery</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={[styles.acceptBtn, !photoUri && styles.btnDisabled]} onPress={handleConfirmDelivered} disabled={!photoUri} activeOpacity={0.8}>
