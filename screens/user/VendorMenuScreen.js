@@ -101,7 +101,8 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.log("User not logged in");
+        //console.log("User not logged in");
+        Alert.alert("Debug", "User is not logged in!"); // 检查是否没登录
         return;
       }
 
@@ -131,7 +132,12 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
           const { error: insertError } = await supabase
             .from('carts')
             .insert({ user_id: user.id, food_id: foodId, quantity: quantity });
-          if (insertError) console.log("Insert error:", insertError.message);
+          //if (insertError) console.log("Insert error:", insertError.message);
+          // 🚨 重点在这里！如果有错，它会立刻弹窗告诉你！
+          if (insertError) {
+            Alert.alert("Insert Error (Please read!)", insertError.message);
+          }
+
         }
       }
     } catch (error) {

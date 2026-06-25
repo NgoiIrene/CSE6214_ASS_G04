@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../supabaseClient';
 
-export default function CheckoutScreen({ route, navigation }) {
+export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
   const { items = [], remarks = "" } = route?.params || {};
 
   // 1. 状态控制
@@ -26,35 +26,87 @@ export default function CheckoutScreen({ route, navigation }) {
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const tax = itemsTotal * 0.05;
-  const deliveryFee = orderType === 'Delivery' ? 5.00 : 0.00;
-  const totalPayment = itemsTotal + tax + deliveryFee;
+  // 🌟 1. 新增两个 State 来存 Vendor ID 和 Customer Name
+  const [vendorId, setVendorId] = useState(null);
+  const [customerName, setCustomerName] = useState('Customer');
 
-  // 🌟 初始化拉取数据 (钱包余额 & Vendor地址)
+  const [deliveryFee, setDeliveryFee] = useState(0);
+
+  // 🌟 1. 新增：SST Rate 的状态 (默认 5%，即 0.05)
+  const [sstRate, setSstRate] = useState(0.05);
+
+  const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  // 🌟 2. 修改：使用动态抓取到的 sstRate 计算税务
+  const tax = itemsTotal * sstRate;
+
+  // 根据选择的配送方式，决定当前运费是多少
+  const currentDeliveryFee = orderType === 'Delivery' ? deliveryFee : 0;
+  const totalPayment = itemsTotal + tax + currentDeliveryFee;
+
+
+  // 🌟 初始化拉取数据 (钱包余额 & Vendor地址 & 动态运费)
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // 拉取钱包余额
       if (user) {
+        // 抓钱包余额 和 用户名字
         const { data: walletData } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
         if (walletData) setWalletBalance(walletData.balance);
+
+        const { data: profileData } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+        if (profileData?.full_name) setCustomerName(profileData.full_name);
+
+        // ==========================================
+        // 🌟 新增：抓取全局 SST Rate
+        // ==========================================
+        const { data: finSettings } = await supabase
+          .from('system_financial_settings')
+          .select('sst_rate')
+          .eq('id', 1)
+          .single();
+
+        if (finSettings && finSettings.sst_rate !== null) {
+          // 数据库如果是 6，就转成 0.06
+          setSstRate(parseFloat(finSettings.sst_rate) / 100);
+        }
+
       }
 
       // 🌟 智能拉取 Vendor 地址 (根据购物车第一个食物)
       if (items.length > 0) {
         try {
-          // A. 找食物是谁卖的
           const { data: foodData } = await supabase.from('food_items').select('vendor_id').eq('id', items[0].id).single();
           if (foodData?.vendor_id) {
-            // B. 去 profile 表找老板的地址 (⚠️ 记得在 profiles 表加 address 列)
+            setVendorId(foodData.vendor_id); // 存起来，等下放进 orders 表
+
+            // 1. 查 Vendor 地址
             const { data: vendorProfile } = await supabase.from('profiles').select('address, full_name').eq('id', foodData.vendor_id).single();
             if (vendorProfile?.address) {
               setVendorAddress(`${vendorProfile.full_name} - ${vendorProfile.address}`);
             } else {
               setVendorAddress(`${vendorProfile.full_name || 'Vendor'} (Address not set)`);
             }
+
+            // ==========================================
+            // 🌟 2. 新增：根据查到的 vendor_id 去查真实运费！
+            // ==========================================
+            const { data: zoneData, error: zoneError } = await supabase
+              .from('delivery_zones')
+              .select('base_fee, extra_fee')
+              .eq('vendor_id', foodData.vendor_id)
+              .single();
+
+            if (!zoneError && zoneData) {
+              const dbBaseFee = parseFloat(zoneData.base_fee || 0);
+              const dbExtraFee = parseFloat(zoneData.extra_fee || 0);
+              setDeliveryFee(dbBaseFee + dbExtraFee); // 👈 更新 UI 运费状态！
+            } else {
+              console.warn("Could not fetch delivery zones for UI:", zoneError?.message);
+            }
+            // ==========================================
+
           }
         } catch (err) {
           console.log("Fetch vendor address error: ", err.message);
@@ -65,8 +117,20 @@ export default function CheckoutScreen({ route, navigation }) {
     fetchInitialData();
   }, []);
 
+  // 🌟 3. 升级下单逻辑：把你表里所有的列都精准填入！
   const handlePlaceOrder = async () => {
     try {
+      // 🌟 新增：防御性检查，防止 vendorId 为空
+      let currentVendorId = vendorId;
+      if (!currentVendorId && items.length > 0) {
+        const { data: foodData } = await supabase.from('food_items').select('vendor_id').eq('id', items[0].id).single();
+        if (foodData) currentVendorId = foodData.vendor_id;
+      }
+
+      if (!currentVendorId) {
+        throw new Error("Cannot identify the vendor. Please try again.");
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Please login first");
 
@@ -75,21 +139,83 @@ export default function CheckoutScreen({ route, navigation }) {
         return;
       }
 
-      // 🌟 插入订单 (加入 order_number)
+      // ==========================================
+      // 🌟 新增融合：去 Database 拿最新的抽成设定
+      // ==========================================
+      const { data: settings, error: settingsError } = await supabase
+        .from('system_financial_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+      if (settingsError) throw new Error("Failed to fetch system financial settings.");
+
+      // 提取设定的百分比
+      const commissionRate = settings.commission_rate / 100;
+
+      // 🌟 新增：去 delivery_zones 表拿 extra_fee
+      // （这里默认拿 id = 1 的 zone，如果你的系统有匹配建筑物的逻辑，可后续更改 id）
+      const { data: zoneData, error: zoneError } = await supabase
+        .from('delivery_zones')
+        .select('base_fee, extra_fee')
+        .eq('vendor_id', currentVendorId)
+        .single();
+
+      if (zoneError) {
+        console.warn("Could not fetch delivery_zones data:", zoneError.message);
+      }
+
+      // 🌟 2. 新增：计算真实的运费 (base_fee + extra_fee) 和最终总价
+      const dbBaseFee = parseFloat(zoneData?.base_fee || 0);
+      const dbExtraFee = parseFloat(zoneData?.extra_fee || 0);
+
+      const finalDeliveryFee = orderType === 'Delivery' ? (dbBaseFee + dbExtraFee) : 0;
+      const finalTotalPrice = itemsTotal + tax + finalDeliveryFee;
+
+      // 计算本次订单的商家抽成
+      const calculatedVendorCommission = itemsTotal * commissionRate;
+
+      // 🌟 关键修改：直接使用 delivery_zones 里的 extra_fee 作为 delivery_split
+      // const calculatedDeliverySplit = orderType === 'Delivery'
+      //   ? parseFloat(zoneData?.extra_fee || 0)
+      //   : 0;
+
+      // 🌟 保持 extra_fee 作为外卖员的 delivery_split
+      const calculatedDeliverySplit = orderType === 'Delivery' ? dbExtraFee : 0;
+
+      // 🌟 把购物车里的 items 变成一串文字 (例如: "1x Bibimbap, 2x Coke")
+      const foodDetailsString = items.map(item => `${item.quantity}x ${item.name}`).join(', ');
+
+      // 🌟 插入订单，对应你截图中所有的列名！
       const { error: orderError } = await supabase.from('orders').insert([{
         user_id: user.id,
-        order_number: orderNumber, // 存入刚生成的漂亮订单号
-        total_price: totalPayment,
-        order_type: orderType.toLowerCase(),
-        delivery_building: orderType === 'Delivery' ? campusBuilding : null,
-        status: 'pending',
-        remarks: remarks
+        vendor_id: currentVendorId,              // 存入商家 ID
+        order_number: orderNumber,        // ORD-xxxxxx
+        order_type: orderType.toLowerCase(), // delivery 或 pick up
+        delivery_building: orderType === 'Delivery' ? campusBuilding : null, // 只有 Delivery 才有 Building
+        food_details: foodDetailsString,  // 存入食物文字详情
+        subtotal: itemsTotal,             // RM 10.00
+        sst_fee: tax,                     // RM 0.50
+        delivery_fee: finalDeliveryFee,        // RM 5.00
+        total_price: finalTotalPrice,        // RM 15.50
+        payment_method: 'Campus Wallet',  // 支付方式
+        status: 'pending',                // 初始状态
+        remarks: remarks,                  // 备注
+        food_items_json: JSON.stringify(items), // 🌟 关键：把 items 数组存成 JSON 字符串
+
+        // 👇 融合进来的新字段：锁定这笔订单的财务账目
+        // 👇 给计算结果加上安全转换，消除红线
+        vendor_commission: parseFloat(Number(calculatedVendorCommission || 0).toFixed(2)),
+        delivery_split: parseFloat(Number(calculatedDeliverySplit || 0).toFixed(2))
       }]);
       if (orderError) throw orderError;
 
       // 扣款与清空购物车
-      await supabase.from('wallets').update({ balance: walletBalance - totalPayment }).eq('user_id', user.id);
+      await supabase.from('wallets').update({ balance: walletBalance - finalTotalPrice }).eq('user_id', user.id);
       await supabase.from('carts').delete().eq('user_id', user.id);
+
+      // 🌟 在这里增加这一行，确保 CheckoutScreen 记住了刚刚下单的订单号
+      setCheckoutData(prev => ({ ...prev, lastOrderNumber: orderNumber }));
 
       Alert.alert("Success", "Order placed successfully!", [
         { text: "Back to Home", onPress: () => navigation.navigate('Home') },
@@ -116,12 +242,6 @@ export default function CheckoutScreen({ route, navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollPadding}>
-
-        {/* 🌟 订单号显示区域 */}
-        <View style={styles.orderNumberBox}>
-          <Text style={styles.orderNumberLabel}>Order No:</Text>
-          <Text style={styles.orderNumberValue}>{orderNumber}</Text>
-        </View>
 
         {/* 1. Order Summary */}
         <View style={styles.card}>
@@ -193,8 +313,19 @@ export default function CheckoutScreen({ route, navigation }) {
         <View style={[styles.card, { marginBottom: 20 }]}>
           <Text style={styles.cardTitle}>Billing Details</Text>
           <View style={styles.priceDetailRow}><Text style={styles.priceDetailLabel}>Items Subtotal</Text><Text style={styles.priceDetailValue}>RM {itemsTotal.toFixed(2)}</Text></View>
-          <View style={styles.priceDetailRow}><Text style={styles.priceDetailLabel}>SST (5%)</Text><Text style={styles.priceDetailValue}>RM {tax.toFixed(2)}</Text></View>
-          {orderType === 'Delivery' && <View style={styles.priceDetailRow}><Text style={styles.priceDetailLabel}>Delivery Fee</Text><Text style={styles.priceDetailValue}>RM {deliveryFee.toFixed(2)}</Text></View>}
+          <View style={styles.priceDetailRow}>
+            <Text style={styles.priceDetailLabel}>SST ({(sstRate * 100).toFixed(0)}%)
+            </Text>
+            <Text style={styles.priceDetailValue}>RM {tax.toFixed(2)}
+            </Text>
+          </View>
+          {/* 找到这行并替换 */}
+          {orderType === 'Delivery' && <View style={styles.priceDetailRow}>
+            <Text style={styles.priceDetailLabel}>Delivery Fee</Text>
+            <Text style={styles.priceDetailValue}>RM {currentDeliveryFee.toFixed(2)}
+            </Text>
+          </View>
+          }
         </View>
 
         {/* 6. Action */}
