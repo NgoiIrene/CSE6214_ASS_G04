@@ -78,7 +78,7 @@ export default function UpdateDeliveryProgress() {
   }, [orderData]);
 
   // 🌟 统一使用数据库真实的字段名称
-  const orderRef = orderData?.order_number || '#8680';
+  const [orderRef] = useState('ORD-' + Math.floor(100000 + Math.random() * 900000));
   const customerName = customerProfileName || orderData?.customer_name || orderData?.customer?.full_name || orderData?.customer || orderData?.user_name || 'Cindy Kiki';
   const vendorName = vendorProfileName || orderData?.vendor_name || orderData?.vendor?.full_name || orderData?.vendor || 'Rasa Syiokk';
   const pickupLocation = vendorName;
