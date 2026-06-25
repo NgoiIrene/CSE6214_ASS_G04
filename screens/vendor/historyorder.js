@@ -87,25 +87,52 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) return;
 
-        // 2. 🎯 拿着用户 ID 去名为 'vendor_order' 的表内拉取属于当前 Vendor 的已完成单子
-        const { data: orderData, error: orderError } = await supabase
-          .from('vendor_order')
-          .select('id, date, time, order_no, customer, price, profit') 
-          .eq('vendor_id', user.id); 
+        // 2. 同时拉取订单列表（status 为 'completed'）和 佣金率配置
+        const [ordersResult, finResult] = await Promise.all([
+          supabase
+            .from('orders')
+            .select('id, created_at, order_number, subtotal, total_price, profiles:user_id(full_name)')
+            .eq('vendor_id', user.id)
+            .eq('status', 'completed')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('system_financial_settings')
+            .select('commission_rate')
+            .eq('id', 1)
+            .single(),
+        ]);
 
-        if (orderError) throw orderError;
+        if (ordersResult.error) throw ordersResult.error;
 
-        if (orderData) {
+        // 3. 取出佣金率
+        const commissionRate = finResult.data ? Number(finResult.data.commission_rate) : 0;
+
+        if (ordersResult.data) {
           // 格式规范化转换
-          const formattedOrders = orderData.map(o => ({
-            id: String(o.id),
-            date: o.date,       // 必须为 'YYYY-MM-DD' 格式
-            time: o.time ? o.time.substring(0, 5) : '', // 截取 'HH:MM'
-            orderNo: o.order_no || String(o.id),
-            customer: o.customer || 'Customer',
-            price: Number(o.price || 0),
-            profit: Number(o.profit || 0) // 注入数据库内的单单利润
-          }));
+          const formattedOrders = ordersResult.data.map(o => {
+            // 解析 created_at 为本地日期和时间
+            const dateObj = new Date(o.created_at);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            const hours = String(dateObj.getHours()).padStart(2, '0');
+            const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+            const timeStr = `${hours}:${minutes}`;
+
+            // 计算利润: subtotal * (100 - commissionRate) / 100
+            const profit = Number(o.subtotal || 0) * (100 - commissionRate) / 100;
+
+            return {
+              id: String(o.id),
+              date: dateStr,
+              time: timeStr,
+              orderNo: o.order_number || String(o.id),
+              customer: o.profiles?.full_name || 'Customer',
+              price: Number(o.total_price || 0),
+              profit: profit
+            };
+          });
           setOrders(formattedOrders);
         }
       } catch (error) {

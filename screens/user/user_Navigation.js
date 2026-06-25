@@ -11,6 +11,8 @@ import MenuScreen from './MenuScreen';
 import OrderHistoryScreen from './OrderHistoryScreen';
 import UserProfileScreen from './ProfileScreen';
 import VendorMenuScreen from './VendorMenuScreen';
+import DeliveryOrderTrack from './DeliveryTrackingScreen';
+import PickupOrderTrack from './PickupTrackingScreen';
 
 import { UserContext, UserProvider } from './UserContext';
 
@@ -104,8 +106,13 @@ function MainLayout() {
                                 setCheckoutData(prev => ({ ...prev, autoOpenCart: true }));
                                 setCurrentPage('Home');
                             },
-                            navigate: (pageName) => setCurrentPage(pageName)
+                            navigate: (pageName, params) => { // 🌟 修改这里，允许传递 params
+                                setCurrentPage(pageName);
+                                // 如果传入了参数，你需要处理它，这里简化逻辑
+                            }
                         }}
+                        // 🌟 关键：把这个函数传下去！
+                        setCheckoutData={setCheckoutData}
                     />
                 );
 
@@ -160,6 +167,22 @@ function MainLayout() {
                             </Text>
                         </View>
                     </View>
+                );
+
+            case 'DeliveryOrderTrack':
+                return (
+                    <DeliveryOrderTrack
+                        {...props}
+                        route={{ params: { orderNumber: checkoutData.lastOrderNumber } }}
+                    />
+                );
+
+            case 'PickupOrderTrack':
+                return (
+                    <PickupOrderTrack 
+                        {...props} 
+                        route={{ params: { orderId: checkoutData.lastOrderNumber } }} 
+                    />
                 );
 
             default:

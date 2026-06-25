@@ -7,13 +7,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { UserContext } from './UserContext';
-import { supabase } from '../../supabaseClient'; // ⚠️ 如果路径不对请自行微调
+import { supabase } from '../../supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 const cardWidth = (width - 46) / 3;
 const BANNER_WIDTH = width - 40;
 
-// 🌟 核心修复 1：一定要确保这里写了 navigateToVendor 属性！
 export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCart, clearAutoOpenCart, checkoutData, navigateToVendor }) {
   const { profile } = useContext(UserContext);
 
@@ -28,6 +27,7 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
 
   const totalCartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
+  // 🌟 修改：连接真实的 carts 表，并通过 food_items 拿到真实数据
   useEffect(() => {
     const fetchCartFromDB = async () => {
       try {
@@ -35,8 +35,8 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
         if (!user) return;
 
         const { data, error } = await supabase
-          .from('cart')
-          .select(`quantity, food_id, food_item (name, price, image_url)`)
+          .from('carts') // 换成了 carts
+          .select(`quantity, food_id, food_items (name, price, image_url)`)
           .eq('user_id', user.id);
 
         if (error) throw error;
@@ -44,10 +44,10 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
         if (data && data.length > 0) {
           const dbCart = data.map(item => ({
             id: item.food_id,
-            name: item.food_item?.name || 'Loading...',
-            price: parseFloat(item.food_item?.price) || 0,
+            name: item.food_items?.name || 'Loading...',
+            price: parseFloat(item.food_items?.price) || 0,
             quantity: item.quantity,
-            image: item.food_item?.image_url || null
+            image: item.food_items?.image_url || null
           }));
           setCartItems(dbCart);
         }
@@ -66,17 +66,46 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
     }
   }, [autoOpenCart]);
 
+  // 🌟 最新修复版：完美适配干净的 carts 表，解决存不进数据库的问题
   const syncCartToDB = async (foodId, quantity) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log("User not logged in");
+        return;
+      }
+
       if (quantity === 0) {
-        await supabase.from('cart').delete().match({ user_id: user.id, food_id: foodId });
+        // 如果数量是 0，从购物车删除
+        const { error } = await supabase.from('carts').delete().match({ user_id: user.id, food_id: foodId });
+        if (error) console.log("Delete error:", error.message);
       } else {
-        await supabase.from('cart').upsert({ user_id: user.id, food_id: foodId, quantity: quantity }, { onConflict: 'user_id, food_id' });
+        // 1. 先检查数据库里是不是已经有这道菜了
+        const { data: existingCart } = await supabase
+          .from('carts')
+          .select('cart_id') // 随便选一个字段检查存在性
+          .eq('user_id', user.id)
+          .eq('food_id', foodId)
+          .maybeSingle();
+
+        if (existingCart) {
+          // 2. 如果有，就更新数量 (不再传 name 字段)
+          const { error: updateError } = await supabase
+            .from('carts')
+            .update({ quantity: quantity })
+            .eq('user_id', user.id)
+            .eq('food_id', foodId);
+          if (updateError) console.log("Update error:", updateError.message);
+        } else {
+          // 3. 如果没有，就插入新的一行 (不再传 name 字段)
+          const { error: insertError } = await supabase
+            .from('carts')
+            .insert({ user_id: user.id, food_id: foodId, quantity: quantity });
+          if (insertError) console.log("Insert error:", insertError.message);
+        }
       }
     } catch (error) {
-      console.log("DB Sync Warning:", error.message);
+      console.log("DB Sync Error:", error.message);
     }
   };
 
@@ -99,8 +128,13 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
   const increaseQuantity = (id) => {
     setCartItems(prevItems => {
       let newQuantity;
+      let foodName;
       const newCart = prevItems.map(item => {
-        if (item.id === id) { newQuantity = item.quantity + 1; return { ...item, quantity: newQuantity }; }
+        if (item.id === id) {
+          newQuantity = item.quantity + 1;
+          foodName = item.name;
+          return { ...item, quantity: newQuantity };
+        }
         return item;
       });
       syncCartToDB(id, newQuantity);
@@ -111,8 +145,13 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
   const decreaseQuantity = (id) => {
     setCartItems(prevItems => {
       let newQuantity;
+      let foodName;
       const newCart = prevItems.map(item => {
-        if (item.id === id) { newQuantity = item.quantity > 1 ? item.quantity - 1 : 1; return { ...item, quantity: newQuantity }; }
+        if (item.id === id) {
+          newQuantity = item.quantity > 1 ? item.quantity - 1 : 1;
+          foodName = item.name;
+          return { ...item, quantity: newQuantity };
+        }
         return item;
       });
       syncCartToDB(id, newQuantity);
@@ -122,7 +161,7 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
 
   const removeItemFromCart = (id) => {
     setCartItems(prevItems => prevItems.filter(item => item.id !== id));
-    syncCartToDB(id, 0);
+    syncCartToDB(id, 0, null);
   };
 
   const [bannerAds, setBannerAds] = useState([
@@ -174,14 +213,13 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
     fetchVendorsFromProfiles();
   }, []);
 
-  // 🌟 核心修复 2：点击卡片时，调用 navigateToVendor 告诉管家换页
   const VendorCard = ({ vendor }) => (
     <TouchableOpacity
       style={styles.vendorCard}
       activeOpacity={0.8}
       onPress={() => {
         if (navigateToVendor) {
-          navigateToVendor(vendor); // 把商家的资料发给主控制中心
+          navigateToVendor(vendor);
         } else {
           Alert.alert("Error", "Navigation not hooked up properly in Main App.js");
         }
@@ -277,7 +315,6 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
   );
 }
 
-// 购物车逻辑
 function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, decreaseQuantity, removeItemFromCart, onClose, onGoToCheckout }) {
   const [isRemoveModalVisible, setIsRemoveModalVisible] = useState(false);
   const [itemToIdToRemove, setItemToIdToRemove] = useState(null);
@@ -285,6 +322,7 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
 
   const triggerRemovePrompt = (id, name) => { setItemToIdToRemove(id); setItemNameToRemove(name); setIsRemoveModalVisible(true); };
   const confirmRemoveItem = (confirm) => { if (confirm && itemToIdToRemove) removeItemFromCart(itemToIdToRemove); setIsRemoveModalVisible(false); };
+
   const calculateSubtotal = () => {
     const itemsTotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     return itemsTotal === 0 ? "RM 0.00" : `RM ${itemsTotal.toFixed(2)}`;
@@ -330,7 +368,6 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
   );
 }
 
-// 样式表
 const styles = StyleSheet.create({
   scrollPadding: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: 10, backgroundColor: '#ffffff', zIndex: 10 },

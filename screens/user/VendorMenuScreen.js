@@ -21,7 +21,6 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     announcement: vendorData?.announcement || 'Welcome to our store, enjoy your meal⭐ \n\n🔥 Today Special:\nWe have limited NEW items available NOW\n\n⚠️ IMPORTANT:\nPlease hurry up before it finished!'
   };
 
-  // 🌟 核心修改 1：把假数据删掉，换成用 State 动态接收数据库里的食物！
   const [foodItems, setFoodItems] = useState([]);
 
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -31,32 +30,28 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const [isCartVisible, setIsCartVisible] = useState(false);
   const [remarks, setRemarks] = useState("");
 
-  // 🌟 核心修改 2：页面加载时，根据商家的 ID 去拉取真实菜单！
+  // 页面加载时，根据商家的 ID 去拉取真实菜单！
   useEffect(() => {
     const fetchFoodItemsFromDB = async () => {
-      // 如果没有商家 ID（比如直接刷新了页面），就不执行
       if (!vendorData?.id) return;
 
       try {
-        // ⚠️ 根据你的截图，表名是 food_items。如果报错说找不到表，请改成 food_item (没有s)
         const { data, error } = await supabase
           .from('food_items')
           .select('*')
-          .eq('vendor_id', vendorData.id); // 只抓取这家店的食物！
+          .eq('vendor_id', vendorData.id);
 
         if (error) throw error;
 
         if (data && data.length > 0) {
-          // 把数据库里的真实数据，转换成你 UI 里需要用的格式
           const formattedMenu = data.map(item => ({
             id: item.id,
             name: item.name,
-            price: `RM ${parseFloat(item.price).toFixed(2)}`, // 自动加上 RM 并保留两位小数
+            price: `RM ${parseFloat(item.price).toFixed(2)}`,
             image: item.image_url || 'https://via.placeholder.com/150',
-            ingredient: item.desc || 'No description provided.', // 完美连接你截图里的 desc 栏位
-            allergen: item.allergen || 'None', // 完美连接 allergen 栏位
-            calories: item.calories || 'N/A',  // 完美连接 calories 栏位
-            // 🌟 智能库存判断：如果 stock 是 0，直接触发灰色的 OUT OF STOCK 状态！
+            ingredient: item.desc || 'No description provided.',
+            allergen: item.allergen || 'None',
+            calories: item.calories || 'N/A',
             status: item.stock <= 0 ? 'out_of_stock' : null
           }));
 
@@ -70,7 +65,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     fetchFoodItemsFromDB();
   }, [vendorData]);
 
-  // 拉取购物车数据（保持不变）
+  // 🌟 修改 1：拉取购物车数据，连接 carts 表 和 food_items 表
   useEffect(() => {
     const fetchCartFromDB = async () => {
       try {
@@ -78,8 +73,8 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
         if (!user) return;
 
         const { data, error } = await supabase
-          .from('cart')
-          .select(`quantity, food_id, food_item (name, price, image_url)`)
+          .from('carts') // 换成 carts
+          .select(`quantity, food_id, food_items (name, price, image_url)`)
           .eq('user_id', user.id);
 
         if (error) throw error;
@@ -87,10 +82,10 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
         if (data && data.length > 0) {
           const dbCart = data.map(item => ({
             id: item.food_id,
-            name: item.food_item?.name || 'Loading...',
-            price: parseFloat(item.food_item?.price) || 0,
+            name: item.food_items?.name || 'Loading...',
+            price: parseFloat(item.food_items?.price) || 0,
             quantity: item.quantity,
-            image: item.food_item?.image_url || null
+            image: item.food_items?.image_url || null
           }));
           setCart(dbCart);
         }
@@ -101,23 +96,52 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     fetchCartFromDB();
   }, []);
 
-  // 购物车静默同步数据库（保持不变）
+  // 🌟 最新修复版：完美适配干净的 carts 表，解决存不进数据库的问题
   const syncCartToDB = async (foodId, quantity) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        //console.log("User not logged in");
+        Alert.alert("Debug", "User is not logged in!"); // 检查是否没登录
+        return;
+      }
 
       if (quantity === 0) {
-        await supabase.from('cart').delete().match({ user_id: user.id, food_id: foodId });
+        // 如果数量是 0，从购物车删除
+        const { error } = await supabase.from('carts').delete().match({ user_id: user.id, food_id: foodId });
+        if (error) console.log("Delete error:", error.message);
       } else {
-        await supabase.from('cart').upsert({
-          user_id: user.id,
-          food_id: foodId,
-          quantity: quantity
-        }, { onConflict: 'user_id, food_id' });
+        // 1. 先检查数据库里是不是已经有这道菜了
+        const { data: existingCart } = await supabase
+          .from('carts')
+          .select('cart_id') // 随便选一个字段检查存在性
+          .eq('user_id', user.id)
+          .eq('food_id', foodId)
+          .maybeSingle();
+
+        if (existingCart) {
+          // 2. 如果有，就更新数量 (不再传 name 字段)
+          const { error: updateError } = await supabase
+            .from('carts')
+            .update({ quantity: quantity })
+            .eq('user_id', user.id)
+            .eq('food_id', foodId);
+          if (updateError) console.log("Update error:", updateError.message);
+        } else {
+          // 3. 如果没有，就插入新的一行 (不再传 name 字段)
+          const { error: insertError } = await supabase
+            .from('carts')
+            .insert({ user_id: user.id, food_id: foodId, quantity: quantity });
+          //if (insertError) console.log("Insert error:", insertError.message);
+          // 🚨 重点在这里！如果有错，它会立刻弹窗告诉你！
+          if (insertError) {
+            Alert.alert("Insert Error (Please read!)", insertError.message);
+          }
+
+        }
       }
     } catch (error) {
-      console.log("DB Sync Warning:", error.message);
+      console.log("DB Sync Error:", error.message);
     }
   };
 
@@ -127,7 +151,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   };
 
   const handleAddToCart = (food, isAvailable) => {
-    if (!isAvailable) return; // 缺货根本点不动
+    if (!isAvailable) return;
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === food.id);
       let newQuantity = 1; let newCart;
@@ -146,8 +170,13 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const increaseQuantity = (id) => {
     setCart(prevItems => {
       let newQuantity;
+      let foodName;
       const newCart = prevItems.map(item => {
-        if (item.id === id) { newQuantity = item.quantity + 1; return { ...item, quantity: newQuantity }; }
+        if (item.id === id) {
+          newQuantity = item.quantity + 1;
+          foodName = item.name;
+          return { ...item, quantity: newQuantity };
+        }
         return item;
       });
       syncCartToDB(id, newQuantity);
@@ -158,8 +187,13 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const decreaseQuantity = (id) => {
     setCart(prevItems => {
       let newQuantity;
+      let foodName;
       const newCart = prevItems.map(item => {
-        if (item.id === id) { newQuantity = item.quantity > 1 ? item.quantity - 1 : 1; return { ...item, quantity: newQuantity }; }
+        if (item.id === id) {
+          newQuantity = item.quantity > 1 ? item.quantity - 1 : 1;
+          foodName = item.name;
+          return { ...item, quantity: newQuantity };
+        }
         return item;
       });
       syncCartToDB(id, newQuantity);
@@ -169,7 +203,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
 
   const removeItemFromCart = (id) => {
     setCart(prevItems => prevItems.filter(item => item.id !== id));
-    syncCartToDB(id, 0);
+    syncCartToDB(id, 0, null); // 加入 null 占位
   };
 
   const getTotalCartQuantity = () => {
@@ -210,9 +244,6 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
           </View>
         )}
 
-        {/* ========================================== */}
-        {/* 🌟 这里现在会根据你数据库里抓出来的真实食物来显示了！ */}
-        {/* ========================================== */}
         {foodItems.length === 0 ? (
           <View style={{ alignItems: 'center', marginTop: 40 }}>
             <Ionicons name="fast-food-outline" size={64} color="#cccccc" />
@@ -322,7 +353,6 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
           decreaseQuantity={decreaseQuantity}
           removeItemFromCart={removeItemFromCart}
           onClose={() => setIsCartVisible(false)}
-          // 🌟 必须加上这一行：把 navigateToCheckout 传给购物车子组件
           onGoToCheckout={(items, remarks) => {
             setIsCartVisible(false);
             navigateToCheckout(items, remarks);

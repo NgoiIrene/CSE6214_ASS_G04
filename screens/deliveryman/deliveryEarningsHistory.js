@@ -54,7 +54,7 @@ export default function EarningsAndHistory() {
       // 🌟 核心修改：直接查 orders 表，且只看 completed 的单子！
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .eq('rider_id', session.user.id)
         .eq('status', 'completed') // 🎯 只要已完成的订单
         .order('created_at', { ascending: false }); // 最新的排在最上面
@@ -71,6 +71,7 @@ export default function EarningsAndHistory() {
           
           return {
             ...item,
+            customer_name: item.profiles?.full_name || item.customer_name || 'Customer',
             calendar_date: `${year}-${month}-${day}`, // 专门给日历过滤用的 YYYY-MM-DD
             display_time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) // 显示用的 14:30 PM
           };
@@ -220,7 +221,7 @@ export default function EarningsAndHistory() {
                   <Text style={styles.timeText}>{item.calendar_date} • {item.display_time}</Text>
                   
                   {/* 🌟 订单编号 */}
-                  <Text style={styles.orderIdText}>Order {item.order_ref}</Text>
+                  <Text style={styles.orderIdText}>Order {item.order_number}</Text>
                   
                   {/* 🌟 顾客名字 */}
                   <View style={styles.customerRow}>

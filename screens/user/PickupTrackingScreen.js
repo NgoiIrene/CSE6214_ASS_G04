@@ -11,6 +11,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../supabaseClient';
 
 export default function OrderTrackingPickupScreen({ route, navigation }) {
   const {
@@ -36,12 +37,19 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
   }, [countdown]);
 
   // 2. 模拟监听后端状态
-  useEffect(() => {
-    const statusSync = setInterval(() => {
-      console.log("Syncing with vendor database...");
+ useEffect(() => {
+    // 假设 orderId 已经获取到
+    const statusSync = setInterval(async () => {
+        const { data } = await supabase.from('orders').select('status').eq('order_number', orderId).single();
+        if (data?.status === 'accepted_by_vendor') {
+            setCurrentStatusLevel(2); // 🌟 点亮第 2 步
+        } else if (data?.status === 'rejected') {
+             Alert.alert("Order Rejected", "Vendor rejected your order.");
+             navigation.navigate('Home');
+        }
     }, 5000);
     return () => clearInterval(statusSync);
-  }, []);
+}, []);
 
   const handleCancelOrder = () => {
     Alert.alert("Cancel Order", "Are you sure to cancel order?", [
@@ -104,9 +112,10 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
         <View style={styles.trackingCard}>
           <Text style={styles.trackingTitle}>Order Progress</Text>
           {renderStep(1, "Order Placed", "Your order has been received.")}
-          {renderStep(2, "Preparing", "Vendor is preparing your meal.")}
-          {renderStep(3, "Ready for Pickup", "Food is ready for collection.")}
-          {renderStep(4, "Order Completed", "Enjoy your meal!")}
+          {renderStep(2, "Accepted by Vendor", "Vendor has accepted your order.")}
+          {renderStep(3, "Preparing", "Vendor is preparing your meal.")}
+          {renderStep(4, "Ready for Pickup", "Food is ready for collection.")}
+          {renderStep(5, "Order Completed", "Enjoy your meal!")}
         </View>
 
         {/* Cancel Order Button */}
@@ -139,7 +148,7 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
       {/* ✅ 按钮位置调整：将 Pick Up 按钮移到 ScrollView 外面，固定在屏幕底部，永远不会和 Note 抢位置 */}
       <View style={styles.bottomFixedContainer}>
         <TouchableOpacity
-          style={[styles.pickupBtn, currentStatusLevel === 3 ? styles.pickupBtnActive : styles.btnDisabled]}
+          style={[styles.pickupBtn, currentStatusLevel === 4 ? styles.pickupBtnActive : styles.btnDisabled]}
           disabled={currentStatusLevel !== 3}
           activeOpacity={0.7}
           onPress={handleConfirmPickup}
