@@ -224,6 +224,11 @@ export default function DeliveryMain() {
           return;
         }
 
+        // 如果订单已经分配给了 rider，则不要当作新请求再发一次。
+        if (newOrder.rider_id) {
+          return;
+        }
+
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.user) return;
@@ -232,7 +237,7 @@ export default function DeliveryMain() {
             .from('orders')
             .select('id')
             .eq('rider_id', session.user.id)
-            .in('status', ['accepted_by_rider', 'pickup_rider', 'otw_delivery']);
+            .in('status', ['accepted_by_rider', 'pickup_rider', 'otw_delivery', 'ready_for_pickup']);
 
           if (error) throw error;
           if (activeOrders && activeOrders.length > 0) return;

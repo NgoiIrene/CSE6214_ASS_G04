@@ -163,7 +163,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                     setCurrentStatusLevel(5);
                 }
                 // 🟢 2. Accepted by Delivery Man
-                else if (currentStatus === 'accepted_by_rider') {
+                else if (currentStatus === 'preparing') {
                     setCurrentStatusLevel(4);
                     // 🌟 骑手终于接单了，立刻禁用取消按钮！
                     setIsCancelDisabled(true);
