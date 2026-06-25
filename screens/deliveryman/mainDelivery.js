@@ -153,6 +153,33 @@ export default function DeliveryMain() {
     return data && data.length > 0 ? data[0] : null;
   };
 
+  const calculateOrderEarning = async (order) => {
+    if (order?.earning != null) {
+      return Number(order.earning);
+    }
+
+    if (!order?.vendor_id) {
+      return 0;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('delivery_zones')
+        .select('base_fee')
+        .eq('vendor_id', order.vendor_id)
+        .single();
+
+      if (error || !data?.base_fee) {
+        return 0;
+      }
+
+      return Number(data.base_fee) - 1;
+    } catch (err) {
+      console.log('Earning lookup failed:', err);
+      return 0;
+    }
+  };
+
   // 🌟 修复：如果没有排班则不准上线 🌟
   const handleToggleOnline = async (newValue) => {
     if (newValue === true && shifts.length === 0) {
@@ -181,9 +208,10 @@ export default function DeliveryMain() {
         if (newValue === true) {
           const earliestOrder = await fetchEarliestPendingOrder();
           if (earliestOrder) {
+            const orderEarning = await calculateOrderEarning(earliestOrder);
             Alert.alert(
               "🟢 You are Online!",
-              `Radar activated. Found an existing order request (#${earliestOrder.order_number || 'N/A'}) created earlier.`,
+              `Radar activated. Found an existing order request (#${earliestOrder.order_number || 'N/A'}) created earlier.\nEarning: RM ${orderEarning.toFixed(2)}`,
               [
                 {
                   text: "View Request",
@@ -242,9 +270,11 @@ export default function DeliveryMain() {
           if (error) throw error;
           if (activeOrders && activeOrders.length > 0) return;
 
+          const orderEarning = await calculateOrderEarning(newOrder);
+
           Alert.alert(
             "🔔 New Order Request!",
-            `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${Number(newOrder.earning || 0).toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
+            `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${orderEarning.toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
             [
               {
                 text: "View Request",
