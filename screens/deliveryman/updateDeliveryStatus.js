@@ -220,6 +220,10 @@ export default function UpdateDeliveryProgress() {
   useEffect(() => {
     if (!orderData?.id) return;
 
+    if (orderData.status === 'ready_for_pickup') {
+      setVendorReady(true);
+    }
+
     const statusChannel = supabase
       .channel(`order-status-${orderData.id}`)
       .on(
@@ -244,11 +248,6 @@ export default function UpdateDeliveryProgress() {
       supabase.removeChannel(statusChannel);
     };
   }, [orderData?.id]);
-
-  const simulateVendorReady = () => {
-    setVendorReady(true);
-    Alert.alert("System Notification", "Vendor has prepared the food! Customer and you are notified.");
-  };
 
   const currentPickupRoute = pickupRouteCoordinates;
 
@@ -358,19 +357,13 @@ export default function UpdateDeliveryProgress() {
             <Text style={[styles.vendorStatusText, { color: vendorReady ? "#00C853" : "#F57C00" }]}>
               {vendorReady ? " Food is ready for pickup!" : " Waiting for vendor to prepare food..."}
             </Text>
-            {!vendorReady && (
-              <TouchableOpacity style={styles.testBtn} onPress={simulateVendorReady}>
-                <Text style={styles.testBtnText}>Test: Vendor Ready</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
         <View style={styles.mapContainer}>
-          {/* 🌟 加上了 onMapReady 来自动缩放聚焦 */}
-          <MapView 
-            ref={mapRef} 
-            style={styles.realMap} 
+          <MapView
+            ref={mapRef}
+            style={styles.realMap}
             initialRegion={initialRegion}
             onMapReady={() => {
               if (stage === 1) {
@@ -381,44 +374,49 @@ export default function UpdateDeliveryProgress() {
               }
             }}
           >
-            <Marker coordinate={riderCoords} title="You" zIndex={3}><View style={[styles.customMarkerContainer, { backgroundColor: '#4CAF50' }]}><MaterialIcons name="delivery-dining" size={18} color="white" /></View></Marker>
-            <Marker coordinate={starbeesCoords} title={vendorName} zIndex={2}><View style={[styles.customMarkerContainer, { backgroundColor: '#2196F3' }]}><Ionicons name="restaurant" size={18} color="white" /></View></Marker>
-            <Marker coordinate={customerCoords} title={dropoffLocation} zIndex={1}><View style={[styles.customMarkerContainer, { backgroundColor: customerIconColor }]}><Ionicons name={customerIconName} size={18} color="white" /></View></Marker>
+            <Marker coordinate={riderCoords} title="You" zIndex={3}>
+              <View style={[styles.customMarkerContainer, { backgroundColor: '#4CAF50' }]}>
+                <MaterialIcons name="delivery-dining" size={18} color="white" />
+              </View>
+            </Marker>
+            <Marker coordinate={starbeesCoords} title={vendorName} zIndex={2}>
+              <View style={[styles.customMarkerContainer, { backgroundColor: '#2196F3' }]}>
+                <Ionicons name="restaurant" size={18} color="white" />
+              </View>
+            </Marker>
+            <Marker coordinate={customerCoords} title={dropoffLocation} zIndex={1}>
+              <View style={[styles.customMarkerContainer, { backgroundColor: customerIconColor }]}>
+                <Ionicons name={customerIconName} size={18} color="white" />
+              </View>
+            </Marker>
             {stage === 1 && <Polyline coordinates={pickupRouteCoordinates} strokeColor="#2196F3" strokeWidth={4} lineDashPattern={[4, 4]} />}
             {stage === 3 && <Polyline coordinates={routeCoordinates} strokeColor="#00C853" strokeWidth={4} lineDashPattern={[5, 5]} />}
           </MapView>
         </View>
 
         <View style={styles.locationRow}>
-          <View style={styles.iconWrapper}><Ionicons name={stage <= 2 ? "restaurant-outline" : "person-outline"} size={22} color="black" /></View>
-          <View style={styles.locationTextContainer}>
-            <Text style={styles.locationTitle}>{stage <= 2 ? vendorName : `${customerName} (${orderRef})`}</Text>
-            <Text style={styles.locationSub}>{stage <= 2 ? `Pickup Point • ${pickupLocation}` : `Drop-off Point • ${dropoffLocation}`}</Text>
+          <View style={styles.iconWrapper}>
+            <Ionicons name={stage <= 2 ? "restaurant-outline" : "person-outline"} size={22} color="black" />
           </View>
-          {/* 🌟 动态判断：在车还在走时显示时间，到了才显示 Wait */}
+          <View style={styles.locationTextContainer}>
+            <Text style={styles.locationTitle}>
+              {stage <= 2 ? vendorName || 'Vendor' : `${customerName || 'Customer'} • ${orderRef || ''}`}
+            </Text>
+            <Text style={styles.locationSub}>
+              {stage === 3 ? `Drop-off Point • ${dropoffLocation}` : `Pickup Point • ${pickupLocation || 'Loading...'}`}
+            </Text>
+          </View>
           <Text style={styles.timeEst}>
-            {stage === 1 && remainingMinutes > 0 
-              ? `${remainingMinutes} min` 
-              : stage <= 2 
-                ? "Wait" 
-                : remainingMinutes > 0 
-                  ? `${remainingMinutes} min${remainingMinutes > 1 ? 's' : ''}` 
-                  : "< 1 min"}
+            {stage === 1 ? 'Awaiting pickup' : stage === 2 ? 'On the way' : `${remainingMinutes || '<1'} min`}
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.orderSummaryRow} onPress={() => setIsDetailsExpanded(!isDetailsExpanded)} activeOpacity={0.7}>
-          <View style={styles.iconWrapper}><Ionicons name="bag-handle-outline" size={22} color="black" /></View>
-          <View style={styles.locationTextContainer}>
-            <Text style={styles.orderId}>Order ({orderRef})</Text>
-            <Text style={styles.customerName}>Earning: {earningPrice}</Text>
-          </View>
-          <Ionicons name={isDetailsExpanded ? "chevron-up" : "chevron-down"} size={20} color="black" />
-        </TouchableOpacity>
-
-        {isDetailsExpanded && (
-          <View style={styles.orderDetailsContainer}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#333', lineHeight: 22 }}>{foodDetails}</Text>
+        {stage === 1 && (
+          <View style={styles.orderDetailsCard}>
+            <Text style={styles.orderDetailsLabel}>Order Number</Text>
+            <Text style={styles.orderDetailsValue}>{orderRef}</Text>
+            <Text style={[styles.orderDetailsLabel, { marginTop: 12 }]}>Order Details</Text>
+            <Text style={styles.orderDetailsValue}>{foodDetails}</Text>
           </View>
         )}
 
@@ -502,6 +500,9 @@ const styles = StyleSheet.create({
   orderSummaryRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: '#F8F9FA' },
   orderId: { fontWeight: 'bold', fontSize: 14 },
   customerName: { fontSize: 12, color: '#888', marginTop: 2 },
+  orderDetailsCard: { marginHorizontal: 15, padding: 16, borderRadius: 14, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 10 },
+  orderDetailsLabel: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 4 },
+  orderDetailsValue: { fontSize: 15, color: '#222', lineHeight: 22 },
   orderDetailsContainer: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   remarksRow: { flexDirection: 'row', padding: 15, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   remarksLabel: { fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 4 },

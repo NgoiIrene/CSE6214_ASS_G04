@@ -86,7 +86,17 @@ export default function ProcessDeliveryRequest() {
   useEffect(() => {
     if (timeLeft === 0 && orderStatus === 'pending') {
       setOrderStatus('missed');
-      Alert.alert("Time's Up", "You didn't respond in 20 seconds. The request has been reassigned.");
+      Alert.alert(
+        "Time's Up",
+        "You didn't respond in 20 seconds. The request has been reassigned.",
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Home'),
+          },
+        ],
+        { cancelable: false }
+      );
       return;
     }
 
