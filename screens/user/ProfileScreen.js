@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import { supabase } from '../../supabaseClient'; // 确保路径正确
 
 export default function UserProfileScreen({ onProfileUpdate }) {
@@ -193,6 +194,35 @@ export default function UserProfileScreen({ onProfileUpdate }) {
 
     try {
       setIsLoading(true);
+
+      let finalAvatarUrl = pendingProfile.avatar_url;
+
+      // 如果发现是本地文件路径，先上传到 Supabase Storage
+      if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
+        const fileExt = (finalAvatarUrl.split('.').pop() || 'jpg').toLowerCase();
+        const mimeType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
+        const fileName = `${profile.id}_${Date.now()}.${fileExt}`;
+        const filePath = `user_avatars/${fileName}`;
+
+        const file = new File(finalAvatarUrl);
+        const arrayBuffer = await file.arrayBuffer();
+
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, arrayBuffer, {
+            contentType: mimeType,
+            upsert: true,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+
+        finalAvatarUrl = publicUrlData.publicUrl;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -200,13 +230,15 @@ export default function UserProfileScreen({ onProfileUpdate }) {
           phone_number: pendingProfile.phone_number.trim(),
           gender: pendingProfile.gender,
           age: pendingProfile.age ? parseInt(pendingProfile.age, 10) : null,
-          avatar_url: pendingProfile.avatar_url,
+          avatar_url: finalAvatarUrl,
         })
         .eq('id', profile.id);
 
       if (error) throw error;
 
-      setProfile({ ...pendingProfile });
+      const updatedProfile = { ...pendingProfile, avatar_url: finalAvatarUrl };
+      setProfile(updatedProfile);
+      setPendingProfile(updatedProfile);
       Alert.alert("Success", "User Profile updated successfully!");
       setIsEditMode(false);
 
