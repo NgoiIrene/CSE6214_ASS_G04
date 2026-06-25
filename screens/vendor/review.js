@@ -269,25 +269,6 @@ export default function ReviewScreen({ navigateToScreen }) {
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* ==================== 结果统计与排序条 ==================== */}
-            <View style={styles.resultBar}>
-              <Text style={styles.resultBarText}>{filteredReviews.length} Found:</Text>
-
-              <TouchableOpacity
-                onPress={() => setIsAscending(!isAscending)}
-                style={styles.sortBtn}
-              >
-                <Ionicons
-                  name={isAscending ? "arrow-up" : "arrow-down"}
-                  size={20}
-                  color="#000"
-                />
-                <Text style={{ fontSize: 13, marginLeft: 4, color: '#000' }}>
-                  {isAscending ? 'Oldest' : 'Newest'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             {/* 导航列表 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
@@ -389,8 +370,18 @@ export default function ReviewScreen({ navigateToScreen }) {
       {/* ==================== 结果统计与排序条 ==================== */}
       <View style={styles.resultBar}>
         <Text style={styles.resultBarText}>{filteredReviews.length} Found:</Text>
-        <TouchableOpacity onPress={() => setIsAscending(!isAscending)} style={styles.sortBtn}>
-          <Ionicons name="swap-vertical" size={18} color="#000" />
+        <TouchableOpacity
+          onPress={() => setIsAscending(!isAscending)}
+          style={[styles.sortBtn, { flexDirection: 'row', alignItems: 'center' }]}
+        >
+          <Ionicons
+            name={isAscending ? "arrow-up" : "arrow-down"}
+            size={18}
+            color="#000"
+          />
+          <Text style={{ fontSize: 13, marginLeft: 4, color: '#000' }}>
+            {isAscending ? 'Oldest' : 'Newest'}
+          </Text>
         </TouchableOpacity>
       </View>
       <View style={styles.divider} />
