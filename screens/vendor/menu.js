@@ -179,8 +179,8 @@ function MenuScreen({ onBack, navigateToScreen }) {
             stock: item.stock.toString(),
             desc: item.desc || '',
             img: item.image_url || null,
-            allergen: item.allergen || '',                         
-            calories: item.calories ? item.calories.toString() : '' 
+            allergen: item.allergen || '',
+            calories: item.calories ? item.calories.toString() : ''
           }));
           setFoodItems(mappedFoods);
         }
@@ -451,8 +451,8 @@ function MenuScreen({ onBack, navigateToScreen }) {
       setFormStock(food.stock);
       setFormDesc(food.desc);
       setFormImg(food.img);
-      setFormAllergen(food.allergen || '');                          
-      setFormCalories(food.calories ? food.calories.toString() : ''); 
+      setFormAllergen(food.allergen || '');
+      setFormCalories(food.calories ? food.calories.toString() : '');
     } else {
       setEditingFoodId(null);
       setFormName('');
@@ -460,25 +460,28 @@ function MenuScreen({ onBack, navigateToScreen }) {
       setFormStock('');
       setFormDesc('');
       setFormImg(null);
-      setFormAllergen('');                                           
-      setFormCalories('');                                           
+      setFormAllergen('');
+      setFormCalories('');
     }
     setFoodModalVisible(true);
   };
 
   const handleSaveFoodForm = async () => {
-    // 强制校验非空：名称、价格、过敏原和卡路里均必填
-    if (!formName || !formPrice || !formAllergen.trim() || !formCalories.trim()) {
-      Alert.alert("Error", "Name, Price, Allergen, and Calories are required.");
+    // 🚨 校验逻辑更新：
+    // 必填：Name, Price, Allergen, Calories, Stock
+    // 选填：Desc (可以为空)
+    if (!formName || !formPrice || !formAllergen.trim() || !formCalories.trim() || formStock === '') {
+      Alert.alert("Error", "Name, Price, Stock, Allergen, and Calories are required.");
       return;
     }
 
     setIsLoading(true);
     const priceNum = parseFloat(formPrice) || 0;
-    const stockInt = parseInt(formStock, 10) || 0;
-    const caloriesNum = parseFloat(formCalories) || 0; 
+    const stockInt = parseInt(formStock, 10) || 0; // 即使没填，这里初始化为 0
+    const caloriesNum = parseFloat(formCalories) || 0;
     const finalName = formName.toUpperCase();
     const finalAllergen = formAllergen.trim();
+    const finalDesc = formDesc.trim(); // 获取描述，保持其可选性
 
     try {
       let finalFoodImgUrl = formImg;
@@ -502,10 +505,10 @@ function MenuScreen({ onBack, navigateToScreen }) {
             name: finalName,
             price: priceNum,
             stock: stockInt,
-            desc: formDesc,
+            desc: finalDesc,         // 更新描述，即使为空也存入
             image_url: finalFoodImgUrl,
-            allergen: finalAllergen,   
-            calories: caloriesNum      
+            allergen: finalAllergen,
+            calories: caloriesNum
           })
           .eq('id', editingFoodId)
           .eq('vendor_id', vendorId);
@@ -516,17 +519,16 @@ function MenuScreen({ onBack, navigateToScreen }) {
         }
 
         setFoodItems(foodItems.map(item => item.id === editingFoodId ? {
-          ...item, 
-          name: finalName, 
-          price: formPrice, 
-          stock: formStock, 
-          desc: formDesc, 
+          ...item,
+          name: finalName,
+          price: formPrice,
+          stock: formStock,
+          desc: finalDesc,
           img: finalFoodImgUrl,
           allergen: finalAllergen,
           calories: formCalories
         } : item));
       } else {
-        // ✨ 已完全删去关于 `code` 列的计算和生成
         const { data, error } = await supabase
           .from('food_items')
           .insert([{
@@ -535,10 +537,10 @@ function MenuScreen({ onBack, navigateToScreen }) {
             name: finalName,
             price: priceNum,
             stock: stockInt,
-            desc: formDesc,
+            desc: finalDesc,         // 插入描述，即使为空
             image_url: finalFoodImgUrl,
-            allergen: finalAllergen,   
-            calories: caloriesNum      
+            allergen: finalAllergen,
+            calories: caloriesNum
           }])
           .select()
           .single();
@@ -554,8 +556,8 @@ function MenuScreen({ onBack, navigateToScreen }) {
           category_id: currentCategoryId,
           name: finalName,
           price: formPrice,
-          stock: formStock || '0',
-          desc: formDesc,
+          stock: formStock,
+          desc: finalDesc,
           img: finalFoodImgUrl,
           allergen: finalAllergen,
           calories: formCalories
@@ -842,35 +844,44 @@ function MenuScreen({ onBack, navigateToScreen }) {
                   {formImg ? <Image source={{ uri: formImg }} style={styles.modalSelectedImgCircle} /> : <Text style={{ color: '#aaa' }}>Upload Photo</Text>}
                 </TouchableOpacity>
               </View>
-              
+
               <Text style={styles.inputLabel}>Name:</Text>
               <TextInput style={styles.modalInput} value={formName} onChangeText={setFormName} />
-              
+
               <Text style={styles.inputLabel}>Price (RM):</Text>
               <TextInput style={styles.modalInput} value={formPrice} onChangeText={setFormPrice} keyboardType="numeric" />
-              
+
               <Text style={styles.inputLabel}>Stock:</Text>
               <TextInput style={styles.modalInput} value={formStock} onChangeText={setFormStock} keyboardType="numeric" />
 
               {/* 过敏原字段 */}
               <Text style={styles.inputLabel}>Allergen:</Text>
-              <TextInput 
-                style={styles.modalInput} 
-                value={formAllergen} 
-                onChangeText={setFormAllergen} 
+              <TextInput
+                style={styles.modalInput}
+                value={formAllergen}
+                onChangeText={setFormAllergen}
                 placeholder="e.g. Peanuts, Eggs / None"
               />
 
               {/* 卡路里字段 */}
               <Text style={styles.inputLabel}>Calories (kcal):</Text>
-              <TextInput 
-                style={styles.modalInput} 
-                value={formCalories} 
-                onChangeText={setFormCalories} 
+              <TextInput
+                style={styles.modalInput}
+                value={formCalories}
+                onChangeText={setFormCalories}
                 keyboardType="numeric"
                 placeholder="e.g. 350"
               />
-              
+
+              <Text style={styles.inputLabel}>Description (Optional):</Text>
+              <TextInput
+                style={[styles.modalInput, { height: 80 }]}
+                value={formDesc}
+                onChangeText={setFormDesc}
+                placeholder="Briefly describe your food..."
+                multiline
+              />
+
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSaveFoodForm}><Text style={styles.modalSubmitBtnText}>CONFIRM & SAVE</Text></TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
