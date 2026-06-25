@@ -87,29 +87,19 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) return;
 
-        // 2. 同时拉取订单列表（status 为 'completed'）和 佣金率配置
-        const [ordersResult, finResult] = await Promise.all([
-          supabase
-            .from('orders')
-            .select('id, created_at, order_number, subtotal, total_price, profiles:user_id(full_name)')
-            .eq('vendor_id', user.id)
-            .eq('status', 'completed')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('system_financial_settings')
-            .select('commission_rate')
-            .eq('id', 1)
-            .single(),
-        ]);
+        // 2. 拉取订单列表（status 为 'completed'），包含订单中的 vendor_commission (不关联 system_financial_settings)
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, created_at, order_number, subtotal, total_price, vendor_commission, profiles:user_id(full_name)')
+          .eq('vendor_id', user.id)
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false });
 
-        if (ordersResult.error) throw ordersResult.error;
+        if (ordersError) throw ordersError;
 
-        // 3. 取出佣金率
-        const commissionRate = finResult.data ? Number(finResult.data.commission_rate) : 0;
-
-        if (ordersResult.data) {
+        if (ordersData) {
           // 格式规范化转换
-          const formattedOrders = ordersResult.data.map(o => {
+          const formattedOrders = ordersData.map(o => {
             // 解析 created_at 为本地日期和时间
             const dateObj = new Date(o.created_at);
             const year = dateObj.getFullYear();
@@ -120,8 +110,8 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
             const minutes = String(dateObj.getMinutes()).padStart(2, '0');
             const timeStr = `${hours}:${minutes}`;
 
-            // 计算利润: subtotal * (100 - commissionRate) / 100
-            const profit = Number(o.subtotal || 0) * (100 - commissionRate) / 100;
+            // 计算利润: subtotal - vendor_commission
+            const profit = Number(o.subtotal || 0) - Number(o.vendor_commission || 0);
 
             return {
               id: String(o.id),
