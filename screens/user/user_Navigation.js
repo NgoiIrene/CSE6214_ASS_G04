@@ -13,6 +13,7 @@ import UserProfileScreen from './ProfileScreen';
 import VendorMenuScreen from './VendorMenuScreen';
 import DeliveryOrderTrack from './DeliveryTrackingScreen';
 import PickupOrderTrack from './PickupTrackingScreen';
+import UserResetPassword from './UserResetPassword';
 
 import { UserContext, UserProvider } from './UserContext';
 
@@ -157,25 +158,7 @@ function MainLayout() {
                 );
 
             case 'Reset Password':
-                return (
-                    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-                        <View style={styles.tmpHeader}>
-                            <TouchableOpacity style={styles.hamburgerBtn} onPress={() => toggleSidebar(true)}>
-                                <View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} /><View style={styles.hamburgerLine} />
-                            </TouchableOpacity>
-                            <Text style={styles.tmpHeaderTitle}>{currentPage.toUpperCase()}</Text>
-                            <View style={{ width: 40 }} />
-                        </View>
-                        <View style={styles.tmpDivider} />
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                            <Ionicons name="construct-outline" size={64} color="#ccc" style={{ marginBottom: 15 }} />
-                            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>{currentPage} Page is coming soon...</Text>
-                            <Text style={{ fontSize: 14, color: '#999', marginTop: 5 }}>
-                                {'Click the top-left "<" button to go back.'}
-                            </Text>
-                        </View>
-                    </View>
-                );
+                return <UserResetPassword {...props} />;
 
             case 'DeliveryOrderTrack':
                 return (
