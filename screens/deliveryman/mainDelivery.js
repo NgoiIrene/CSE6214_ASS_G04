@@ -136,6 +136,23 @@ export default function DeliveryMain() {
     );
   };
 
+  const fetchEarliestPendingOrder = async () => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('order_type', 'delivery')
+      .in('status', ['pending_rider', 'ready_for_pickup'])
+      .is('rider_id', null)
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (error) {
+      throw error;
+    }
+
+    return data && data.length > 0 ? data[0] : null;
+  };
+
   // 🌟 修复：如果没有排班则不准上线 🌟
   const handleToggleOnline = async (newValue) => {
     if (newValue === true && shifts.length === 0) {
@@ -162,7 +179,25 @@ export default function DeliveryMain() {
         Alert.alert("Network Error", "Failed to update your status.");
       } else {
         if (newValue === true) {
-          Alert.alert("🟢 You are Online!", "Radar activated. Waiting for incoming delivery requests...");
+          const earliestOrder = await fetchEarliestPendingOrder();
+          if (earliestOrder) {
+            Alert.alert(
+              "🟢 You are Online!",
+              `Radar activated. Found an existing order request (#${earliestOrder.order_number || 'N/A'}) created earlier.`,
+              [
+                {
+                  text: "View Request",
+                  onPress: () => navigation.navigate('ProcessRequest', { orderData: earliestOrder })
+                },
+                {
+                  text: "Later",
+                  style: 'cancel'
+                }
+              ]
+            );
+          } else {
+            Alert.alert("🟢 You are Online!", "Radar activated. Waiting for incoming delivery requests...");
+          }
         } else {
           Alert.alert("⚪ You are Offline", "You will no longer receive delivery requests.");
         }
@@ -198,7 +233,6 @@ export default function DeliveryMain() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session?.user) return;
 
-                /* 🌟 为了 Demo 顺畅，我已经帮你把这段防重复接单的逻辑 Comment 掉了
                 const { data: activeOrders, error } = await supabase
                   .from('orders')
                   .select('id')
@@ -210,7 +244,6 @@ export default function DeliveryMain() {
                 if (activeOrders && activeOrders.length > 0) {
                   return;
                 }
-                */
 
                 Alert.alert(
                   "🔔 New Order Request!",
