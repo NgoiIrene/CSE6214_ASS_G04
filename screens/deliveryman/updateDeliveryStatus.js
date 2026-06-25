@@ -22,9 +22,27 @@ export default function UpdateDeliveryProgress() {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
   const mapRef = useRef(null);
+  const [customerName, setCustomerName] = useState('Loading...');
+
+  useEffect(() => {
+    if (orderData?.customer_name) {
+      setCustomerName(orderData.customer_name);
+    } else if (orderData?.user_id) {
+      supabase.from('profiles').select('full_name').eq('id', orderData.user_id).single()
+        .then(({ data }) => {
+          if (data?.full_name) {
+            setCustomerName(data.full_name);
+          } else {
+            setCustomerName('Customer');
+          }
+        })
+        .catch(() => setCustomerName('Customer'));
+    } else {
+      setCustomerName('Cindy Kiki');
+    }
+  }, [orderData]);
 
   const orderRef = orderData?.order_number || '#8680';
-  const customerName = orderData?.customer_name || 'Cindy Kiki';
   const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
   const pickupLocation = orderData?.pickup_location || 'MMU Starbees';
   const dropoffLocation = orderData?.dropoff_location || 'Hostel HB3 & 4';
