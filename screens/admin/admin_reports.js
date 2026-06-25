@@ -31,44 +31,62 @@ export default function GenerateReport() {
   // 1. Color Logic (Revenue)
   // ==========================================
   const getRevenueColor = (value) => {
-    if (value >= 600) return '#111111';
-    if (value >= 150 && value <= 590) return '#2E7D32';
-    if (value >= 0 && value < 150) return '#C62828';
     return '#111111';
   };
 
   // ==========================================
-  // 2. Database Fetch Logic
+  // 🌟 2. 聪明的 Database Fetch Logic 🌟
   // ==========================================
   useEffect(() => {
     const fetchSupabaseData = async () => {
       setLoading(true);
       try {
-        // 同步拉取三个 Table 的数据
+        // 直接从我们建好的 3 个聪明的 View 拿数据，完全不需要在前端算数！
         const [
-          { data: revenueData },
-          { data: settlementData },
-          { data: topSellingData }
+          { data: revenueData, error: revError },
+          { data: settlementData, error: setError },
+          { data: topSellingData, error: topError }
         ] = await Promise.all([
           supabase.from('platform_revenue_summary').select('*').order('id', { ascending: true }),
-          supabase.from('vendor_settlements').select('*').order('id', { ascending: true }),
-          supabase.from('top_selling_items').select('*').order('id', { ascending: true })
+          supabase.from('vendor_settlements').select('*').order('total_sales', { ascending: false }),
+          supabase.from('top_selling_items').select('*').order('order_count', { ascending: false })
         ]);
 
-        // 更新状态，将数据库的数据 Map 进 UI 格式
+        if (revError) throw revError;
+        if (setError) throw setError;
+        if (topError) throw topError;
+
+        // 更新状态，将数据库的数据直接 Map 进 UI 格式
         setReportsData({
           overall: {
-            title: 'Overall Platform Revenue Trend', type: 'bars',
-            data: revenueData ? revenueData.map(item => ({ label: item.label, value: item.amount, prefix: item.prefix })) : []
+            title: 'Overall Platform Revenue Trend', 
+            type: 'bars',
+            data: revenueData ? revenueData.map(item => ({ 
+              label: item.label, 
+              value: Number(item.amount), // 确保是数字 
+              prefix: item.prefix 
+            })) : []
           },
           settlement: {
-            title: 'Vendor Settlement & Reconciliation', type: 'table',
+            title: 'Vendor Settlement & Reconciliation', 
+            type: 'table',
             headers: ['Vendor Stall', 'Total Sales', 'Commission', 'Net Payable', 'Status'],
-            rows: settlementData ? settlementData.map(item => [item.vendor_stall, `RM ${item.total_sales}`, `RM ${item.commission}`, `RM ${item.net_payable}`, item.status]) : []
+            rows: settlementData ? settlementData.map(item => [
+              item.vendor_stall, 
+              `RM ${item.total_sales}`, 
+              `RM ${item.commission}`, 
+              `RM ${item.net_payable}`, 
+              item.status
+            ]) : []
           },
           top_selling: {
-            title: 'Top-Selling Items Ranking', type: 'ranking',
-            data: topSellingData ? topSellingData.map(item => ({ name: item.item_name, count: item.order_count, percentage: item.percentage_str })) : []
+            title: 'Top-Selling Items Ranking', 
+            type: 'ranking',
+            data: topSellingData ? topSellingData.map(item => ({ 
+              name: item.item_name, 
+              count: item.order_count, 
+              percentage: item.percentage_str 
+            })) : []
           }
         });
       } catch (error) {
@@ -83,7 +101,7 @@ export default function GenerateReport() {
   }, []);
 
   // ==========================================
-  // 3. Export Logic
+  // 3. Export Logic (保持不变)
   // ==========================================
   const currentReport = reportsData[category];
 
@@ -120,7 +138,8 @@ export default function GenerateReport() {
             const label = item.label || item.name;
             const value = item.value || item.count;
             const prefix = item.prefix || '';
-            rowsHtml += `<tr><td>${label}</td><td>${prefix}${value}</td></tr>`;
+            const displayValue = typeof value === 'number' && category === 'overall' ? value.toFixed(2) : value;
+            rowsHtml += `<tr><td>${label}</td><td>${prefix}${displayValue}</td></tr>`;
           });
 
           dataRowsHtml = `
@@ -162,18 +181,15 @@ export default function GenerateReport() {
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
         await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
 
-        Alert.alert("Export Successful", "Your PDF report has been generated and exported successfully!");
       } else if (format === 'PNG') {
         const uri = await captureRef(chartRef, {
           format: 'png',
           quality: 1,
         });
         await Sharing.shareAsync(uri, { UTI: 'public.png', mimeType: 'image/png' });
-        Alert.alert("Export Successful", "Your PNG chart has been saved successfully!");
       }
     } catch (error) {
       Alert.alert("Export Error", "Something went wrong: " + error.message);
-      console.log("Detailed Export Error:", error);
     }
   };
 
@@ -181,10 +197,14 @@ export default function GenerateReport() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#111111" />
-        <Text style={{ marginTop: 10 }}>Loading database...</Text>
+        <Text style={{ marginTop: 10 }}>Loading charts...</Text>
       </View>
     );
   }
+
+  const maxBarValue = currentReport.type === 'bars' && currentReport.data.length > 0
+    ? Math.max(...currentReport.data.map(item => item.value))
+    : 1;
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -211,23 +231,27 @@ export default function GenerateReport() {
         <Text style={styles.innerReportTitle}>{currentReport.title}</Text>
 
         <View style={styles.chartContentWrapper}>
+          {/* Revenue Bars */}
           {currentReport.type === 'bars' && currentReport.data && (
             <View style={styles.barsContainer}>
               {currentReport.data.map((item, index) => {
                 const barColor = getRevenueColor(item.value);
+                const barWidthPercent = maxBarValue > 0 ? (item.value / maxBarValue) * 100 : 0;
+                
                 return (
                   <View key={index} style={styles.barItemRow}>
                     <Text style={styles.barLabel}>{item.label}</Text>
                     <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { width: `${(item.value / 8500) * 100}%`, backgroundColor: barColor }]} />
+                      <View style={[styles.barFill, { width: `${barWidthPercent}%`, backgroundColor: barColor }]} />
                     </View>
-                    <Text style={styles.barValue}>{item.prefix}{item.value}</Text>
+                    <Text style={styles.barValue}>{item.prefix}{item.value.toFixed(2)}</Text>
                   </View>
                 );
               })}
             </View>
           )}
 
+          {/* Settlement Table */}
           {currentReport.type === 'table' && currentReport.rows && (
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
               <View style={styles.tableBox}>
@@ -261,6 +285,7 @@ export default function GenerateReport() {
             </ScrollView>
           )}
 
+          {/* Top Selling Ranking */}
           {currentReport.type === 'ranking' && currentReport.data && (
             <View style={styles.rankingContainer}>
               {currentReport.data.map((item, index) => (
@@ -330,9 +355,9 @@ const styles = StyleSheet.create({
   rankingContainer: { width: '100%' },
   rankItem: { marginVertical: 8 },
   rankName: { fontSize: 13, color: '#333', marginBottom: 4 },
-  rankTrack: { height: 20, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
-  rankFill: { height: '100%', backgroundColor: '#444' },
-  rankCount: { position: 'absolute', right: 10, fontSize: 13, fontWeight: 'bold', color: '#333' },
+  rankTrack: { height: 17, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  rankFill: { height: '100%', backgroundColor: '#7a7878' },
+  rankCount: { position: 'absolute', right: 10, fontSize: 13, fontWeight: 'bold', color: '#000000' },
 
   exportHeader: { fontSize: 15, fontWeight: 'bold', marginBottom: 12 },
   radioGroupRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
