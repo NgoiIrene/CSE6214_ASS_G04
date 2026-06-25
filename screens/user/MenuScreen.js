@@ -36,7 +36,7 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
         if (vends && mappings) {
           // --- 处理顶部的 Filter 按钮 ---
           // 提取所有不重复的分类名字
-          const allNames = mappings.map(m => m.name);
+         const allNames = mappings.map(m => m.name.trim());
           const uniqueNames = [...new Set(allNames)];
 
           const dynamicTags = uniqueNames.map((name, index) => ({
