@@ -26,7 +26,7 @@ function MainLayout() {
 
     const [selectedVendorData, setSelectedVendorData] = useState(null);
 
-    const { profile } = useContext(UserContext);
+    const { profile, logout } = useContext(UserContext);
 
     const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -53,7 +53,15 @@ function MainLayout() {
     };
 
     const handleLogout = () => {
-        Alert.alert("Logout", "You have been logged out successfully.");
+        Alert.alert("Logout", "Are you sure you want to log out?", [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Confirm",
+                onPress: async () => {
+                    await logout(); // This will update the state and navigate to the LoginScreen automatically
+                }
+            }
+        ]);
         toggleSidebar(false);
     };
 

@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // 🎯 引入你的 Supabase 客户端实例
-import { supabase } from '../../supabaseClient'; 
+import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -66,22 +66,77 @@ export default function ReviewScreen({ navigateToScreen }) {
     fetchUserProfile();
   }, []);
 
-  // ⚙️ 副作用 2：从 Supabase 数据库拉取真实的 Reviews 数据
+  // ⚙️ 副作用 2：拉取当前 vendor 的 Reviews
   useEffect(() => {
     const fetchReviewsFromDB = async () => {
       try {
         setIsReviewsLoading(true);
-        // 🎯 从你的 reviews 表中捞取所有评价数据
-        const { data, error } = await supabase
-          .from('reviews')
-          .select('*');
 
-        if (error) throw error;
-        if (data) {
-          setDbReviews(data);
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          console.log('No authenticated user');
+          setDbReviews([]);
+          return;
+        }
+
+        // 修改后的查询逻辑
+        const { data: reviewsData, error: reviewsError } = await supabase
+          .from('reviews')
+          .select(`
+    *,
+    orders!inner (
+      vendor_id
+    )
+  `)
+          .eq('orders.vendor_id', user.id); // 这里的 orders.vendor_id 会强制进行 inner join 过滤
+
+        if (reviewsError) {
+          console.error('Reviews fetch error:', reviewsError);
+          // 可选 fallback（仅开发时用）
+          // const { data: fallback } = await supabase.from('reviews').select('*');
+          setDbReviews([]);
+          return;
+        }
+
+        if (reviewsData && reviewsData.length > 0) {
+          const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+
+          let profileMap = {};
+          if (userIds.length > 0) {
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .in('id', userIds);
+
+            profilesData?.forEach(p => {
+              profileMap[p.id] = {
+                fullName: p.full_name,
+                avatarUrl: p.avatar_url
+              };
+            });
+          }
+
+          const enrichedReviews = reviewsData.map(r => ({
+            ...r,
+            stars: r.rating,
+            content: r.review_text,
+            customer: profileMap[r.user_id]?.fullName || 'Customer',
+            avatarUrl: profileMap[r.user_id]?.avatarUrl || null,
+            date: new Date(r.created_at).toLocaleDateString('zh-CN', {
+              year: 'numeric', month: '2-digit', day: '2-digit'
+            }).replace(/\//g, '-'),
+            time: new Date(r.created_at).toLocaleTimeString('zh-CN', {
+              hour: '2-digit', minute: '2-digit', hour12: false
+            })
+          }));
+
+          setDbReviews(enrichedReviews);
+        } else {
+          setDbReviews([]);
         }
       } catch (error) {
         console.log('Fetch reviews error:', error.message);
+        setDbReviews([]);
       } finally {
         setIsReviewsLoading(false);
       }
@@ -91,7 +146,7 @@ export default function ReviewScreen({ navigateToScreen }) {
   }, []);
 
 
-  // 2. 核心过滤与排序逻辑 (基于从数据库获取的 dbReviews)
+  // 2. 核心过滤与排序逻辑
   const filteredReviews = useMemo(() => {
     let result = [...dbReviews];
 
@@ -100,7 +155,7 @@ export default function ReviewScreen({ navigateToScreen }) {
       result = result.filter(review => review.stars === selectedStar);
     }
 
-    // 搜索词筛选（不区分大小写）
+    // 搜索筛选
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       result = result.filter(review =>
@@ -109,11 +164,17 @@ export default function ReviewScreen({ navigateToScreen }) {
       );
     }
 
-    // 时间排序 (格式 hh:mm)
+    // ==================== 修复后的排序逻辑 ====================
     result.sort((a, b) => {
-      const timeA = a.time ? a.time.replace(':', '') : '0000';
-      const timeB = b.time ? b.time.replace(':', '') : '0000';
-      return isAscending ? timeA.localeCompare(timeB) : timeB.localeCompare(timeA);
+      // 使用 created_at 时间戳排序（最准确）
+      const dateA = new Date(a.created_at || a.date);
+      const dateB = new Date(b.created_at || b.date);
+
+      if (isAscending) {
+        return dateA - dateB;   // 升序（最早的在上）
+      } else {
+        return dateB - dateA;   // 降序（最新的在上）← 默认
+      }
     });
 
     return result;
@@ -131,7 +192,7 @@ export default function ReviewScreen({ navigateToScreen }) {
   // 4. 处理侧边栏跳转逻辑
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false); // 关闭侧边栏
-    if (targetScreen === 'review') return; 
+    if (targetScreen === 'review') return;
 
     if (navigateToScreen) {
       navigateToScreen(targetScreen); // 触发外部主路由层路由跳转
@@ -196,9 +257,9 @@ export default function ReviewScreen({ navigateToScreen }) {
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
                 {avatarUrl ? (
-                  <Image 
-                    source={{ uri: avatarUrl }} 
-                    style={{ width: 68, height: 68, borderRadius: 34 }} 
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={{ width: 68, height: 68, borderRadius: 34 }}
                   />
                 ) : (
                   <Ionicons name="person-outline" size={45} color="#000" />
@@ -279,7 +340,7 @@ export default function ReviewScreen({ navigateToScreen }) {
                   style={[
                     styles.starBtn,
                     isSelected && styles.starBtnActive,
-                    idx === 4 && { borderRightWidth: 0 } 
+                    idx === 4 && { borderRightWidth: 0 }
                   ]}
                   onPress={() => handleStarPress(star)}
                 >
@@ -309,8 +370,18 @@ export default function ReviewScreen({ navigateToScreen }) {
       {/* ==================== 结果统计与排序条 ==================== */}
       <View style={styles.resultBar}>
         <Text style={styles.resultBarText}>{filteredReviews.length} Found:</Text>
-        <TouchableOpacity onPress={() => setIsAscending(!isAscending)} style={styles.sortBtn}>
-          <Ionicons name="swap-vertical" size={18} color="#000" />
+        <TouchableOpacity
+          onPress={() => setIsAscending(!isAscending)}
+          style={[styles.sortBtn, { flexDirection: 'row', alignItems: 'center' }]}
+        >
+          <Ionicons
+            name={isAscending ? "arrow-up" : "arrow-down"}
+            size={18}
+            color="#000"
+          />
+          <Text style={{ fontSize: 13, marginLeft: 4, color: '#000' }}>
+            {isAscending ? 'Oldest' : 'Newest'}
+          </Text>
         </TouchableOpacity>
       </View>
       <View style={styles.divider} />
@@ -338,7 +409,14 @@ export default function ReviewScreen({ navigateToScreen }) {
               <View style={styles.cardHeader}>
                 <View style={styles.userInfoContainer}>
                   <View style={styles.commentAvatarCircle}>
-                    <Ionicons name="person-outline" size={20} color="#000" />
+                    {review.avatarUrl ? (
+                      <Image
+                        source={{ uri: review.avatarUrl }}
+                        style={{ width: 26, height: 26, borderRadius: 13 }}
+                      />
+                    ) : (
+                      <Ionicons name="person-outline" size={20} color="#000" />
+                    )}
                   </View>
                   <View style={styles.nameTimeContainer}>
                     <Text style={styles.customerName}>{review.customer}</Text>

@@ -7,20 +7,22 @@ export const RiderContext = createContext();
 // 2. 创建 Provider 组件包装器
 export const RiderProvider = ({ children }) => {
   const [avatarUri, setAvatarUri] = useState(null);
-  const [riderName, setRiderName] = useState('Loading...'); 
+  const [riderName, setRiderName] = useState('Loading...');
+  const [isOnline, setIsOnline] = useState(false);
 
   // 独立出来的获取数据函数
   const fetchProfileData = async (userId) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url')
+        .select('full_name, avatar_url, is_online')
         .eq('id', userId)
         .single();
 
       if (!error && data) {
         if (data.full_name) setRiderName(data.full_name);
         if (data.avatar_url) setAvatarUri(data.avatar_url); // 🌟 确保从数据库加载头像
+        if (data.is_online != null) setIsOnline(Boolean(data.is_online));
       }
     } catch (error) {
       console.log("Error fetching profile in Provider:", error);
@@ -43,6 +45,7 @@ export const RiderProvider = ({ children }) => {
         // 如果触发了 Logout，顺手把内存里的旧头像和名字清空
         setAvatarUri(null);
         setRiderName('Loading...');
+        setIsOnline(false);
       }
     });
 
@@ -50,7 +53,7 @@ export const RiderProvider = ({ children }) => {
   }, []); 
 
   return (
-    <RiderContext.Provider value={{ avatarUri, setAvatarUri, riderName, setRiderName }}>
+    <RiderContext.Provider value={{ avatarUri, setAvatarUri, riderName, setRiderName, isOnline, setIsOnline }}>
       {children}
     </RiderContext.Provider>
   );

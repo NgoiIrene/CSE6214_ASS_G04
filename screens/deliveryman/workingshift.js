@@ -25,12 +25,13 @@ export default function WorkingShift() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingShifts, setIsLoadingShifts] = useState(false);
 
+  // 🌟 1. 全新的时间表 (2小时一个 Slot，增加 startHour 方便比对)
   const initialShiftsTemplate = [
-    { id: 1, time: '8.00AM - 10.30AM', duration: '2hrs 30min', state: 'available' },
-    { id: 2, time: '10.30AM - 12.30PM', duration: '2hrs', state: 'available' },
-    { id: 3, time: '1.00PM - 3.00PM', duration: '2hrs', state: 'available' },
-    { id: 4, time: '2.00PM - 3.30PM', duration: '1hr 30min', state: 'available' },
-    { id: 5, time: '5.00PM - 7.00PM', duration: '2hrs', state: 'available' },
+    { id: 1, time: '8.00AM - 10.00AM', duration: '2hrs', startHour: 8, state: 'available' },
+    { id: 2, time: '10.00AM - 12.00PM', duration: '2hrs', startHour: 10, state: 'available' },
+    { id: 3, time: '12.00PM - 2.00PM', duration: '2hrs', startHour: 12, state: 'available' },
+    { id: 4, time: '2.00PM - 4.00PM', duration: '2hrs', startHour: 14, state: 'available' },
+    { id: 5, time: '4.00PM - 6.00PM', duration: '2hrs', startHour: 16, state: 'available' },
   ];
 
   const [shiftsByDate, setShiftsByDate] = useState({});
@@ -46,7 +47,6 @@ export default function WorkingShift() {
   const fetchTakenShifts = async () => {
     setIsLoadingShifts(true);
     try {
-      // 🌟 改用 getSession() 更快更稳定
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
@@ -58,14 +58,29 @@ export default function WorkingShift() {
 
       if (error) {
         Alert.alert("Fetch Error", error.message);
-      } else if (data) {
-        const takenTimes = data.map(d => d.shift_time);
+      } else {
+        const takenTimes = data ? data.map(d => d.shift_time) : [];
+        
+        // 🌟 2. 核心逻辑：获取当前真实时间，判断时间段是否已过期
+        const now = new Date();
+        const isToday = currentDate.toDateString() === now.toDateString();
+        const currentHour = now.getHours();
+
         const updatedShifts = initialShiftsTemplate.map(shift => {
-          if (takenTimes.includes(shift.time)) {
-            return { ...shift, state: 'taken' };
+          let currentState = shift.state;
+
+          // 拦截规则 1: 只要当前时间还没到班次的结束时间（startHour + 2），就可以继续拿
+          if (isToday && currentHour >= (shift.startHour + 2)) {
+            currentState = 'expired';
+          } 
+          // 拦截规则 2: 如果已经被自己选了
+          else if (takenTimes.includes(shift.time)) {
+            currentState = 'taken';
           }
-          return shift;
+
+          return { ...shift, state: currentState };
         });
+
         setShiftsByDate(prev => ({ ...prev, [currentDateKey]: updatedShifts }));
       }
     } catch (e) {
@@ -160,17 +175,15 @@ export default function WorkingShift() {
         duration: shift.duration
       }));
 
-      // 🌟 强迫 Supabase 把操作结果吐出来，捉拿幽灵失败！
       const { data, error } = await supabase.from('rider_shifts').insert(shiftsToInsert).select();
 
       if (error) {
         Alert.alert("Save Failed ❌", error.message);
       } else if (!data || data.length === 0) {
-        // 如果触发了这个警告，说明 100% 是 RLS 保安没放行
         Alert.alert("Blocked by Database 🚫", "Insert failed! Please check if your RLS policy uses 'auth.uid() = rider_id'.");
       } else {
         Alert.alert("Success ✅", "Shifts saved successfully!");
-        fetchTakenShifts(); // 重新拉取一次，让按钮变灰 (Taken)
+        fetchTakenShifts(); 
       }
     } catch (e) {
       console.log(e);
@@ -244,20 +257,49 @@ export default function WorkingShift() {
             <ActivityIndicator size="large" color="#000" style={{ marginTop: 30 }} />
           ) : (
             currentShifts.map((shift) => {
-              let btnStyle = styles.btnAvailable; let btnTextStyle = styles.btnTextAvailable; let btnLabel = "Take Shift"; let cardHighlight = null;
-              if (shift.state === 'selected') { btnStyle = styles.btnSelected; btnTextStyle = styles.btnTextSelected; btnLabel = "Selected ✓"; cardHighlight = styles.shiftCardSelected; }
-              else if (shift.state === 'taken') { btnStyle = styles.btnTaken; btnTextStyle = styles.btnTextTaken; btnLabel = "Taken"; }
+              // 🌟 3. 处理不同状态的 UI
+              let btnStyle = styles.btnAvailable; 
+              let btnTextStyle = styles.btnTextAvailable; 
+              let btnLabel = "Take Shift"; 
+              let cardHighlight = null;
+
+              if (shift.state === 'selected') { 
+                btnStyle = styles.btnSelected; 
+                btnTextStyle = styles.btnTextSelected; 
+                btnLabel = "Selected ✓"; 
+                cardHighlight = styles.shiftCardSelected; 
+              }
+              else if (shift.state === 'taken') { 
+                btnStyle = styles.btnTaken; 
+                btnTextStyle = styles.btnTextTaken; 
+                btnLabel = "Taken"; 
+              }
+              else if (shift.state === 'expired') { 
+                btnStyle = styles.btnExpired; 
+                btnTextStyle = styles.btnTextExpired; 
+                btnLabel = "Expired"; 
+              }
+
+              // 决定是否禁用卡片交互 (Taken 或 Expired 都会禁用)
+              const isDisabled = shift.state === 'taken' || shift.state === 'expired';
 
               return (
-                <View key={shift.id} style={[styles.shiftCard, cardHighlight]}>
+                <View key={shift.id} style={[styles.shiftCard, cardHighlight, isDisabled && { opacity: 0.6 }]}>
                   <View style={styles.shiftInfo}>
                     <Ionicons name="time-outline" size={20} color="#666" style={{ marginRight: 8, marginTop: 2 }} />
                     <View>
-                      <Text style={[styles.shiftTime, shift.state === 'taken' && styles.textDisabled]}>{shift.time}</Text>
+                      <Text style={[styles.shiftTime, isDisabled && styles.textDisabled]}>
+                        {shift.time}
+                      </Text>
                       <Text style={styles.shiftDuration}>({shift.duration})</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={[styles.actionBtn, btnStyle]} onPress={() => toggleShift(shift.id)} disabled={shift.state === 'taken'} activeOpacity={0.7}>
+                  <TouchableOpacity 
+                    style={[styles.actionBtn, btnStyle]} 
+                    onPress={() => toggleShift(shift.id)} 
+                    disabled={isDisabled} 
+                    activeOpacity={0.7}
+                  >
                     <Text style={[styles.actionBtnText, btnTextStyle]}>{btnLabel}</Text>
                   </TouchableOpacity>
                 </View>
@@ -275,7 +317,7 @@ export default function WorkingShift() {
 
       {showPicker && <DateTimePicker value={currentDate} mode="date" display="default" minimumDate={getToday()} onChange={onDateChange} />}
 
-      {/* 侧边栏 */}
+      {/* Sidebar 保持不变 */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -354,6 +396,9 @@ const styles = StyleSheet.create({
   btnTextSelected: { color: '#FFF' },
   btnTaken: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   btnTextTaken: { color: '#A0A0A0' },
+  // 新增 Expired 状态的样式
+  btnExpired: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
+  btnTextExpired: { color: '#B0B0B0', textDecorationLine: 'line-through' },
   footerRow: { flexDirection: 'row', padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
   saveBtn: { flex: 1, paddingVertical: 15, borderRadius: 10, backgroundColor: '#424242', alignItems: 'center', elevation: 3, shadowColor: '#424242', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
   saveBtnText: { fontWeight: 'bold', fontSize: 16, color: '#FFF' },

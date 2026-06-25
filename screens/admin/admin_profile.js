@@ -5,6 +5,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
+import 'react-native-url-polyfill/auto';
 import { supabase } from '../../supabaseClient';
 
 export default function AdminProfileScreen({ onProfileUpdate }) {
@@ -21,6 +24,7 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
     account_type: 'admin', 
     avatar_url: null
   });
+
 
   const [pendingProfile, setPendingProfile] = useState({ ...profile });
 
@@ -61,7 +65,12 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
         setPendingProfile(fetchedData);
       }
     } catch (error) {
-      Alert.alert("Error Fetching Profile", error.message);
+     console.error("Save Error Details:", error);
+      // 🌟 将错误对象转成字符串，直接在手机上弹窗显示，方便我们诊断
+      Alert.alert(
+        "报错详情请看这里", 
+        JSON.stringify(error, null, 2) || error.message
+      );
     } finally {
       setIsLoading(false);
     }
@@ -81,10 +90,11 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.5, // 建议把画质调成 0.5，减小图片体积，加快上传速度
     });
     
     if (!result.canceled) {
+      // 此时存的还是 file:/// 本地路径，等点击 Save 时再去上传
       setPendingProfile({ ...pendingProfile, avatar_url: result.assets[0].uri });
     }
   };
@@ -97,26 +107,67 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
 
     try {
       setIsLoading(true);
-      const { error } = await supabase
+      let finalAvatarUrl = pendingProfile.avatar_url;
+
+      // 🌟 新增的图片上传逻辑
+      if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
+        
+        // 1. 使用 FileSystem 读取本地图片为 Base64
+       const base64 = await FileSystem.readAsStringAsync(finalAvatarUrl, {
+          encoding: 'base64',
+        });
+        
+        // 2. 生成一个唯一的文件名
+        const fileExt = finalAvatarUrl.split('.').pop() || 'jpeg';
+        const fileName = `${profile.id}_${Date.now()}.${fileExt}`;
+        const filePath = `admin_avatars/${fileName}`;
+
+        // 3. 使用 decode 将 Base64 转为 ArrayBuffer 并上传
+        const { error: uploadError } = await supabase.storage
+          .from('avatars') 
+          .upload(filePath, decode(base64), {
+            contentType: `image/${fileExt}`,
+            upsert: true
+          });
+
+        if (uploadError) throw uploadError;
+
+        // 4. 获取上传成功后的公共云端链接 (Public URL)
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+
+        finalAvatarUrl = publicUrlData.publicUrl;
+      } 
+      // ⚠️ 很多时候就是不小心删掉了上面这个闭合 if 语句的大括号！
+
+      // 🌟 更新数据库：存入的已经是云端网址了
+      const { error: dbUpdateError } = await supabase
         .from('profiles')
         .update({
           full_name: pendingProfile.full_name.trim(),
           phone_number: pendingProfile.phone_number.trim(),
           gender: pendingProfile.gender,
           age: pendingProfile.age ? parseInt(pendingProfile.age, 10) : null,
-          avatar_url: pendingProfile.avatar_url,
+          avatar_url: finalAvatarUrl, 
         })
         .eq('id', profile.id);
 
-      if (error) throw error;
+      if (dbUpdateError) throw dbUpdateError;
 
-      setProfile({ ...pendingProfile });
+      // 更新画面状态
+      const updatedProfile = { ...pendingProfile, avatar_url: finalAvatarUrl };
+      setProfile(updatedProfile);
+      setPendingProfile(updatedProfile);
+      
       Alert.alert("Success", "Admin Profile updated successfully!");
       setIsEditMode(false);
 
       if (onProfileUpdate) {
-     onProfileUpdate();}
+        onProfileUpdate();
+      }
     } catch (error) {
+      console.error("Save Error:", error);
       Alert.alert("Save Failed", error.message);
     } finally {
       setIsLoading(false);
@@ -132,10 +183,7 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
   }
 
   return (
-    // 移除了 Header 和 Sidebar Modal，直接返回内容区域
     <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={styles.content}>
-      
-      {/* 操作栏：把原本在 Header 里的 Edit 按钮移到这里 */}
       <View style={styles.actionRow}>
         <TouchableOpacity onPress={isEditMode ? handleCancelEdit : handleStartEdit}>
           <Text style={styles.actionText}>{isEditMode ? "Cancel" : "Edit Profile"}</Text>
@@ -143,7 +191,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
       </View>
 
       <View style={styles.wireframeCard}>
-        {/* 头像组件 */}
         <TouchableOpacity disabled={!isEditMode} onPress={pickAvatar} style={styles.avatarBox}>
           {isEditMode ? (
             pendingProfile.avatar_url ? <Image source={{ uri: pendingProfile.avatar_url }} style={styles.avatarImage} /> : <Ionicons name="person" size={50} />
@@ -153,7 +200,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           {isEditMode && <View style={styles.editBadge}><Ionicons name="camera" size={16} color="#fff" /></View>}
         </TouchableOpacity>
         
-        {/* Full Name */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>ADMIN FULL NAME:</Text>
           {isEditMode ? (
@@ -163,13 +209,11 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           )}
         </View>
 
-        {/* Email Address */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>ADMIN EMAIL (READ-ONLY):</Text>
           <Text style={[styles.valueText, isEditMode && styles.readOnlyText]}>{profile.email || '—'}</Text>
         </View>
 
-        {/* Phone Number */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>PHONE NUMBER:</Text>
           {isEditMode ? (
@@ -179,7 +223,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           )}
         </View>
 
-        {/* Gender */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>GENDER:</Text>
           {isEditMode ? (
@@ -202,7 +245,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           )}
         </View>
 
-        {/* Age */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>AGE:</Text>
           {isEditMode ? (
@@ -212,7 +254,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
           )}
         </View>
 
-        {/* 保存按钮 */}
         {isEditMode && (
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
             <Text style={{ fontWeight: 'bold' }}>Save Admin Profile</Text>
@@ -223,7 +264,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
   );
 }
 
-// 删除了所有和 Navigation 重叠的 Header 和 Sidebar 样式
 const styles = StyleSheet.create({
   content: { padding: 25, paddingBottom: 50 },
   actionRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },

@@ -5,99 +5,103 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { captureRef } from 'react-native-view-shot';
 
+// ⚠️ 引入你的 supabase 客户端 (请确认路径正确)
+import { supabase } from '../../supabaseClient';
+
 export default function GenerateReport() {
-  // ==========================================
-  // 1. Report Core Data & State 
-  // ==========================================
   const [category, setCategory] = useState('overall');
   const [format, setFormat] = useState('PDF');
+  const [loading, setLoading] = useState(true);
   const chartRef = useRef(null);
 
   const [reportsData, setReportsData] = useState({
-    overall: {
-      title: 'Overall Platform Revenue Trend', type: 'bars',
-      data: [
-        { label: 'Gross Merchandise Value (GMV)', value: 8500, prefix: 'RM ' },
-        { label: 'Platform Commission', value: 850, prefix: 'RM ' },
-        { label: 'Platform Net Profit', value: 600, prefix: 'RM ' },
-        { label: 'Refund Total', value: 150, prefix: 'RM ' },
-      ]
-    },
-    settlement: {
-      title: 'Vendor Settlement & Reconciliation', type: 'table',
-      headers: ['Vendor Stall', 'Total Sales', 'Commission', 'Net Payable', 'Status'],
-      rows: [
-        ['Stall A (vendorname)', 'RM 1,200', 'RM 120', 'RM 1,080', 'Settled'],
-        ['Stall B (vendorname)', 'RM 1,850', 'RM 185', 'RM 1,665', 'Pending'],
-        ['Stall C (vendorname)', 'RM 950', 'RM 95', 'RM 855', 'Settled'],
-        ['Stall D (vendorname)', 'RM 2,100', 'RM 210', 'RM 1,890', 'Pending'],
-      ]
-    },
-    top_selling: {
-      title: 'Top-Selling Items Ranking', type: 'ranking',
-      data: [
-        { name: '1. Nasi Lemak', count: 320, percentage: '100%' },
-        { name: '2. Chicken Rice', count: 240, percentage: '75%' },
-        { name: '3. Milo Ice', count: 190, percentage: '60%' },
-        { name: '4. Char Kway Teow', count: 120, percentage: '38%' },
-      ]
-    },
-    peak_hours: {
-      title: 'Peak Ordering Hours Distribution', type: 'hours',
-      data: [
-        { hour: '08:00', orders: 45, height: 40 },
-        { hour: '12:00 (Lunch)', orders: 180, height: 140 },
-        { hour: '15:00', orders: 20, height: 20 },
-        { hour: '18:00 (Dinner)', orders: 110, height: 90 },
-        { hour: '21:00', orders: 35, height: 30 },
-      ]
-    },
-    feedback: {
-      title: 'User Feedback & Complaints Share', type: 'progress_bars',
-      data: [
-        { reason: 'Food Hygiene Issues', percent: 45 },
-        { reason: 'Slow Order Preparation', percent: 35 },
-        { reason: 'Incorrect Order / Small Portion', percent: 20 },
-      ],
-      alert: '⚠️ Alert: 1 vendor has a rating below 3.5★. Please follow up immediately.'
-    }
+    overall: { title: 'Overall Platform Revenue Trend', type: 'bars', data: [] },
+    settlement: { title: 'Vendor Settlement & Reconciliation', type: 'table', headers: ['Vendor Stall', 'Total Sales', 'Commission', 'Net Payable', 'Status'], rows: [] },
+    top_selling: { title: 'Top-Selling Items Ranking', type: 'ranking', data: [] }
   });
 
   // ==========================================
-  // 2. 颜色动态判定逻辑
+  // 1. Color Logic (Revenue)
   // ==========================================
   const getRevenueColor = (value) => {
-    if (value >= 600) return '#111111';
-    if (value >= 150 && value <= 590) return '#2E7D32';
-    if (value >= 0 && value < 150) return '#C62828';
     return '#111111';
   };
 
-  const getPeakBarColor = (currentOrders, allData) => {
-    const maxOrders = Math.max(...allData.map(item => item.orders));
-    return currentOrders === maxOrders ? '#111111' : '#888888';
-  };
-
-  const getFeedbackColor = (percent) => {
-    if (percent > 40) return '#C62828';
-    if (percent >= 21 && percent <= 40) return '#EF6C00';
-    if (percent >= 0 && percent <= 20) return '#FBC02D';
-    return '#111111';
-  };
-
+  // ==========================================
+  // 🌟 2. 聪明的 Database Fetch Logic 🌟
+  // ==========================================
   useEffect(() => {
-    const fetchSupabaseData = async () => { };
+    const fetchSupabaseData = async () => {
+      setLoading(true);
+      try {
+        // 直接从我们建好的 3 个聪明的 View 拿数据，完全不需要在前端算数！
+        const [
+          { data: revenueData, error: revError },
+          { data: settlementData, error: setError },
+          { data: topSellingData, error: topError }
+        ] = await Promise.all([
+          supabase.from('platform_revenue_summary').select('*').order('id', { ascending: true }),
+          supabase.from('vendor_settlements').select('*').order('total_sales', { ascending: false }),
+          supabase.from('top_selling_items').select('*').order('order_count', { ascending: false })
+        ]);
+
+        if (revError) throw revError;
+        if (setError) throw setError;
+        if (topError) throw topError;
+
+        // 更新状态，将数据库的数据直接 Map 进 UI 格式
+        setReportsData({
+          overall: {
+            title: 'Overall Platform Revenue Trend', 
+            type: 'bars',
+            data: revenueData ? revenueData.map(item => ({ 
+              label: item.label, 
+              value: Number(item.amount), // 确保是数字 
+              prefix: item.prefix 
+            })) : []
+          },
+          settlement: {
+            title: 'Vendor Settlement & Reconciliation', 
+            type: 'table',
+            headers: ['Vendor Stall', 'Total Sales', 'Commission', 'Net Payable', 'Status'],
+            rows: settlementData ? settlementData.map(item => [
+              item.vendor_stall, 
+              `RM ${item.total_sales}`, 
+              `RM ${item.commission}`, 
+              `RM ${item.net_payable}`, 
+              item.status
+            ]) : []
+          },
+          top_selling: {
+            title: 'Top-Selling Items Ranking', 
+            type: 'ranking',
+            data: topSellingData ? topSellingData.map(item => ({ 
+              name: item.item_name, 
+              count: item.order_count, 
+              percentage: item.percentage_str 
+            })) : []
+          }
+        });
+      } catch (error) {
+        console.error("Fetch Error:", error.message);
+        Alert.alert("Database Error", "Failed to load report data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchSupabaseData();
   }, []);
 
   // ==========================================
-  // 3. Export 逻辑
+  // 3. Export Logic (保持不变)
   // ==========================================
   const currentReport = reportsData[category];
 
@@ -124,12 +128,6 @@ export default function GenerateReport() {
           if (category === 'top_selling') {
             col1Title = 'Food Items';
             col2Title = 'Number of Orders';
-          } else if (category === 'peak_hours') {
-            col1Title = 'Time frame';
-            col2Title = 'Number of Orders';
-          } else if (category === 'feedback') {
-            col1Title = 'Feedback Reason';
-            col2Title = 'Percentage';
           } else if (category === 'overall') {
             col1Title = 'Financial Metric';
             col2Title = 'Amount';
@@ -137,10 +135,11 @@ export default function GenerateReport() {
 
           let rowsHtml = '';
           currentReport.data.forEach(item => {
-            const label = item.label || item.name || item.hour || item.reason;
-            const value = item.value || item.count || item.orders || (item.percent ? item.percent + '%' : '');
+            const label = item.label || item.name;
+            const value = item.value || item.count;
             const prefix = item.prefix || '';
-            rowsHtml += `<tr><td>${label}</td><td>${prefix}${value}</td></tr>`;
+            const displayValue = typeof value === 'number' && category === 'overall' ? value.toFixed(2) : value;
+            rowsHtml += `<tr><td>${label}</td><td>${prefix}${displayValue}</td></tr>`;
           });
 
           dataRowsHtml = `
@@ -182,25 +181,30 @@ export default function GenerateReport() {
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
         await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
 
-        Alert.alert("Export Successful", "Your PDF report has been generated and exported successfully!");
-      }
-
-      else if (format === 'PNG') {
+      } else if (format === 'PNG') {
         const uri = await captureRef(chartRef, {
           format: 'png',
           quality: 1,
         });
-
         await Sharing.shareAsync(uri, { UTI: 'public.png', mimeType: 'image/png' });
-
-        Alert.alert("Export Successful", "Your PNG chart has been saved successfully!");
       }
-
     } catch (error) {
       Alert.alert("Export Error", "Something went wrong: " + error.message);
-      console.log("Detailed Export Error:", error);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#111111" />
+        <Text style={{ marginTop: 10 }}>Loading charts...</Text>
+      </View>
+    );
+  }
+
+  const maxBarValue = currentReport.type === 'bars' && currentReport.data.length > 0
+    ? Math.max(...currentReport.data.map(item => item.value))
+    : 1;
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -214,7 +218,7 @@ export default function GenerateReport() {
             onPress={() => setCategory(key)}
           >
             <Text style={[styles.badgeText, category === key && styles.activeBadgeText]}>
-              {key === 'overall' ? 'Revenue' : key === 'settlement' ? 'Settlement' : key === 'top_selling' ? 'Top-Selling' : key === 'peak_hours' ? 'Peak Hours' : 'Feedback'}
+              {key === 'overall' ? 'Revenue' : key === 'settlement' ? 'Settlement' : 'Top-Selling'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -227,24 +231,28 @@ export default function GenerateReport() {
         <Text style={styles.innerReportTitle}>{currentReport.title}</Text>
 
         <View style={styles.chartContentWrapper}>
-          {currentReport.type === 'bars' && (
+          {/* Revenue Bars */}
+          {currentReport.type === 'bars' && currentReport.data && (
             <View style={styles.barsContainer}>
               {currentReport.data.map((item, index) => {
                 const barColor = getRevenueColor(item.value);
+                const barWidthPercent = maxBarValue > 0 ? (item.value / maxBarValue) * 100 : 0;
+                
                 return (
                   <View key={index} style={styles.barItemRow}>
                     <Text style={styles.barLabel}>{item.label}</Text>
                     <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { width: `${(item.value / 8500) * 100}%`, backgroundColor: barColor }]} />
+                      <View style={[styles.barFill, { width: `${barWidthPercent}%`, backgroundColor: barColor }]} />
                     </View>
-                    <Text style={styles.barValue}>{item.prefix}{item.value}</Text>
+                    <Text style={styles.barValue}>{item.prefix}{item.value.toFixed(2)}</Text>
                   </View>
                 );
               })}
             </View>
           )}
 
-          {currentReport.type === 'table' && (
+          {/* Settlement Table */}
+          {currentReport.type === 'table' && currentReport.rows && (
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
               <View style={styles.tableBox}>
                 <View style={styles.tableHeaderRow}>
@@ -277,7 +285,8 @@ export default function GenerateReport() {
             </ScrollView>
           )}
 
-          {currentReport.type === 'ranking' && (
+          {/* Top Selling Ranking */}
+          {currentReport.type === 'ranking' && currentReport.data && (
             <View style={styles.rankingContainer}>
               {currentReport.data.map((item, index) => (
                 <View key={index} style={styles.rankItem}>
@@ -288,43 +297,6 @@ export default function GenerateReport() {
                   </View>
                 </View>
               ))}
-            </View>
-          )}
-
-          {currentReport.type === 'hours' && (
-            <View style={styles.hoursContainer}>
-              {currentReport.data.map((item, index) => {
-                const barColor = getPeakBarColor(item.orders, currentReport.data);
-                return (
-                  <View key={index} style={styles.hourColumn}>
-                    <Text style={styles.hourCountText}>{item.orders} Orders</Text>
-                    <View style={[styles.hourVerticalBar, { height: item.height, backgroundColor: barColor }]} />
-                    <Text style={styles.hourLabelText}>{item.hour}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {currentReport.type === 'progress_bars' && (
-            <View style={styles.feedbackContainer}>
-              {currentReport.data.map((item, index) => {
-                const barColor = getFeedbackColor(item.percent);
-                return (
-                  <View key={index} style={styles.feedbackRow}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={styles.feedbackLabel}>{item.reason}</Text>
-                      <Text style={styles.feedbackPercent}>{item.percent}%</Text>
-                    </View>
-                    <View style={styles.feedbackTrack}>
-                      <View style={[styles.feedbackFill, { width: `${item.percent}%`, backgroundColor: barColor }]} />
-                    </View>
-                  </View>
-                );
-              })}
-              <View style={styles.alertBox}>
-                <Text style={styles.alertText}>{currentReport.alert}</Text>
-              </View>
             </View>
           )}
         </View>
@@ -383,24 +355,9 @@ const styles = StyleSheet.create({
   rankingContainer: { width: '100%' },
   rankItem: { marginVertical: 8 },
   rankName: { fontSize: 13, color: '#333', marginBottom: 4 },
-  rankTrack: { height: 20, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
-  rankFill: { height: '100%', backgroundColor: '#444' },
-  rankCount: { position: 'absolute', right: 10, fontSize: 13, fontWeight: 'bold', color: '#333' },
-
-  hoursContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 180, paddingTop: 20 },
-  hourColumn: { alignItems: 'center' },
-  hourVerticalBar: { width: 25, borderRadius: 4, marginTop: 4, marginBottom: 6 },
-  hourCountText: { fontSize: 11, color: '#666' },
-  hourLabelText: { fontSize: 12, fontWeight: '600', color: '#000000' },
-
-  feedbackContainer: { width: '100%' },
-  feedbackRow: { marginVertical: 8 },
-  feedbackLabel: { fontSize: 13, color: '#000000' },
-  feedbackPercent: { fontSize: 13, fontWeight: 'bold', color: '#000000' },
-  feedbackTrack: { height: 8, backgroundColor: '#E0E0E0', borderRadius: 4 },
-  feedbackFill: { height: '100%', borderRadius: 4 },
-  alertBox: { backgroundColor: '#FFF3CD', padding: 10, borderRadius: 4, marginTop: 15, borderWidth: 1, borderColor: '#FFEBAA' },
-  alertText: { fontSize: 12, color: '#856404', lineHeight: 18 },
+  rankTrack: { height: 17, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  rankFill: { height: '100%', backgroundColor: '#7a7878' },
+  rankCount: { position: 'absolute', right: 10, fontSize: 13, fontWeight: 'bold', color: '#000000' },
 
   exportHeader: { fontSize: 15, fontWeight: 'bold', marginBottom: 12 },
   radioGroupRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
