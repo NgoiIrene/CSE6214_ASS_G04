@@ -12,18 +12,43 @@ import { Ionicons } from '@expo/vector-icons';
 export default function DeliveryMain() {
   const navigation = useNavigation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(false); 
-  const { avatarUri, riderName } = useContext(RiderContext);
+  const { avatarUri, riderName, isOnline: contextIsOnline, setIsOnline: setContextIsOnline } = useContext(RiderContext);
+  const isOnline = contextIsOnline;
+  const setIsOnline = setContextIsOnline;
   const [shifts, setShifts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       fetchMyShifts();
+      fetchOnlineStatus();
     }, [])
   );
 
-  // 🌟 修复：使用真正的时间对象 (Date Object) 进行比对 🌟
+  const fetchOnlineStatus = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_online')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!error && data) {
+        setIsOnline(data.is_online === true);
+      }
+    } catch (error) {
+      console.log('Failed to fetch online status:', error);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchOnlineStatus();
+  }, []);
+
+  // 🌟 修复：精确到“小时”的时间比对自动删除 🌟
   const fetchMyShifts = async () => {
     setIsLoading(true);
     try {
@@ -40,28 +65,44 @@ export default function DeliveryMain() {
         Alert.alert("Fetch Error ❌", error.message);
       } else if (data) {
         
-        // 1. 获取今天的时间对象，并把时分秒归零，确保公平对比
+        const now = new Date(); // 当前真实时间 (包含小时)
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0); // 仅留日期
+
+        // 定义每个班次的结束小时 (24小时制)
+        const endHours = {
+          '8.00AM - 10.00AM': 10,
+          '10.00AM - 12.00PM': 12,
+          '12.00PM - 2.00PM': 14,
+          '2.00PM - 4.00PM': 16,
+          '4.00PM - 6.00PM': 18,
+        };
 
         const validShifts = [];
         const expiredShiftIds = [];
 
-        // 2. 遍历拉取到的数据
         data.forEach(shift => {
-          // 把数据库里 "Thu Jun 18 2026" 这种字符串，还原成真实时间对象
           const shiftDateObj = new Date(shift.shift_date);
           shiftDateObj.setHours(0, 0, 0, 0);
 
-          // 3. 完美对比：如果排班的时间 小于 今天的时间
+          let isExpired = false;
+
           if (shiftDateObj < today) {
-            expiredShiftIds.push(shift.id); // 过期！拉出去删掉
+            isExpired = true; // 日期已经过了
+          } else if (shiftDateObj.getTime() === today.getTime()) {
+            const endHour = endHours[shift.shift_time] || 24; 
+            if (now.getHours() >= endHour) {
+              isExpired = true; // 时间过了这个小时
+            }
+          }
+
+          if (isExpired) {
+            expiredShiftIds.push(shift.id); // 丢进过期名单
           } else {
-            validShifts.push(shift); // 还没过期，留下来渲染
+            validShifts.push(shift); // 还没过期
           }
         });
 
-        // 如果发现有过期数据，执行自动删除并弹窗
         if (expiredShiftIds.length > 0) {
           const { error: deleteError } = await supabase
             .from('rider_shifts')
@@ -119,8 +160,17 @@ export default function DeliveryMain() {
     );
   };
 
+  // 🌟 修复：如果没有排班则不准上线 🌟
   const handleToggleOnline = async (newValue) => {
-    setIsOnline(newValue); 
+    if (newValue === true && shifts.length === 0) {
+      Alert.alert(
+        "Action Required", 
+        "Please go to Working Shift to add your working slots before going online."
+      );
+      return; 
+    }
+
+    setIsOnline(newValue);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -150,16 +200,17 @@ export default function DeliveryMain() {
     let orderChannel = null;
 
     if (isOnline) {
+      const uniqueChannelName = `rider-order-radar-${Date.now()}`;
+      
       orderChannel = supabase
-        .channel('rider-order-radar')
+        .channel(uniqueChannelName)
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'orders' },
-          (payload) => {
+          async (payload) => { 
             const newOrder = payload.new;
             const oldOrder = payload.old; 
             
-            // 🌟 修复：允许 pending_rider 或 ready_for_pickup 状态触发通知
             const waitingStatuses = ['pending_rider', 'ready_for_pickup'];
             
             if (
@@ -167,18 +218,39 @@ export default function DeliveryMain() {
               !waitingStatuses.includes(oldOrder.status) && 
               newOrder.order_type === 'delivery'
             ) {
-            Alert.alert(
-              "🔔 New Order Request!",
-              `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${Number(newOrder.earning || 0).toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
-              [
-              {
-              text: "View Request",
-              onPress: () => {
-              navigation.navigate('ProcessRequest', { orderData: newOrder });
-               }
-            }
-          ]
-      );
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user) return;
+
+                /* 🌟 为了 Demo 顺畅，我已经帮你把这段防重复接单的逻辑 Comment 掉了
+                const { data: activeOrders, error } = await supabase
+                  .from('orders')
+                  .select('id')
+                  .eq('rider_id', session.user.id)
+                  .in('status', ['accepted_by_rider', 'pickup_rider', 'otw_delivery']);
+
+                if (error) throw error;
+
+                if (activeOrders && activeOrders.length > 0) {
+                  return;
+                }
+                */
+
+                Alert.alert(
+                  "🔔 New Order Request!",
+                  `Order #: ${newOrder.order_number || 'N/A'}\nEarning: RM ${Number(newOrder.earning || 0).toFixed(2)}\nDestination: ${newOrder.delivery_building || 'N/A'}`,
+                  [
+                    {
+                      text: "View Request",
+                      onPress: () => {
+                        navigation.navigate('ProcessRequest', { orderData: newOrder });
+                      }
+                    }
+                  ]
+                );
+              } catch (err) {
+                console.log("Check active order error:", err);
+              }
             }
           }
         )

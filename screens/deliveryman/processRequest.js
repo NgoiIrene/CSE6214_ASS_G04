@@ -1,6 +1,6 @@
 import { useNavigation, useRoute } from '@react-navigation/native'; 
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import {
   Alert, Platform, SafeAreaView, ScrollView, StyleSheet,
@@ -17,32 +17,67 @@ export default function ProcessDeliveryRequest() {
   const [timeLeft, setTimeLeft] = useState(20);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [customerName, setCustomerName] = useState('Loading...');
+  const [vendorProfileName, setVendorProfileName] = useState(null);
+  const [customerProfileName, setCustomerProfileName] = useState(null);
+  
+  // 🌟 1. 新加这行代码，用来控制地图缩放
+  const mapRef = useRef(null);
 
+  // 🌟 核心：存储计算出来的 Earning
+  const [calculatedEarning, setCalculatedEarning] = useState(5.00); 
+
+  // 🌟 核心：去 delivery_zones 抓取 base_fee 然后永远 - 1
   useEffect(() => {
-    if (orderData?.customer_name) {
-      setCustomerName(orderData.customer_name);
-    } else if (orderData?.user_id) {
-      supabase.from('profiles').select('full_name').eq('id', orderData.user_id).single()
-        .then(({ data }) => {
-          if (data?.full_name) {
-            setCustomerName(data.full_name);
-          } else {
-            setCustomerName('Customer');
-          }
-        })
-        .catch(() => setCustomerName('Customer'));
-    } else {
-      setCustomerName('Cindy Kiki');
-    }
+    const fetchBaseFee = async () => {
+      if (orderData?.vendor_id) {
+        const { data, error } = await supabase
+          .from('delivery_zones')
+          .select('base_fee')
+          .eq('vendor_id', orderData.vendor_id)
+          .single();
+
+        if (data && data.base_fee) {
+          setCalculatedEarning(data.base_fee - 1); // 永远 base_fee - 1
+        }
+      } else if (orderData?.earning) {
+        setCalculatedEarning(Number(orderData.earning));
+      }
+    };
+
+    const fetchProfileNames = async () => {
+      if (!orderData) return;
+      const ids = [];
+      if (orderData.vendor_id) ids.push(orderData.vendor_id);
+      if (orderData.user_id) ids.push(orderData.user_id);
+      if (ids.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', ids);
+
+      if (!error && data) {
+        data.forEach((profile) => {
+          if (profile.id === orderData.vendor_id) setVendorProfileName(profile.full_name);
+          if (profile.id === orderData.user_id) setCustomerProfileName(profile.full_name);
+        });
+      }
+    };
+
+    fetchBaseFee();
+    fetchProfileNames();
   }, [orderData]);
 
+  // 🌟 统一使用数据库真实的字段名称
   const orderRef = orderData?.order_number || '#8680';
-  const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
-  const pickupLocation = orderData?.vendor_name || 'MMU Starbees';
-  const dropoffLocation = orderData?.delivery_building || 'Hostel HB3 & 4';
-  const foodDetails = orderData?.food_details || '2x Nasi Lemak w Ayam Rendang\n1x Teh Tarik (Ice)';
-  const earningPrice = orderData?.earning ? `RM ${Number(orderData.earning).toFixed(2)}` : 'RM 5.00';
+  const customerName = customerProfileName || orderData?.customer_name || orderData?.customer?.full_name || orderData?.user_name || 'Cindy Kiki';
+  const vendorName = vendorProfileName || orderData?.vendor_name || orderData?.vendor?.full_name || orderData?.vendor || 'Rasa Syiokk';
+  const pickupLocation = orderData?.pickup_location || orderData?.vendor_location || vendorName || 'MMU Starbees';
+  const dropoffLocation = orderData?.delivery_building || orderData?.dropoff_location || orderData?.building || 'Hostel HB3 & 4';
+  const foodDetails = orderData?.food_details || orderData?.notes || '2x Nasi Lemak w Ayam Rendang\n1x Teh Tarik (Ice)';
+  
+  const earningValue = orderData?.earning != null ? Number(orderData.earning) : calculatedEarning;
+  const earningPrice = `RM ${earningValue.toFixed(2)}`;
 
   const riderCoords = { latitude: 2.9255, longitude: 101.6405 };
   const starbeesCoords = { latitude: 2.9278, longitude: 101.6415 };
@@ -63,9 +98,7 @@ export default function ProcessDeliveryRequest() {
     }
   }, [timeLeft, orderStatus]);
 
-  // 🌟🌟 核心：抢单并跳转逻辑 (已完全修复) 🌟🌟
   const handleAccept = async () => {
-    // 【修复 1】如果没有真实 ID (单纯UI测试)，传原本的 orderData，名字改成 UpdateProgress
     if (!orderData?.id) {
       setOrderStatus('accepted');
       navigation.navigate('UpdateProgress', { orderData: orderData });
@@ -76,15 +109,14 @@ export default function ProcessDeliveryRequest() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      // 1. 去数据库把这单抢下来！把状态改成 accepted，并填上自己的 rider_id
       const { data, error } = await supabase
         .from('orders')
         .update({ 
-          status: 'accepted',
-          rider_id: session.user.id 
+          status: 'accepted_by_rider',
+          rider_id: session.user.id,
+          earning: calculatedEarning // 顺手把算好的钱存回去，保底
         })
         .eq('id', orderData.id)
-        // .eq('status', 'pending_rider') 
         .in('status', ['pending_rider', 'ready_for_pickup'])
         .select();
 
@@ -99,7 +131,6 @@ export default function ProcessDeliveryRequest() {
       setOrderStatus('accepted');
       Alert.alert("Order Accepted! 🚀", "GPS connected. Please follow the route to the restaurant for pick-up.");
       
-      // 【修复 2】抢单成功，带着订单数据，名字统一改成 UpdateProgress
       navigation.navigate('UpdateProgress', { orderData: data[0] });
 
     } catch (error) {
@@ -108,9 +139,12 @@ export default function ProcessDeliveryRequest() {
   };
 
   const handleDecline = () => {
-    setOrderStatus('declined');
-    Alert.alert("Order Declined", "This request will be passed to another rider.");
-    navigation.goBack(); // 拒绝后回到主页
+    Alert.alert("Order Declined", "This request will be passed to another rider.", [
+      {
+        text: 'OK',
+        onPress: () => navigation.navigate('Home'),
+      },
+    ]);
   };
 
   const resetOrderForTesting = () => {
@@ -156,19 +190,21 @@ export default function ProcessDeliveryRequest() {
         </View>
 
         <View style={styles.mapContainer}>
-          <MapView
-            style={styles.realMap}
+          {/* 🌟 2. 加入 ref 和 onMapReady 自动缩放聚焦 */}
+          <MapView 
+            ref={mapRef}
+            style={styles.realMap} 
             initialRegion={{ latitude: 2.9280, longitude: 101.6420, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
+            onMapReady={() => {
+              mapRef.current?.fitToCoordinates([riderCoords, starbeesCoords, hostelCoords], {
+                edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+                animated: true,
+              });
+            }}
           >
-            <Marker coordinate={riderCoords} title="Your Location (GPS)">
-              <View style={[styles.customMarkerContainer, { backgroundColor: '#4CAF50' }]}><MaterialIcons name="delivery-dining" size={18} color="white" /></View>
-            </Marker>
-            <Marker coordinate={starbeesCoords} title={vendorName}>
-              <View style={[styles.customMarkerContainer, { backgroundColor: '#2196F3' }]}><Ionicons name="restaurant" size={18} color="white" /></View>
-            </Marker>
-            <Marker coordinate={hostelCoords} title={customerName}>
-              <View style={[styles.customMarkerContainer, { backgroundColor: '#FF3B30' }]}><Ionicons name="home" size={18} color="white" /></View>
-            </Marker>
+            <Marker coordinate={riderCoords} title="Your Location (GPS)"><View style={[styles.customMarkerContainer, { backgroundColor: '#4CAF50' }]}><MaterialIcons name="delivery-dining" size={18} color="white" /></View></Marker>
+            <Marker coordinate={starbeesCoords} title={vendorName}><View style={[styles.customMarkerContainer, { backgroundColor: '#2196F3' }]}><Ionicons name="restaurant" size={18} color="white" /></View></Marker>
+            <Marker coordinate={hostelCoords} title={customerName}><View style={[styles.customMarkerContainer, { backgroundColor: '#FF3B30' }]}><Ionicons name="home" size={18} color="white" /></View></Marker>
             <Polyline coordinates={[riderCoords, starbeesCoords, hostelCoords]} strokeColor="#00C853" strokeWidth={4} lineDashPattern={[5, 5]} />
           </MapView>
         </View>
@@ -184,7 +220,8 @@ export default function ProcessDeliveryRequest() {
             <Text style={styles.locationTitle}>{vendorName}</Text>
             <Text style={styles.locationSub}>({pickupLocation})</Text>
           </View>
-          <Text style={styles.timeEst}>5 mins</Text>
+          {/* 🌟 3. 改成 1 min */}
+          <Text style={styles.timeEst}>1 min</Text>
         </View>
 
         <View style={styles.locationRow}>
