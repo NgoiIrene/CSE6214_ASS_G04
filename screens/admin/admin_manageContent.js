@@ -23,28 +23,25 @@ export default function ManageMenuContent() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  // ==================== Review 专属状态 (Mock Data) ====================
+  // ==================== Review 专属状态 ====================
   const [searchReviewQuery, setSearchReviewQuery] = useState('');
-  const [reviews, setReviews] = useState([
-    { id: 'r1', userAccount: 'ali_123', vendor: 'Vendor A', rating: 5, date: '2026-06-10', comment: 'The food is very delicious and hot!' },
-    { id: 'r2', userAccount: 'angry_bird', vendor: 'Vendor B', rating: 1, date: '2026-06-11', comment: 'Stupid food! Taste like rubbish! 🤬' }, 
-  ]);
+  const [reviews, setReviews] = useState([]);
 
   // ==================== 核心数据库逻辑 ====================
 
   useEffect(() => {
     if (mainCategory === 'menu') {
       fetchMenuItems();
+    } else if (mainCategory === 'review') {
+      fetchReviews(); // 🌟 正常拉取数据
     }
   }, [mainCategory]);
 
   const fetchMenuItems = async () => {
     setIsLoading(true);
     try {
-      // 🌟 修复 1：利用 Foreign Key 拿商家名字
-      // 注意：如果你的 profile 表名没有 s (就叫 profile)，请把下面的 profiles 改成 profile
       const { data, error } = await supabase
-        .from('food_items') // 使用你提供的表名 food_item
+        .from('food_items') 
         .select(`
           id, vendor_id, name, price, stock, desc, image_url, created_at,
           profiles ( full_name ) 
@@ -55,10 +52,8 @@ export default function ManageMenuContent() {
 
       setMenuItems(data || []);
 
-      // 智能提取商家名字放入 Filter 列表
       const vendors = ['All'];
       data?.forEach(item => {
-        // 兼容 profiles 或 profile 两种表名写法
         const vendorName = item.profiles?.full_name || item.profile?.full_name || 'Vendor ' + String(item.vendor_id).substring(0,4);
         if (!vendors.includes(vendorName)) {
           vendors.push(vendorName);
@@ -68,7 +63,6 @@ export default function ManageMenuContent() {
 
     } catch (error) {
       console.log("Fetch Error: ", error.message);
-      // Alert.alert("Error fetching menu", error.message); // 如果报错，会把真正的错误原因打印在 Console
     } finally {
       setIsLoading(false);
     }
@@ -99,6 +93,41 @@ export default function ManageMenuContent() {
       fetchMenuItems(); 
     } catch (error) {
       Alert.alert("Update Failed", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }; // 🌟 修复关键：这里必须闭合 handleSaveMenu 函数！
+
+  // 🌟 将 fetchReviews 变成独立函数，与 handleSaveMenu 平级
+  const fetchReviews = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          rating,
+          review_text,
+          created_at,
+          profiles ( full_name )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedReviews = data.map(r => ({
+        id: r.id,
+        userAccount: r.profiles?.full_name || 'Unknown User', 
+        rating: r.rating,
+        date: new Date(r.created_at).toISOString().split('T')[0], 
+        comment: r.review_text
+      }));
+
+      setReviews(formattedReviews || []);
+    } catch (error) {
+      console.log("Fetch Reviews Error: ", error.message);
+      // 🌟 改成这样，让手机直接弹出真正的数据库底层报错！
+      Alert.alert("Database Error", error.message);
     } finally {
       setIsLoading(false);
     }
@@ -145,19 +174,31 @@ export default function ManageMenuContent() {
   const handleDeleteReview = (id, userAccount) => {
     Alert.alert("Moderate Comment", `Delete review by ${userAccount}?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete Review", style: "destructive", onPress: () => {
-          setReviews(reviews.filter(review => review.id !== id));
+      { 
+        text: "Delete Review", 
+        style: "destructive", 
+        onPress: async () => {
+          setIsLoading(true);
+          try {
+            const { error } = await supabase.from('reviews').delete().eq('id', id);
+            if (error) throw error;
+
+            setReviews(reviews.filter(review => review.id !== id));
+            Alert.alert("Deleted", "Review has been removed.");
+          } catch (error) {
+            Alert.alert("Delete Failed", error.message);
+          } finally {
+            setIsLoading(false);
+          }
       }}
     ]);
   };
 
-  // 🌟 修复 2：智能图片检测函数
   const getValidImageUrl = (url) => {
-    // 如果 url 存在，并且是以 http 开头，就是有效链接。否则给一张好看的美食占位图。
     if (url && typeof url === 'string' && url.startsWith('http')) {
       return url;
     }
-    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'; // 漂亮的默认美食图
+    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'; 
   };
 
   return (
@@ -213,14 +254,12 @@ export default function ManageMenuContent() {
 
               {filteredMenu.map(item => (
                 <View key={item.id} style={styles.menuCard}>
-                  {/* 🌟 采用智能检测，确保图片不管怎样都不会导致手机报错 */}
                   <Image 
                     source={{ uri: getValidImageUrl(item.image_url) }} 
                     style={styles.menuImage} 
                   />
                   <View style={styles.menuInfo}>
                     <View style={styles.tagBadge}>
-                      {/* 🌟 完美显示商家的名字 */}
                       <Text style={styles.tagText}>{item.profiles?.full_name || item.profile?.full_name || 'Vendor ' + String(item.vendor_id).substring(0,4)}</Text>
                     </View>
                     
@@ -264,21 +303,34 @@ export default function ManageMenuContent() {
                   onChangeText={setSearchReviewQuery}
                 />
               </View>
-              <Text style={styles.sectionSubTitle}>Total Reviews Found: {filteredReviews.length}</Text>
-
-              {filteredReviews.map(review => (
-                <View key={review.id} style={styles.reviewCard}>
-                  <View style={styles.reviewHeader}>
-                    <Text style={styles.reviewerName}>👤 {review.userAccount}</Text>
-                    <Text style={styles.reviewDate}>{review.date}</Text>
-                  </View>
-                  <Text style={styles.reviewComment}>"{review.comment}"</Text>
-                  <TouchableOpacity style={styles.deleteReviewBtn} onPress={() => handleDeleteReview(review.id, review.userAccount)}>
-                    <Ionicons name="trash-outline" size={16} color="#fff" />
-                    <Text style={styles.deleteReviewText}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {isLoading ? (
+                <ActivityIndicator size="large" color="#000" style={{ marginTop: 20 }} />
+              ) : (
+                <>
+                  <Text style={styles.sectionSubTitle}>Total Reviews Found: {filteredReviews.length}</Text>
+                  {filteredReviews.map(review => (
+                    <View key={review.id} style={styles.reviewCard}>
+                      <View style={styles.reviewHeader}>
+                        <Text style={styles.reviewerName}>👤 {review.userAccount}</Text>
+                        <Text style={styles.reviewDate}>{review.date}</Text>
+                      </View>
+                      
+                      <Text style={{ fontSize: 13, color: '#f5c518', marginTop: 2, fontWeight: 'bold' }}>
+                        {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                      </Text>
+                      
+                      <Text style={styles.reviewComment}>"{review.comment}"</Text>
+                      <TouchableOpacity 
+                        style={styles.deleteReviewBtn} 
+                        onPress={() => handleDeleteReview(review.id, review.userAccount)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#fff" />
+                        <Text style={styles.deleteReviewText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </>
+              )}
             </View>
           )}
 

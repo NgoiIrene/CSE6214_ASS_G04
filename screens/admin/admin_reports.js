@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   rankingContainer: { width: '100%' },
   rankItem: { marginVertical: 8 },
   rankName: { fontSize: 13, color: '#333', marginBottom: 4 },
-  rankTrack: { height: 20, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  rankTrack: { height: 17, backgroundColor: '#E0E0E0', borderRadius: 4, justifyContent: 'center', overflow: 'hidden', position: 'relative' },
   rankFill: { height: '100%', backgroundColor: '#7a7878' },
   rankCount: { position: 'absolute', right: 10, fontSize: 13, fontWeight: 'bold', color: '#000000' },
 
