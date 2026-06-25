@@ -217,7 +217,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
   }, [imageUri]);
 
   // ==================== 📦 核心稳定版上传：使用 expo-file-system 读取 Base64 规避 Fetch 报错 ====================
-  const uploadImageToStorage = async (localUri, announcements) => {
+  const uploadImageToStorage = async (localUri, bucketName) => {
     if (!localUri || !localUri.startsWith('file://')) {
       return localUri;
     }
@@ -233,7 +233,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
       const arrayBuffer = await file.arrayBuffer();
 
       const { error: uploadError } = await supabase.storage
-        .from('announcements')
+        .from(bucketName)
         .upload(filePath, arrayBuffer, {
           contentType: mimeType,
           upsert: true,
@@ -242,7 +242,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from(announcements)
+        .from(bucketName)
         .getPublicUrl(filePath);
 
       return publicUrl;
@@ -486,7 +486,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
     try {
       let finalFoodImgUrl = formImg;
       if (formImg && formImg.startsWith('file://')) {
-        finalFoodImgUrl = await uploadImageToStorage(formImg, 'announcements');
+        finalFoodImgUrl = await uploadImageToStorage(formImg, 'food_items');
       }
 
       const { data: catData } = await supabase
