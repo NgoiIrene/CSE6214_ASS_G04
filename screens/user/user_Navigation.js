@@ -174,14 +174,18 @@ function MainLayout() {
                     <DeliveryOrderTrack
                         {...props}
                         route={{ params: { orderNumber: checkoutData.lastOrderNumber } }}
+                        // 🌟 加上这行：赋予页面跳转回 Home 的能力
+                        navigation={{ navigate: (pageName) => setCurrentPage(pageName), goBack: () => setCurrentPage('Home') }}
                     />
                 );
 
             case 'PickupOrderTrack':
                 return (
-                    <PickupOrderTrack 
-                        {...props} 
-                        route={{ params: { orderId: checkoutData.lastOrderNumber } }} 
+                    <PickupOrderTrack
+                        {...props}
+                        route={{ params: { orderId: checkoutData.lastOrderNumber } }}
+                        // 🌟 加上这行：赋予页面跳转回 Home 的能力
+                        navigation={{ navigate: (pageName) => setCurrentPage(pageName), goBack: () => setCurrentPage('Home') }}
                     />
                 );
 
