@@ -152,6 +152,8 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
 
   const handleAddToCart = (food, isAvailable) => {
     if (!isAvailable) return;
+
+
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === food.id);
       let newQuantity = 1; let newCart;

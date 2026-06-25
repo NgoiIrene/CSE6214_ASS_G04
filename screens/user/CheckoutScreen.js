@@ -16,7 +16,7 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
   const [orderNumber] = useState('ORD-' + Math.floor(100000 + Math.random() * 900000));
 
   // 🌟 新增：校园建筑选项与弹窗控制
-  const BUILDINGS = ['Hostel HB 1', 'Hostel HB 2', 'Hostel HB 3 & 4', 'FCI Building', 'FOM Building', 'Main Library'];
+  const BUILDINGS = ['Hostel HB 1', 'Hostel HB 2', 'Hostel HB 3 & 4', 'FCI Building', 'FOM Building'];
   const [campusBuilding, setCampusBuilding] = useState(BUILDINGS[2]);
   const [showBuildingModal, setShowBuildingModal] = useState(false);
 
@@ -34,6 +34,8 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
 
   // 🌟 1. 新增：SST Rate 的状态 (默认 5%，即 0.05)
   const [sstRate, setSstRate] = useState(0.05);
+
+  const totalItemsQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
@@ -212,7 +214,12 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
 
       // 扣款与清空购物车
       await supabase.from('wallets').update({ balance: walletBalance - finalTotalPrice }).eq('user_id', user.id);
-      await supabase.from('carts').delete().eq('user_id', user.id);
+      //await supabase.from('carts').delete().eq('user_id', user.id);
+      await supabase
+        .from('carts')
+        .update({ is_ordered: true }) // 🌟 标记这些购物车条目为“已下单”
+        .eq('user_id', user.id)
+        .eq('is_ordered', false); // 🌟 只标记那些还没被下单的
 
       // 🌟 在这里增加这一行，确保 CheckoutScreen 记住了刚刚下单的订单号
       setCheckoutData(prev => ({ ...prev, lastOrderNumber: orderNumber }));
@@ -247,7 +254,7 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>Order Summary</Text>
-            <View style={styles.badge}><Text style={styles.badgeText}>{items.length} Items</Text></View>
+            <View style={styles.badge}><Text style={styles.badgeText}>{totalItemsQuantity} Items</Text></View>
           </View>
           {items.map((item, index) => (
             <View style={styles.itemRow} key={index}>

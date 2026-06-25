@@ -37,7 +37,8 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
         const { data, error } = await supabase
           .from('carts') // 换成了 carts
           .select(`quantity, food_id, food_items (name, price, image_url)`)
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .eq('is_ordered', false);
 
         if (error) throw error;
 
