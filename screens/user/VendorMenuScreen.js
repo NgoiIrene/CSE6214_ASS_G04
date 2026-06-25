@@ -74,8 +74,9 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
 
         const { data, error } = await supabase
           .from('carts') // 换成 carts
-          .select(`quantity, food_id, food_items (name, price, image_url)`)
-          .eq('user_id', user.id);
+          .select(`quantity, food_id, food_items (name, price, image_url, vendor_id)`)
+          .eq('user_id', user.id)
+          .eq('is_ordered', false);
 
         if (error) throw error;
 
@@ -85,7 +86,8 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
             name: item.food_items?.name || 'Loading...',
             price: parseFloat(item.food_items?.price) || 0,
             quantity: item.quantity,
-            image: item.food_items?.image_url || null
+            image: item.food_items?.image_url || null,
+            vendor_id: item.food_items?.vendor_id
           }));
           setCart(dbCart);
         }
@@ -150,21 +152,54 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     setIsModalVisible(true);
   };
 
-  const handleAddToCart = (food, isAvailable) => {
+  const handleAddToCart = async (food, isAvailable) => {
     if (!isAvailable) return;
 
+    const currentVendorId = vendorData.id;
+    // 检查购物车里是否已有不同商家的东西
+    const hasDifferentVendor = cart.some(item => item.vendor_id && item.vendor_id !== currentVendorId);
 
+    if (hasDifferentVendor) {
+      Alert.alert(
+        "Clear Cart?",
+        "Your cart contains items from another vendor. Would you like to clear your cart and add this item instead?",
+        [
+          { text: "NO", style: "cancel" },
+          {
+            text: "YES",
+            onPress: async () => {
+              const { data: { user } } = await supabase.auth.getUser();
+              // 1. 彻底清空数据库
+              await supabase.from('carts').delete().eq('user_id', user.id).eq('is_ordered', false);
+              // 2. 彻底清空本地状态
+              setCart([]);
+              // 3. 在完全清空后，再添加这一个新商品 (不再触发其他逻辑)
+              performAddToCart(food, currentVendorId);
+            }
+          }
+        ]
+      );
+    } else {
+      // 如果没有不同商家的东西，直接添加
+      performAddToCart(food, currentVendorId);
+    }
+  };
+
+  const performAddToCart = (food, vendorId) => {
     setCart((prevCart) => {
+      // 这里的逻辑只负责更新本地 cart 状态
       const existingItem = prevCart.find((item) => item.id === food.id);
-      let newQuantity = 1; let newCart;
+      let newCart;
+
       if (existingItem) {
-        newQuantity = existingItem.quantity + 1;
-        newCart = prevCart.map((item) => item.id === food.id ? { ...item, quantity: newQuantity } : item);
+        newCart = prevCart.map((item) => item.id === food.id ? { ...item, quantity: item.quantity + 1 } : item);
       } else {
         const cleanPrice = parseFloat(food.price ? food.price.replace('RM ', '') : '10.00') || 10.00;
-        newCart = [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image }];
+        newCart = [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image, vendor_id: vendorId }];
       }
-      syncCartToDB(food.id, newQuantity);
+      
+      // 添加完后，手动调用一次同步到数据库
+      syncCartToDB(food.id, existingItem ? existingItem.quantity + 1 : 1);
       return newCart;
     });
   };
@@ -258,7 +293,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
             const isNew = food.status === 'new';
 
             return (
-              <TouchableOpacity key={food.id} style={[styles.foodCard, isOutOfStock && styles.foodCardDisabled]} activeOpacity={isOutOfStock ? 0.6 : 0.8} onPress={() => handleItemPress(food)}>
+              <TouchableOpacity key={food.id} style={[styles.foodCard, isOutOfStock && styles.foodCardDisabled]} activeOpacity={isOutOfStock ? 1 : 0.8} disabled={isOutOfStock} onPress={() => handleItemPress(food)}>
                 {isEvenRow ? (
                   <>
                     <View style={styles.imageContainer}>
@@ -480,7 +515,14 @@ const styles = StyleSheet.create({
   foodPriceText: { fontSize: 15, fontWeight: '900', color: '#000000', marginTop: 4 },
   foodTextDisabled: { color: '#757575' },
 
-  outOfStockContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  //outOfStockContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10,  marginLeft: 0,},
+  outOfStockContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute', // 保持绝对定位
+    bottom: 5,            // 👈 调小这个数值（例如 5），它会更贴近底部
+    left: 10,             // 👈 调整这个数值（例如 10），它会向右移一点
+  },
   outOfStockText: { fontSize: 12, fontWeight: '900', color: '#757575', textTransform: 'uppercase' },
 
   actionButtonRight: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', position: 'absolute', bottom: 10, right: 10 },
