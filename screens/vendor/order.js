@@ -385,7 +385,7 @@ export default function App({ route, navigateToScreen }) {
 
   const handleDeclineOrder = async (orderId) => {
     try {
-      await supabase.from('orders').update({ status: 'declined_vendor' }).eq('id', orderId);
+      await supabase.from('orders').update({ status: 'rejected' }).eq('id', orderId);
       setScreen('HOME');
     } catch (e) {
       console.log(e);
