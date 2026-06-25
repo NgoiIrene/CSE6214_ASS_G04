@@ -106,8 +106,13 @@ function MainLayout() {
                                 setCheckoutData(prev => ({ ...prev, autoOpenCart: true }));
                                 setCurrentPage('Home');
                             },
-                            navigate: (pageName) => setCurrentPage(pageName)
+                            navigate: (pageName, params) => { // 🌟 修改这里，允许传递 params
+                                setCurrentPage(pageName);
+                                // 如果传入了参数，你需要处理它，这里简化逻辑
+                            }
                         }}
+                        // 🌟 关键：把这个函数传下去！
+                        setCheckoutData={setCheckoutData}
                     />
                 );
 
@@ -165,10 +170,20 @@ function MainLayout() {
                 );
 
             case 'DeliveryOrderTrack':
-                return <DeliveryOrderTrack {...props} />;
+                return (
+                    <DeliveryOrderTrack
+                        {...props}
+                        route={{ params: { orderNumber: checkoutData.lastOrderNumber } }}
+                    />
+                );
 
             case 'PickupOrderTrack':
-                return <PickupOrderTrack {...props} />;
+                return (
+                    <PickupOrderTrack 
+                        {...props} 
+                        route={{ params: { orderId: checkoutData.lastOrderNumber } }} 
+                    />
+                );
 
             default:
                 return renderHome();
