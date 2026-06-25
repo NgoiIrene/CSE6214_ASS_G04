@@ -22,7 +22,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   };
 
   const [foodItems, setFoodItems] = useState([]);
-
+  const [announcementContent, setAnnouncementContent] = useState('Loading notice...');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
 
@@ -97,6 +97,36 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     };
     fetchCartFromDB();
   }, []);
+
+  // 🌟 新增：根据商家 ID 去 announcements 表拉取公告
+  useEffect(() => {
+    const fetchAnnouncement = async () => {
+      if (!vendorData?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('content')
+          .eq('vendor_id', vendorData.id)
+          .maybeSingle(); // 使用 maybeSingle，因为有些商家可能还没写公告
+
+        if (error) throw error;
+        
+        if (data && data.content) {
+          setAnnouncementContent(data.content);
+        } else {
+          // 🌟 修改：数据库里找不到对应公告时，显示这个
+          setAnnouncementContent('waiting to update...'); 
+        }
+      } catch (error) {
+        console.log('Fetch announcement error:', error.message);
+        // 🌟 修改：网络错误或抓取失败时，也显示这个
+        setAnnouncementContent('waiting to update...'); 
+      }
+    };
+
+    fetchAnnouncement();
+  }, [vendorData]);
+
 
   // 🌟 最新修复版：完美适配干净的 carts 表，解决存不进数据库的问题
   const syncCartToDB = async (foodId, quantity) => {
@@ -271,13 +301,13 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
         {/* Notice 留言板 */}
-        {displayVendor.announcement && (
+       {announcementContent && (
           <View style={styles.announcementCard}>
             <View style={styles.announcementBadge}>
               <Ionicons name="reader-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
               <Text style={styles.announcementBadgeText}>NOTICE</Text>
             </View>
-            <Text style={styles.announcementText}>{displayVendor.announcement}</Text>
+           <Text style={styles.announcementText}>{announcementContent}</Text>
           </View>
         )}
 
@@ -305,12 +335,12 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                      {isOutOfStock && (
-                        <View style={styles.outOfStockContainer}>
-                          <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
-                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                     {isOutOfStock && (
+                      <View style={styles.outOfStockContainerRightBtn}>
+                        <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
+                        <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
                         </View>
-                      )}
+                        )}
                       <TouchableOpacity
                         style={[styles.actionButtonRight, isOutOfStock ? styles.actionButtonDisabled : styles.actionButtonNormal]}
                         disabled={isOutOfStock} onPress={() => handleAddToCart(food, !isOutOfStock)}>
@@ -325,11 +355,11 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                      {isOutOfStock && (
-                        <View style={styles.outOfStockContainer}>
-                          <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
-                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
-                        </View>
+                     {isOutOfStock && (
+                      <View style={styles.outOfStockContainerLeftBtn}>
+                       <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
+                       <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                      </View>
                       )}
                       <TouchableOpacity
                         style={[styles.actionButtonLeft, isOutOfStock ? styles.actionButtonDisabled : styles.actionButtonNormal]}
@@ -515,13 +545,21 @@ const styles = StyleSheet.create({
   foodPriceText: { fontSize: 15, fontWeight: '900', color: '#000000', marginTop: 4 },
   foodTextDisabled: { color: '#757575' },
 
-  //outOfStockContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10,  marginLeft: 0,},
-  outOfStockContainer: {
+
+  // 🌟 替换掉原来的 outOfStockContainer
+  outOfStockContainerRightBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute', // 保持绝对定位
-    bottom: 5,            // 👈 调小这个数值（例如 5），它会更贴近底部
-    left: 10,             // 👈 调整这个数值（例如 10），它会向右移一点
+    position: 'absolute', 
+    bottom: 14,            
+    left: 12, // 按钮在右边，文字正常靠左
+  },
+  outOfStockContainerLeftBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute', 
+    bottom: 14,            
+    left: 45, // 🌟 关键：按钮在左边时，给按钮留出 45px 的空间，文字就不会被挡住了
   },
   outOfStockText: { fontSize: 12, fontWeight: '900', color: '#757575', textTransform: 'uppercase' },
 
