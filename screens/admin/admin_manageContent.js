@@ -126,12 +126,8 @@ export default function ManageMenuContent() {
       setReviews(formattedReviews || []);
     } catch (error) {
       console.log("Fetch Reviews Error: ", error.message);
-<<<<<<< HEAD
       // 🌟 改成这样，让手机直接弹出真正的数据库底层报错！
       Alert.alert("Database Error", error.message);
-=======
-      Alert.alert("Error", "Could not fetch reviews.");
->>>>>>> 4ef8f30d0f0693d48eabed19c8f5745e8a450408
     } finally {
       setIsLoading(false);
     }
