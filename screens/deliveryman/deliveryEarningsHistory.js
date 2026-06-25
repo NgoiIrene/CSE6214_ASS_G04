@@ -14,7 +14,17 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Calendar } from 'react-native-calendars';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
+
+// Force calendar locale to English to avoid device-localized month/day names
+LocaleConfig.locales['en'] = {
+  monthNames: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+  monthNamesShort: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+  dayNames: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+  dayNamesShort: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+  today: 'Today'
+};
+LocaleConfig.defaultLocale = 'en';
 
 export default function EarningsAndHistory() {
   const navigation = useNavigation();
@@ -73,7 +83,7 @@ export default function EarningsAndHistory() {
             ...item,
             customer_name: item.profiles?.full_name || item.customer_name || 'Customer',
             calendar_date: `${year}-${month}-${day}`, // 专门给日历过滤用的 YYYY-MM-DD
-            display_time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) // 显示用的 14:30 PM
+            display_time: dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) // display in English (e.g., 02:30 PM)
           };
         });
 
