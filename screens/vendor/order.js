@@ -89,7 +89,7 @@ function OrderCountdown({ createdAt, style, isLarge = false }) {
 }
 
 // ==================== 📄 主页列表组件 ====================
-function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOrders, acceptedOrders, onOpenMenu }) {
+function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOrders, acceptedOrders, onOpenMenu, acceptedAtMap }) {
   const displayOrders = currentTab === 'requested' ? requestedOrders : acceptedOrders;
 
   return (
@@ -142,7 +142,7 @@ function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOr
                     {currentTab === 'requested' ? (
                       <Text style={styles.priceText}>RM {Number(order.profit || 0).toFixed(2)}</Text>
                     ) : (
-                      <OrderCountdown createdAt={order.created_at} style={styles.timeLeftText} isLarge={false} />
+                      <OrderCountdown createdAt={acceptedAtMap?.[order.id] || order.created_at} style={styles.timeLeftText} isLarge={false} />
                     )}
                   </View>
                 </View>
@@ -191,7 +191,7 @@ function OrderDetailScreen({ orderData, initialStatus, onBack, onAcceptOrder, on
 
           {initialStatus === 'preparing' && (
             <View style={styles.metaInfoRightColumn}>
-              <OrderCountdown createdAt={orderData.created_at} style={styles.timeLeftLarge} isLarge={true} />
+              <OrderCountdown createdAt={orderData.accepted_at_local || orderData.created_at} style={styles.timeLeftLarge} isLarge={true} />
             </View>
           )}
         </View>
@@ -251,6 +251,9 @@ export default function App({ route, navigateToScreen }) {
 
   const [requestedOrders, setRequestedOrders] = useState([]);
   const [acceptedOrders, setAcceptedOrders] = useState([]);
+
+  // 🌟 本地记录每笔订单的接单时间，用于倒计时（不需要改数据库）
+  const [acceptedAtMap, setAcceptedAtMap] = useState({});
 
   // 👤 侧边栏动态个人资料状态
   const [profileName, setProfileName] = useState('Loading...');
@@ -383,6 +386,10 @@ export default function App({ route, navigateToScreen }) {
         .eq('id', order.id);
 
       if (error) throw error;
+
+      // 🌟 记录本地接单时间：倒计时从现在开始，而不是从下单时间开始
+      setAcceptedAtMap(prev => ({ ...prev, [order.id]: new Date().toISOString() }));
+
       setScreen('HOME');
     } catch (e) {
       Alert.alert("Error", "Could not accept order.");
@@ -480,8 +487,10 @@ export default function App({ route, navigateToScreen }) {
           requestedOrders={requestedOrders}
           acceptedOrders={acceptedOrders}
           onOpenMenu={() => setIsSidebarOpen(true)}
+          acceptedAtMap={acceptedAtMap}
           onNavigateToDetail={(order) => {
-            setSelectedOrder(order);
+            // 🌟 把本地接单时间一并传给详情页
+            setSelectedOrder({ ...order, accepted_at_local: acceptedAtMap[order.id] || null });
             setScreen('DETAIL');
           }}
         />
