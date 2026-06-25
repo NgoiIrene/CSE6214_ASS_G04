@@ -47,14 +47,14 @@ export default function UserProfileScreen({ onProfileUpdate }) {
       }
 
       // 🌟 新增：去数据库查 Admin 设置的最低充值金额
-      const { data: settingsData } = await supabase
-        .from('system_settings')
-        .select('setting_value')
-        .eq('setting_key', 'min_topup_amount')
+      const { data: finSettingsData } = await supabase
+        .from('system_financial_settings')
+        .select('min_top_up')
+        .eq('id', 1)
         .maybeSingle();
 
-      if (settingsData && settingsData.setting_value) {
-        setMinTopUpAmount(parseFloat(settingsData.setting_value));
+      if (finSettingsData && finSettingsData.min_top_up !== null) {
+        setMinTopUpAmount(parseFloat(finSettingsData.min_top_up));
       }
 
       // 1. 先抓取 User 的基础资料
