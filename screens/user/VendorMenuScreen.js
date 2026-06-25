@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import { supabase } from '../../supabaseClient'; // ⚠️ 如果路径不对请自行微调
+import { supabase } from '../../supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,7 +30,8 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const [isCartVisible, setIsCartVisible] = useState(false);
   const [remarks, setRemarks] = useState("");
 
-  // 页面加载时，根据商家的 ID 去拉取真实菜单！
+  // 页面加载时，根据商家的 ID 去拉取真实菜单 
+  //hellllllloooooooo
   useEffect(() => {
     const fetchFoodItemsFromDB = async () => {
       if (!vendorData?.id) return;
