@@ -17,11 +17,12 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     name: vendorData?.name || 'Korean House',
     cuisine: vendorData?.category || 'Korean food',
     rating: vendorData?.rating || '4.7',
-    // 如果商家没有写公告，就显示默认的
-    announcement: vendorData?.announcement || 'Welcome to our store, enjoy your meal⭐ \n\n🔥 Today Special:\nWe have limited NEW items available NOW\n\n⚠️ IMPORTANT:\nPlease hurry up before it finished!'
   };
 
   const [foodItems, setFoodItems] = useState([]);
+  
+  // 🌟 新增：用于存储从数据库拉取的公告内容
+const [announcementContent, setAnnouncementContent] = useState('');
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
@@ -31,7 +32,6 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const [remarks, setRemarks] = useState("");
 
   // 页面加载时，根据商家的 ID 去拉取真实菜单 
-  //hellllllloooooooo
   useEffect(() => {
     const fetchFoodItemsFromDB = async () => {
       if (!vendorData?.id) return;
@@ -66,7 +66,36 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     fetchFoodItemsFromDB();
   }, [vendorData]);
 
-  // 🌟 修改 1：拉取购物车数据，连接 carts 表 和 food_items 表
+  // 🌟 新增：根据商家 ID 去 announcements 表拉取公告
+  useEffect(() => {
+    const fetchAnnouncement = async () => {
+      if (!vendorData?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('content')
+          .eq('vendor_id', vendorData.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        
+        if (data && data.content) {
+          setAnnouncementContent(data.content);
+        } else {
+          // 🌟 找不到公告时，设为空白
+          setAnnouncementContent(''); 
+        }
+      } catch (error) {
+        console.log('Fetch announcement error:', error.message);
+        // 🌟 抓取失败时，也设为空白
+        setAnnouncementContent(''); 
+      }
+    };
+
+    fetchAnnouncement();
+  }, [vendorData]);
+
+  // 拉取购物车数据
   useEffect(() => {
     const fetchCartFromDB = async () => {
       try {
@@ -74,7 +103,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
         if (!user) return;
 
         const { data, error } = await supabase
-          .from('carts') // 换成 carts
+          .from('carts') 
           .select(`quantity, food_id, food_items (name, price, image_url, vendor_id)`)
           .eq('user_id', user.id)
           .eq('is_ordered', false);
@@ -99,31 +128,26 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     fetchCartFromDB();
   }, []);
 
-  // 🌟 最新修复版：完美适配干净的 carts 表，解决存不进数据库的问题
   const syncCartToDB = async (foodId, quantity) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        //console.log("User not logged in");
-        Alert.alert("Debug", "User is not logged in!"); // 检查是否没登录
+        Alert.alert("Debug", "User is not logged in!"); 
         return;
       }
 
       if (quantity === 0) {
-        // 如果数量是 0，从购物车删除
         const { error } = await supabase.from('carts').delete().match({ user_id: user.id, food_id: foodId });
         if (error) console.log("Delete error:", error.message);
       } else {
-        // 1. 先检查数据库里是不是已经有这道菜了
         const { data: existingCart } = await supabase
           .from('carts')
-          .select('cart_id') // 随便选一个字段检查存在性
+          .select('cart_id') 
           .eq('user_id', user.id)
           .eq('food_id', foodId)
           .maybeSingle();
 
         if (existingCart) {
-          // 2. 如果有，就更新数量 (不再传 name 字段)
           const { error: updateError } = await supabase
             .from('carts')
             .update({ quantity: quantity })
@@ -131,16 +155,12 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
             .eq('food_id', foodId);
           if (updateError) console.log("Update error:", updateError.message);
         } else {
-          // 3. 如果没有，就插入新的一行 (不再传 name 字段)
           const { error: insertError } = await supabase
             .from('carts')
             .insert({ user_id: user.id, food_id: foodId, quantity: quantity });
-          //if (insertError) console.log("Insert error:", insertError.message);
-          // 🚨 重点在这里！如果有错，它会立刻弹窗告诉你！
           if (insertError) {
             Alert.alert("Insert Error (Please read!)", insertError.message);
           }
-
         }
       }
     } catch (error) {
@@ -157,7 +177,6 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
     if (!isAvailable) return;
 
     const currentVendorId = vendorData.id;
-    // 检查购物车里是否已有不同商家的东西
     const hasDifferentVendor = cart.some(item => item.vendor_id && item.vendor_id !== currentVendorId);
 
     if (hasDifferentVendor) {
@@ -170,25 +189,20 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
             text: "YES",
             onPress: async () => {
               const { data: { user } } = await supabase.auth.getUser();
-              // 1. 彻底清空数据库
               await supabase.from('carts').delete().eq('user_id', user.id).eq('is_ordered', false);
-              // 2. 彻底清空本地状态
               setCart([]);
-              // 3. 在完全清空后，再添加这一个新商品 (不再触发其他逻辑)
               performAddToCart(food, currentVendorId);
             }
           }
         ]
       );
     } else {
-      // 如果没有不同商家的东西，直接添加
       performAddToCart(food, currentVendorId);
     }
   };
 
   const performAddToCart = (food, vendorId) => {
     setCart((prevCart) => {
-      // 这里的逻辑只负责更新本地 cart 状态
       const existingItem = prevCart.find((item) => item.id === food.id);
       let newCart;
 
@@ -199,7 +213,6 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
         newCart = [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image, vendor_id: vendorId }];
       }
       
-      // 添加完后，手动调用一次同步到数据库
       syncCartToDB(food.id, existingItem ? existingItem.quantity + 1 : 1);
       return newCart;
     });
@@ -208,11 +221,9 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const increaseQuantity = (id) => {
     setCart(prevItems => {
       let newQuantity;
-      let foodName;
       const newCart = prevItems.map(item => {
         if (item.id === id) {
           newQuantity = item.quantity + 1;
-          foodName = item.name;
           return { ...item, quantity: newQuantity };
         }
         return item;
@@ -225,11 +236,9 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   const decreaseQuantity = (id) => {
     setCart(prevItems => {
       let newQuantity;
-      let foodName;
       const newCart = prevItems.map(item => {
         if (item.id === id) {
           newQuantity = item.quantity > 1 ? item.quantity - 1 : 1;
-          foodName = item.name;
           return { ...item, quantity: newQuantity };
         }
         return item;
@@ -241,7 +250,7 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
 
   const removeItemFromCart = (id) => {
     setCart(prevItems => prevItems.filter(item => item.id !== id));
-    syncCartToDB(id, 0, null); // 加入 null 占位
+    syncCartToDB(id, 0, null); 
   };
 
   const getTotalCartQuantity = () => {
@@ -271,16 +280,15 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
       <View style={styles.divider} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {/* Notice 留言板 */}
-        {displayVendor.announcement && (
-          <View style={styles.announcementCard}>
-            <View style={styles.announcementBadge}>
-              <Ionicons name="reader-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
-              <Text style={styles.announcementBadgeText}>NOTICE</Text>
-            </View>
-            <Text style={styles.announcementText}>{displayVendor.announcement}</Text>
+       {/* Notice 留言板 - 强行显示卡片 */}
+        <View style={styles.announcementCard}>
+          <View style={styles.announcementBadge}>
+            <Ionicons name="reader-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
+            <Text style={styles.announcementBadgeText}>NOTICE</Text>
           </View>
-        )}
+          {/* 如果 content 是空字符串，这里就只会显示一块空白 */}
+          <Text style={styles.announcementText}>{announcementContent}</Text>
+        </View>
 
         {foodItems.length === 0 ? (
           <View style={{ alignItems: 'center', marginTop: 40 }}>
@@ -306,8 +314,10 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
+                      
+                      {/* 🌟 偶数行 (右侧按钮) 的 OUT OF STOCK */}
                       {isOutOfStock && (
-                        <View style={styles.outOfStockContainer}>
+                        <View style={styles.outOfStockContainerRightBtn}>
                           <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
                           <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
                         </View>
@@ -326,8 +336,10 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
+
+                      {/* 🌟 奇数行 (左侧按钮) 的 OUT OF STOCK，已向右推开避免遮挡 */}
                       {isOutOfStock && (
-                        <View style={styles.outOfStockContainer}>
+                        <View style={styles.outOfStockContainerLeftBtn}>
                           <Ionicons name="warning-outline" size={14} color="#757575" style={{ marginRight: 4 }} />
                           <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
                         </View>
@@ -471,7 +483,7 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
 }
 
 // ==========================================
-// 🎨 神仙 CSS 样式表（完全没动）
+// 🎨 神仙 CSS 样式表（已更新 OUT OF STOCK 位置）
 // ==========================================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
@@ -516,13 +528,20 @@ const styles = StyleSheet.create({
   foodPriceText: { fontSize: 15, fontWeight: '900', color: '#000000', marginTop: 4 },
   foodTextDisabled: { color: '#757575' },
 
-  //outOfStockContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10,  marginLeft: 0,},
-  outOfStockContainer: {
+  // 🌟 替换了原本的 outOfStockContainer，分成左右两种
+  outOfStockContainerRightBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute', // 保持绝对定位
-    bottom: 5,            // 👈 调小这个数值（例如 5），它会更贴近底部
-    left: 10,             // 👈 调整这个数值（例如 10），它会向右移一点
+    position: 'absolute', 
+    bottom: 14,            
+    left: 12, 
+  },
+  outOfStockContainerLeftBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute', 
+    bottom: 14,            
+    left: 45, // 给左侧的灰色按钮留出空间，文字就不会被挡住了！
   },
   outOfStockText: { fontSize: 12, fontWeight: '900', color: '#757575', textTransform: 'uppercase' },
 
