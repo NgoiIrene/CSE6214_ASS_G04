@@ -214,7 +214,17 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
 
       // 扣款与清空购物车
       await supabase.from('wallets').update({ balance: walletBalance - finalTotalPrice }).eq('user_id', user.id);
-      //await supabase.from('carts').delete().eq('user_id', user.id);
+      // 🌟 关键：在这里直接标记为已下单 (is_ordered: true)
+      const { error: cartError } = await supabase
+        .from('carts')
+        .update({ is_ordered: true })
+        .eq('user_id', user.id)
+        .eq('is_ordered', false);
+
+      if (cartError) {
+        console.error("Failed to mark cart as ordered:", cartError.message);
+      }
+
       await supabase
         .from('carts')
         .update({ is_ordered: true }) // 🌟 标记这些购物车条目为“已下单”

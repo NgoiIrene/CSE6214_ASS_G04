@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { UserContext } from './UserContext';
 import { supabase } from '../../supabaseClient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 const cardWidth = (width - 46) / 3;
@@ -27,37 +28,40 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
 
   const totalCartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  // 🌟 修改：连接真实的 carts 表，并通过 food_items 拿到真实数据
-  useEffect(() => {
-    const fetchCartFromDB = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+  // 🌟 替换掉原来的 useEffect，使用 useFocusEffect 确保每次返回首页都刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchCartFromDB = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
 
-        const { data, error } = await supabase
-          .from('carts') // 换成了 carts
-          .select(`quantity, food_id, food_items (name, price, image_url)`)
-          .eq('user_id', user.id)
-          .eq('is_ordered', false);
+          const { data, error } = await supabase
+            .from('carts')
+            .select(`quantity, food_id, food_items (name, price, image_url)`)
+            .eq('user_id', user.id)
+            .eq('is_ordered', false); // 🌟 关键：只拉取未下单的购物车
 
-        if (error) throw error;
+          if (error) throw error;
 
-        if (data && data.length > 0) {
-          const dbCart = data.map(item => ({
-            id: item.food_id,
-            name: item.food_items?.name || 'Loading...',
-            price: parseFloat(item.food_items?.price) || 0,
-            quantity: item.quantity,
-            image: item.food_items?.image_url || null
-          }));
-          setCartItems(dbCart);
+          if (data) {
+            const dbCart = data.map(item => ({
+              id: item.food_id,
+              name: item.food_items?.name || 'Loading...',
+              price: parseFloat(item.food_items?.price) || 0,
+              quantity: item.quantity,
+              image: item.food_items?.image_url || null
+            }));
+            setCartItems(dbCart);
+          }
+        } catch (error) {
+          console.log('Fetch cart DB error:', error.message);
         }
-      } catch (error) {
-        console.log('Fetch cart DB error:', error.message);
-      }
-    };
-    fetchCartFromDB();
-  }, []);
+      };
+
+      fetchCartFromDB();
+    }, [])
+  );
 
   useEffect(() => {
     if (autoOpenCart) {
@@ -165,6 +169,19 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
     syncCartToDB(id, 0, null);
   };
 
+  const markCartAsOrdered = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('carts')
+      .update({ is_ordered: true }) // 标记为已下单
+      .eq('user_id', user.id)
+      .eq('is_ordered', false);
+
+    if (error) console.log("Mark ordered error:", error.message);
+  };
+
   const [bannerAds, setBannerAds] = useState([
     { id: 'b1', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=600' },
   ]);
@@ -255,7 +272,11 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
             <Text style={styles.userNameText}>{profile?.full_name || 'Loading...'}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.cartIconButton} onPress={() => setIsCartVisible(true)}>
+        <TouchableOpacity style={styles.cartIconButton} onPress={async () => {
+          // 强制先从数据库刷一次最新数据，再打开购物车
+          // 这里调用你刚才加的那个逻辑或者重新 fetch 一遍
+          setIsCartVisible(true);
+        }}>
           <Ionicons name="cart" size={26} color="#757575" />
           {totalCartQuantity > 0 && (
             <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{totalCartQuantity}</Text></View>
@@ -383,8 +404,13 @@ const styles = StyleSheet.create({
   cartBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#D9383A', borderRadius: 9, width: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
   cartBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: 'bold' },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
-  bannerContainer: { width: '100%', height: 165, marginTop: 15, borderWidth: 1.5, borderColor: '#000000', borderRadius: 16, overflow: 'hidden', backgroundColor: '#f9f9f9', position: 'relative' },
-  bannerFullImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  bannerContainer: { width: '100%', height: 135, marginTop: 15, borderWidth: 1.5, borderColor: '#000000', borderRadius: 16, overflow: 'hidden', backgroundColor: '#f9f9f9', position: 'relative' },
+  bannerFullImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain', // 👈 把 cover 改成 contain
+    backgroundColor: '#f9f9f9' // 可选：添加背景色，如果图片没填满，空余处会显示此颜色
+  },
   dotsIndicatorContainer: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
   dotIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.4)', marginHorizontal: 4 },
   dotIndicatorActive: { width: 14, backgroundColor: '#ffffff' },
