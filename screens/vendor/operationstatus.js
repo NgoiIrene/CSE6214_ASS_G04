@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,169 +14,420 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   ActivityIndicator,
-  Image // 🎯 导入 Image 组件用于在侧边栏显示用户头像
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-// 🎯 引入你的 Supabase 客户端实例
 import { supabase } from '../../supabaseClient';
 
 const { width } = Dimensions.get('window');
 
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+// Default business hours
+const DEFAULT_OPEN  = '09:00';
+const DEFAULT_CLOSE = '22:00';
+
 export default function OperationStatusApp({ onBack, navigateToScreen }) {
-  // 🚪 侧边栏显隐状态与加载状态
+  // ── Sidebar ──────────────────────────────────────────────────────────────
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // --- 表单状态控制 ---
-  const [dateStart, setDateStart] = useState(new Date());
-  const [dateEnd, setDateEnd] = useState(new Date());
+  // ── Supabase profile ──────────────────────────────────────────────────────
+  const [profileName, setProfileName] = useState('Loading...');
+  const [avatarUrl,   setAvatarUrl]   = useState(null);
 
+  // ── Calendar navigation ───────────────────────────────────────────────────
+  const today         = new Date();
+  const [calYear,  setCalYear]  = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-indexed
+
+  // ── Records fetched from Supabase ─────────────────────────────────────────
+  const [records,        setRecords]        = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  // ── Form / edit state ─────────────────────────────────────────────────────
+  const [editingRecord, setEditingRecord] = useState(null); // null = add mode
+
+  const [dateStart,     setDateStart]     = useState(new Date());
+  const [dateEnd,       setDateEnd]       = useState(new Date());
   const [showPickerStart, setShowPickerStart] = useState(false);
-  const [showPickerEnd, setShowPickerEnd] = useState(false);
-
-  // 日期文本状态
+  const [showPickerEnd,   setShowPickerEnd]   = useState(false);
   const [dateStartText, setDateStartText] = useState('');
-  const [dateEndText, setDateEndText] = useState('');
+  const [dateEndText,   setDateEndText]   = useState('');
 
   const [timeStartHour, setTimeStartHour] = useState('');
-  const [timeStartMin, setTimeStartMin] = useState('');
-  const [timeEndHour, setTimeEndHour] = useState('');
-  const [timeEndMin, setTimeEndMin] = useState('');
+  const [timeStartMin,  setTimeStartMin]  = useState('');
+  const [timeEndHour,   setTimeEndHour]   = useState('');
+  const [timeEndMin,    setTimeEndMin]    = useState('');
 
-  const [status, setStatus] = useState('active');
+  const [status, setStatus] = useState('inactive');
 
-  // 👤 Supabase 用户资料状态（Sidebar 动态展示使用）
-  const [profileName, setProfileName] = useState('Loading...');
-  const [avatarUrl, setAvatarUrl] = useState(null);
-
-  // 用于嵌入式显示时间格式提示或错误的状态
-  const [timeNotice, setTimeNotice] = useState('Use 24-hour format (00-23)');
+  const [isLoading,     setIsLoading]     = useState(false);
+  const [timeNotice,    setTimeNotice]    = useState('Use 24-hour format (00-23)');
   const [isNoticeError, setIsNoticeError] = useState(false);
 
-  // 获取清空时分秒的“今天”的凌晨时间
-  const getTodayWithNoon = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
+  // ── Scroll ref so we can jump to the form when a date is tapped ──────────
+  const scrollRef = React.useRef(null);
+  const formYRef  = React.useRef(0);
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const getTodayMidnight = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
   };
 
   const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
-  // 👤 副作用：动态拉取当前登录用户的 profiles 数据来展示在 Sidebar 上
+  const todayStr = formatDate(today);
+
+  const checkIfStartTimeIsPast = useCallback((hour, min) => {
+    if (!hour || !min) return false;
+    if (dateStartText !== todayStr) return false;
+    
+    const now = new Date();
+    const h = parseInt(hour, 10);
+    const m = parseInt(min, 10);
+    if (isNaN(h) || isNaN(m)) return false;
+    
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+    
+    if (h < currentHour || (h === currentHour && m < currentMin)) {
+      return true;
+    }
+    return false;
+  }, [dateStartText, todayStr]);
+
+  // Build a Set of all YYYY-MM-DD strings that fall inside any record's range
+  const buildHighlightSet = useCallback((recs) => {
+    const set = new Set();
+    recs.forEach((r) => {
+      const start = new Date(r.date_start);
+      const end   = new Date(r.date_end);
+      const cur   = new Date(start);
+      while (cur <= end) {
+        set.add(formatDate(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    return set;
+  }, []);
+
+  // ── Fetch records from Supabase ───────────────────────────────────────────
+  const fetchRecords = useCallback(async () => {
+    setCalendarLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('operation_status')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date_start', { ascending: true });
+      if (error) throw error;
+      setRecords(data || []);
+    } catch (err) {
+      console.log('fetchRecords error:', err.message);
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, []);
+
+  // ── Fetch profile ─────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
-        // 1. 从官方 Auth 拿到当前会话的用户 UID
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          setProfileName('Guest');
-          return;
-        }
-
-        // 2. 拿着 UID 去 profiles 表查询 full_name 和 avatar_url
+        if (userError || !user) { setProfileName('Guest'); return; }
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('full_name, avatar_url')
           .eq('id', user.id)
           .single();
-
         if (profileError) throw profileError;
-
-        if (profile) {
-          if (profile.full_name) setProfileName(profile.full_name);
-          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
-        }
+        if (profile?.full_name) setProfileName(profile.full_name);
+        if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
       } catch (error) {
         console.log('Fetch profile error:', error.message);
-        setProfileName('User'); // 出错或无数据时的默认降级显示
+        setProfileName('User');
       }
     };
-
     fetchUserProfile();
-  }, []);
+    fetchRecords();
+  }, [fetchRecords]);
 
-  // 处理侧边栏导航点击
+  // ── Sidebar navigation ────────────────────────────────────────────────────
   const handleMenuPress = (targetScreen) => {
-    setIsSidebarOpen(false); // 先关闭侧边栏
-
-    // 如果点击的是当前页面，不需要跳转
+    setIsSidebarOpen(false);
     if (targetScreen === 'operationstatus') return;
-
-    // 回传参数给上层主控组件进行界面跳转
-    if (navigateToScreen) {
-      navigateToScreen(targetScreen);
-    } else if (onBack) {
-      onBack(targetScreen);
-    }
+    if (navigateToScreen) navigateToScreen(targetScreen);
+    else if (onBack) onBack(targetScreen);
   };
 
+  // ── Calendar helpers ──────────────────────────────────────────────────────
+  const prevMonth = () => {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  };
+
+  // Build grid cells for the current calendar month
+  const buildCalendarGrid = () => {
+    const firstDay   = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    // pad to fill last row
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  };
+
+  // Find record(s) that cover a given date string
+  const getRecordForDate = (dateStr) =>
+    records.find((r) => {
+      const s = new Date(r.date_start);
+      const e = new Date(r.date_end);
+      const d = new Date(dateStr);
+      return d >= s && d <= e;
+    });
+
+  const highlightSet = buildHighlightSet(records);
+
+  // ── Tapping a calendar day ────────────────────────────────────────────────
+  const handleDayPress = (day) => {
+    if (!day) return;
+    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (dateStr < todayStr) return; // Prevent selecting past dates
+    const existing = getRecordForDate(dateStr);
+
+    if (existing) {
+      // Pre-fill form with existing record for editing
+      setEditingRecord(existing);
+      const sDate = new Date(existing.date_start);
+      const eDate = new Date(existing.date_end);
+      setDateStart(sDate);
+      setDateEnd(eDate);
+      setDateStartText(existing.date_start);
+      setDateEndText(existing.date_end);
+      const [sh, sm] = existing.time_start.split(':');
+      const [eh, em] = existing.time_end.split(':');
+      setTimeStartHour(sh);
+      setTimeStartMin(sm);
+      setTimeEndHour(eh);
+      setTimeEndMin(em);
+      setStatus(existing.status);
+    } else {
+      // Pre-fill form for new inactive entry on that date
+      setEditingRecord(null);
+      const d = new Date(dateStr);
+      setDateStart(d);
+      setDateEnd(d);
+      setDateStartText(dateStr);
+      setDateEndText(dateStr);
+
+      let startH = 9;
+      let startM = 0;
+      let endH = 22;
+      let endM = 0;
+
+      const now = new Date();
+      if (dateStr === todayStr) {
+        const curH = now.getHours();
+        if (curH >= 9) {
+          startH = Math.min(23, curH + 1);
+          startM = 0;
+        }
+      }
+      if (startH >= 22) {
+        endH = Math.min(23, startH);
+        endM = 59;
+      }
+
+      setTimeStartHour(String(startH).padStart(2, '0'));
+      setTimeStartMin(String(startM).padStart(2, '0'));
+      setTimeEndHour(String(endH).padStart(2, '0'));
+      setTimeEndMin(String(endM).padStart(2, '0'));
+      setStatus('inactive');
+    }
+
+    // Scroll to form
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: formYRef.current, animated: true });
+    }, 100);
+  };
+
+  // ── Edit a record directly from the card list ─────────────────────────────
+  // (safe regardless of which calendar month is currently shown)
+  const handleEditRecord = (record) => {
+    // Navigate calendar to the month of the record's start date
+    const [y, m] = record.date_start.split('-').map(Number);
+    setCalYear(y);
+    setCalMonth(m - 1); // 0-indexed
+
+    // Fill the form
+    setEditingRecord(record);
+    const sDate = new Date(record.date_start);
+    const eDate = new Date(record.date_end);
+    setDateStart(sDate);
+    setDateEnd(eDate);
+    setDateStartText(record.date_start);
+    setDateEndText(record.date_end);
+    const [sh, sm] = record.time_start.split(':');
+    const [eh, em] = record.time_end.split(':');
+    setTimeStartHour(sh);
+    setTimeStartMin(sm);
+    setTimeEndHour(eh);
+    setTimeEndMin(em);
+    setStatus(record.status);
+
+    // Scroll to form
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: formYRef.current, animated: true });
+    }, 100);
+  };
+
+  // ── Delete a record ───────────────────────────────────────────────────────
+  const handleDeleteRecord = (record) => {
+    Alert.alert(
+      'Delete Record',
+      `Remove override for ${record.date_start}${record.date_start !== record.date_end ? ` – ${record.date_end}` : ''}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('operation_status')
+                .delete()
+                .eq('id', record.id);
+              if (error) throw error;
+              if (editingRecord?.id === record.id) clearForm();
+              fetchRecords();
+            } catch (err) {
+              Alert.alert('Error ❌', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ── Clear form ────────────────────────────────────────────────────────────
+  const clearForm = () => {
+    setEditingRecord(null);
+    setDateStartText('');
+    setDateEndText('');
+    setTimeStartHour('');
+    setTimeStartMin('');
+    setTimeEndHour('');
+    setTimeEndMin('');
+    setStatus('inactive');
+  };
+
+  // ── Date pickers ──────────────────────────────────────────────────────────
   const onChangeDateStart = (event, selectedDate) => {
     setShowPickerStart(Platform.OS === 'ios');
-    if (selectedDate) {
-      if (selectedDate < getTodayWithNoon()) {
-        Alert.alert("Error", "Start date cannot be earlier than today!");
-        return;
-      }
+    if (!selectedDate) return;
+    if (selectedDate < getTodayMidnight()) {
+      Alert.alert('Error', 'Start date cannot be earlier than today!');
+      return;
+    }
+    setDateStart(selectedDate);
+    const formatted = formatDate(selectedDate);
+    setDateStartText(formatted);
 
-      setDateStart(selectedDate);
-      const formatted = formatDate(selectedDate);
-      setDateStartText(formatted);
-
-      if (dateEndText && selectedDate > dateEnd) {
-        setDateEnd(selectedDate);
-        setDateEndText(formatted);
+    // Check if the current start time is in the past for this new date
+    if (formatted === todayStr && timeStartHour && timeStartMin) {
+      const isPast = checkIfStartTimeIsPast(timeStartHour, timeStartMin);
+      if (isPast) {
+        setTimeNotice('Start time cannot be in the past!');
+        setIsNoticeError(true);
       }
+    } else {
+      setTimeNotice('Use 24-hour format (00-23)');
+      setIsNoticeError(false);
+    }
+
+    if (dateEndText && selectedDate > dateEnd) {
+      setDateEnd(selectedDate);
+      setDateEndText(formatted);
     }
   };
 
   const onChangeDateEnd = (event, selectedDate) => {
     setShowPickerEnd(Platform.OS === 'ios');
-    if (selectedDate) {
-      const compareDate = dateStartText ? dateStart : getTodayWithNoon();
-      const targetCompare = new Date(compareDate);
-      targetCompare.setHours(0, 0, 0, 0);
+    if (!selectedDate) return;
+    const compare = new Date(dateStartText || getTodayMidnight());
+    compare.setHours(0, 0, 0, 0);
+    if (selectedDate < compare) {
+      Alert.alert('Error', 'End date cannot be earlier than Start date!');
+      return;
+    }
+    setDateEnd(selectedDate);
+    setDateEndText(formatDate(selectedDate));
+  };
 
-      if (selectedDate < targetCompare) {
-        Alert.alert("Error", "End date cannot be earlier than Start date!");
+  // ── Validation ────────────────────────────────────────────────────────────
+  const validateHours = (val, setter) => {
+    if (val === '') return;
+    const h = parseInt(val, 10);
+    if (isNaN(h) || h < 0 || h > 23) {
+      setTimeNotice('Hours must be between 0 and 23!');
+      setIsNoticeError(true);
+      setter('');
+      return;
+    }
+
+    if (setter === setTimeStartHour) {
+      const isPast = checkIfStartTimeIsPast(val, timeStartMin);
+      if (isPast) {
+        setTimeNotice('Start time cannot be in the past!');
+        setIsNoticeError(true);
         return;
       }
-
-      setDateEnd(selectedDate);
-      const formatted = formatDate(selectedDate);
-      setDateEndText(formatted);
     }
+
+    setTimeNotice('Use 24-hour format (00-23)');
+    setIsNoticeError(false);
   };
 
-  const validateHours = (val, setHourState) => {
+  const validateMinutes = (val, setter) => {
     if (val === '') return;
-    const hour = parseInt(val, 10);
-    if (isNaN(hour) || hour < 0 || hour > 23) {
-      setTimeNotice("Hours must be between 0 and 23!");
+    const m = parseInt(val, 10);
+    if (isNaN(m) || m < 0 || m > 59) {
+      setTimeNotice('Minutes cannot exceed 59!');
       setIsNoticeError(true);
-      setHourState('');
-    } else {
-      setTimeNotice('Use 24-hour format (00-23)');
-      setIsNoticeError(false);
+      setter('');
+      return;
     }
-  };
 
-  const validateMinutes = (val, setMinState) => {
-    if (val === '') return;
-    const min = parseInt(val, 10);
-    if (isNaN(min) || min < 0 || min > 59) {
-      setTimeNotice("Minutes cannot exceed 59!");
-      setIsNoticeError(true);
-      setMinState('');
-    } else {
-      setTimeNotice('Use 24-hour format (00-23)');
-      setIsNoticeError(false);
+    if (setter === setTimeStartMin) {
+      const isPast = checkIfStartTimeIsPast(timeStartHour, val);
+      if (isPast) {
+        setTimeNotice('Start time cannot be in the past!');
+        setIsNoticeError(true);
+        return;
+      }
     }
+
+    setTimeNotice('Use 24-hour format (00-23)');
+    setIsNoticeError(false);
   };
 
   const handleHourFocus = () => {
@@ -184,90 +435,225 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
     setIsNoticeError(false);
   };
 
-  // ⚡ 核心提交功能：使用 .insert() 每次都在 Supabase 产生新行记录
+  // ── Submit (Insert or Update) ─────────────────────────────────────────────
   const handleUpdateSubmit = async () => {
     if (!dateStartText || !dateEndText || !timeStartHour || !timeStartMin || !timeEndHour || !timeEndMin) {
-      Alert.alert("Error", "Please fill in all date and time fields!");
+      Alert.alert('Error', 'Please fill in all date and time fields!');
       return;
     }
 
-    const sMin = parseInt(timeStartMin, 10);
-    const eMin = parseInt(timeEndMin, 10);
-    const sHour = parseInt(timeStartHour, 10);
-    const eHour = parseInt(timeEndHour, 10);
+    const sH = parseInt(timeStartHour, 10);
+    const sM = parseInt(timeStartMin,  10);
+    const eH = parseInt(timeEndHour,   10);
+    const eM = parseInt(timeEndMin,    10);
 
-    if (sMin > 59 || eMin > 59 || sHour > 23 || eHour > 23) {
-      setTimeNotice("Hours max 23, Minutes max 59.");
+    if (sH > 23 || eH > 23 || sM > 59 || eM > 59) {
+      setTimeNotice('Hours max 23, Minutes max 59.');
       setIsNoticeError(true);
       return;
     }
 
-    const dStart = new Date(dateStartText);
-    const dEnd = new Date(dateEndText);
-    const today = getTodayWithNoon();
+    const [sYear, sMonth, sDay] = dateStartText.split('-').map(Number);
+    const [eYear, eMonth, eDayVal] = dateEndText.split('-').map(Number);
 
-    if (dStart < today) {
-      Alert.alert("Error", "Operation cannot start in the past!");
+    const startDateTime = new Date(sYear, sMonth - 1, sDay, sH, sM, 0, 0);
+    const endDateTime   = new Date(eYear, eMonth - 1, eDayVal, eH, eM, 0, 0);
+    const nowCompare    = new Date();
+    nowCompare.setSeconds(0, 0);
+
+    if (startDateTime < nowCompare) {
+      Alert.alert('Error', 'Start date and time cannot be in the past!');
+      return;
+    }
+    if (endDateTime <= startDateTime) {
+      Alert.alert('Error', 'End date and time must be after Start date and time!');
       return;
     }
 
-    if (dEnd < dStart) {
-      Alert.alert("Error", "End date cannot be earlier than Start date!");
-      return;
-    }
-
-    // 格式化时间字符串 例如将 9:5 转成 "09:05" 存入数据库
-    const startTimeStr = `${timeStartHour.padStart(2, '0')}:${timeStartMin.padStart(2, '0')}`;
-    const endTimeStr = `${timeEndHour.padStart(2, '0')}:${timeEndMin.padStart(2, '0')}`;
+    const startTimeStr = `${String(sH).padStart(2, '0')}:${String(sM).padStart(2, '0')}`;
+    const endTimeStr   = `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
 
     setIsLoading(true);
-
     try {
-      // 1. 获取当前用户 UID
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error("User session not found. Please log in again.");
+      if (userError || !user) throw new Error('User session not found. Please log in again.');
+
+      if (editingRecord) {
+        // ── UPDATE existing row ──
+        const { error: updateError } = await supabase
+          .from('operation_status')
+          .update({
+            date_start: dateStartText,
+            date_end:   dateEndText,
+            time_start: startTimeStr,
+            time_end:   endTimeStr,
+            status,
+          })
+          .eq('id', editingRecord.id);
+        if (updateError) throw updateError;
+        Alert.alert('Updated ✅', `Record updated!\nStatus: ${status}\n${dateStartText} → ${dateEndText}\n${startTimeStr} – ${endTimeStr}`);
+      } else {
+        // ── INSERT new row ──
+        const { error: insertError } = await supabase
+          .from('operation_status')
+          .insert({
+            user_id:    user.id,
+            date_start: dateStartText,
+            date_end:   dateEndText,
+            time_start: startTimeStr,
+            time_end:   endTimeStr,
+            status,
+          });
+        if (insertError) throw insertError;
+        Alert.alert('Saved ✅', `New override saved!\nStatus: ${status}\n${dateStartText} → ${dateEndText}\n${startTimeStr} – ${endTimeStr}`);
       }
 
-      // 2. 🎯 改用 .insert() 确保每次提交都是一条独立的、全新的新纪录
-      const { error: uploadError } = await supabase
-        .from('operation_status')
-        .insert({
-          user_id: user.id,
-          date_start: dateStartText,
-          date_end: dateEndText,
-          time_start: startTimeStr,
-          time_end: endTimeStr,
-          status: status
-        });
-
-      if (uploadError) throw uploadError;
-
-      Alert.alert(
-        "Success ✅",
-        `New status record added successfully!\nStatus: ${status}\nDate: ${dateStartText} to ${dateEndText}\nTime: ${startTimeStr} - ${endTimeStr}`
-      );
-
-      // 成功后清空输入框，方便商家输入添加下一组时段状态
-      setDateStartText('');
-      setDateEndText('');
-      setTimeStartHour('');
-      setTimeStartMin('');
-      setTimeEndHour('');
-      setTimeEndMin('');
-
-    } catch (error) {
-      console.log('Supabase Save Error:', error.message);
-      Alert.alert("Error ❌", error.message || "Failed to save operation status.");
+      clearForm();
+      fetchRecords();
+    } catch (err) {
+      console.log('Save error:', err.message);
+      Alert.alert('Error ❌', err.message || 'Failed to save.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // ── Render calendar ───────────────────────────────────────────────────────
+  const cells     = buildCalendarGrid();
+  const cellWidth = (width - 56) / 7; // 28px padding each side
+
+  const renderCalendar = () => (
+    <View style={styles.calendarCard}>
+      {/* Month navigation */}
+      <View style={styles.calMonthRow}>
+        <TouchableOpacity onPress={prevMonth} style={styles.calNavBtn}>
+          <Ionicons name="chevron-back" size={20} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.calMonthLabel}>
+          {MONTH_NAMES[calMonth]} {calYear}
+        </Text>
+        <TouchableOpacity onPress={nextMonth} style={styles.calNavBtn}>
+          <Ionicons name="chevron-forward" size={20} color="#000" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Day-of-week headers */}
+      <View style={styles.calDayHeaderRow}>
+        {DAY_LABELS.map((d) => (
+          <Text key={d} style={[styles.calDayHeader, { width: cellWidth }]}>{d}</Text>
+        ))}
+      </View>
+
+      {/* Grid */}
+      <View style={styles.calGrid}>
+        {cells.map((day, idx) => {
+          if (!day) return <View key={`empty-${idx}`} style={{ width: cellWidth, height: 36 }} />;
+
+          const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const isInactive = highlightSet.has(dateStr);
+          const isToday    = dateStr === todayStr;
+          const isPast     = dateStr < todayStr;
+          const isSelected = editingRecord
+            ? (dateStr >= editingRecord.date_start && dateStr <= editingRecord.date_end)
+            : (dateStr === dateStartText && dateStr === dateEndText && dateStartText !== '');
+
+          return (
+            <TouchableOpacity
+              key={dateStr}
+              style={[
+                styles.calCell,
+                { width: cellWidth, height: 36 },
+                isInactive && styles.calCellInactive,
+                isToday    && !isInactive && styles.calCellToday,
+                isSelected && styles.calCellSelected,
+                isPast     && styles.calCellPast,
+              ]}
+              onPress={() => handleDayPress(day)}
+              disabled={isPast}
+              activeOpacity={isPast ? 1 : 0.7}
+            >
+              <Text style={[
+                styles.calCellText,
+                isInactive && styles.calCellTextInactive,
+                isToday    && !isInactive && styles.calCellTextToday,
+                isPast     && styles.calCellTextPast,
+              ]}>
+                {day}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Legend */}
+      <View style={styles.legendRow}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#000' }]} />
+          <Text style={styles.legendText}>Active (default 09:00–22:00)</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: '#e74c3c' }]} />
+          <Text style={styles.legendText}>Inactive / Custom</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  // ── Render record cards ───────────────────────────────────────────────────
+  const renderRecordCards = () => {
+    if (calendarLoading) {
+      return <ActivityIndicator size="small" color="#000" style={{ marginVertical: 12 }} />;
+    }
+    if (records.length === 0) {
+      return (
+        <Text style={styles.noRecordsText}>
+          No overrides saved yet. Tap a date to add one.
+        </Text>
+      );
+    }
+    return records.map((r) => {
+      const isEditing = editingRecord?.id === r.id;
+      const isInactiveRecord = r.status === 'inactive';
+      const isPastRecord = r.date_end < todayStr;
+      return (
+        <View key={r.id} style={[styles.recordCard, isEditing && styles.recordCardEditing]}>
+          <View style={styles.recordCardLeft}>
+            <View style={[styles.statusBadge, isInactiveRecord ? styles.badgeInactive : styles.badgeActive]}>
+              <Text style={styles.badgeText}>{r.status.toUpperCase()}</Text>
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.recordDateText}>
+                {r.date_start === r.date_end ? r.date_start : `${r.date_start} → ${r.date_end}`}
+              </Text>
+              <Text style={styles.recordTimeText}>{r.time_start} – {r.time_end}</Text>
+            </View>
+          </View>
+          <View style={styles.recordCardActions}>
+            {!isPastRecord && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.editBtn]}
+                onPress={() => handleEditRecord(r)}
+              >
+                <Ionicons name="pencil-outline" size={14} color="#fff" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.deleteBtn, { marginLeft: 6 }]}
+              onPress={() => handleDeleteRecord(r)}
+            >
+              <Ionicons name="trash-outline" size={14} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      {/* ==================== Sidebar Modal ==================== */}
       <Modal
         transparent={true}
         visible={isSidebarOpen}
@@ -275,62 +661,46 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
         onRequestClose={() => setIsSidebarOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* 左侧实体菜单 */}
           <View style={styles.sidebar}>
-            {/* 顶栏：Menu 切换按钮 */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 (已经同步绑定为来自 Supabase profiles 的动态数据) */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
                 {avatarUrl ? (
-                  <Image 
-                    source={{ uri: avatarUrl }} 
-                    style={{ width: 68, height: 68, borderRadius: 34 }} 
-                  />
+                  <Image source={{ uri: avatarUrl }} style={{ width: 68, height: 68, borderRadius: 34 }} />
                 ) : (
                   <Ionicons name="person-outline" size={45} color="#000" />
                 )}
               </View>
-              {/* 动态显示全名 */}
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* 导航列表 */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
               <Text style={styles.sidebarItemText}>Profile</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('menu')}>
               <Text style={styles.sidebarItemText}>Menu</Text>
             </TouchableOpacity>
-
-            {/* 当前页面：高亮为灰色背景 */}
             <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => setIsSidebarOpen(false)}>
               <Text style={styles.sidebarItemText}>Update Status</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}>
               <Text style={styles.sidebarItemText}>History Order</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
-            {/* 底部退出登录 */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -339,14 +709,13 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* 右侧空白处暗色遮罩层 */}
           <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
             <View style={styles.backdrop} />
           </TouchableWithoutFeedback>
         </View>
       </Modal>
 
-      {/* 1. 顶部导航栏 */}
+      {/* ==================== Header ==================== */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setIsSidebarOpen(true)} style={styles.backButton}>
           <Ionicons name="menu-outline" size={28} color="#000" />
@@ -357,21 +726,60 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
 
       <View style={styles.divider} />
 
-      {/* KeyboardAvoidingView 包裹 ScrollView 解决键盘挡住输入框问题 */}
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
 
-          {/* 字段 1: Date Start */}
+          {/* ── Default hours notice ── */}
+          <View style={styles.defaultNoticeBox}>
+            <Ionicons name="time-outline" size={16} color="#27ae60" />
+            <Text style={styles.defaultNoticeText}>
+              Default hours: {DEFAULT_OPEN} – {DEFAULT_CLOSE} (active every day)
+            </Text>
+          </View>
+
+          {/* ── Calendar ── */}
+          {renderCalendar()}
+
+          {/* ── Saved override records ── */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Saved Overrides</Text>
+            {records.length > 0 && (
+              <Text style={styles.sectionCount}>{records.length} record{records.length !== 1 ? 's' : ''}</Text>
+            )}
+          </View>
+          {renderRecordCards()}
+
+          {/* ── Divider before form ── */}
+          <View
+            style={styles.formDivider}
+            onLayout={(e) => { formYRef.current = e.nativeEvent.layout.y; }}
+          >
+            <View style={styles.formDividerLine} />
+            <Text style={styles.formDividerLabel}>
+              {editingRecord ? '✏️  Edit Override' : '＋  Add Override'}
+            </Text>
+            <View style={styles.formDividerLine} />
+          </View>
+
+          {editingRecord && (
+            <TouchableOpacity style={styles.cancelEditBtn} onPress={clearForm}>
+              <Ionicons name="close-circle-outline" size={16} color="#e74c3c" />
+              <Text style={styles.cancelEditText}>Cancel Edit</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ── Date Start ── */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Date Start:</Text>
-            <TouchableOpacity
-              style={styles.dateBoxContainer}
-              onPress={() => setShowPickerStart(true)}
-            >
+            <TouchableOpacity style={styles.dateBoxContainer} onPress={() => setShowPickerStart(true)}>
               {dateStartText ? (
                 <Text style={styles.dateBoxText}>{dateStartText}</Text>
               ) : (
@@ -386,17 +794,14 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
               mode="date"
               display={Platform.OS === 'ios' ? 'inline' : 'default'}
               onChange={onChangeDateStart}
-              minimumDate={getTodayWithNoon()}
+              minimumDate={getTodayMidnight()}
             />
           )}
 
-          {/* 字段 2: Date End */}
+          {/* ── Date End ── */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Date End:</Text>
-            <TouchableOpacity
-              style={styles.dateBoxContainer}
-              onPress={() => setShowPickerEnd(true)}
-            >
+            <TouchableOpacity style={styles.dateBoxContainer} onPress={() => setShowPickerEnd(true)}>
               {dateEndText ? (
                 <Text style={styles.dateBoxText}>{dateEndText}</Text>
               ) : (
@@ -411,11 +816,11 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
               mode="date"
               display={Platform.OS === 'ios' ? 'inline' : 'default'}
               onChange={onChangeDateEnd}
-              minimumDate={dateStartText ? dateStart : getTodayWithNoon()}
+              minimumDate={dateStartText ? dateStart : getTodayMidnight()}
             />
           )}
 
-          {/* 字段 3: Time Start */}
+          {/* ── Time Start ── */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Time Start:</Text>
             <View style={styles.timeGroup}>
@@ -442,7 +847,7 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* 字段 4: Time End */}
+          {/* ── Time End ── */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Time End:</Text>
             <View style={styles.timeGroup}>
@@ -469,14 +874,14 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* 嵌入式 Notice 区域 */}
+          {/* ── Notice ── */}
           <View style={styles.noticeContainer}>
             <Text style={[styles.noticeText, isNoticeError ? styles.noticeError : styles.noticeNormal]}>
               {timeNotice}
             </Text>
           </View>
 
-          {/* 字段 5: Status */}
+          {/* ── Status ── */}
           <View style={styles.inputGroupRow}>
             <Text style={styles.fieldLabel}>Status:</Text>
             <View style={styles.radioGroup}>
@@ -486,7 +891,6 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
                 </View>
                 <Text style={styles.radioLabel}>Active</Text>
               </TouchableOpacity>
-
               <TouchableOpacity style={styles.radioButton} onPress={() => setStatus('inactive')}>
                 <View style={styles.radioCircle}>
                   {status === 'inactive' && <View style={styles.radioDot} />}
@@ -496,12 +900,12 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
             </View>
           </View>
 
-          {/* UPDATE 按钮（带优雅的加载等待动画） */}
+          {/* ── Submit button ── */}
           <TouchableOpacity style={styles.button} onPress={handleUpdateSubmit} disabled={isLoading}>
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>UPDATE</Text>
+              <Text style={styles.buttonText}>{editingRecord ? 'SAVE CHANGES' : 'UPDATE'}</Text>
             )}
           </TouchableOpacity>
 
@@ -511,126 +915,166 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
-  backButton: { justifyContent: 'center', alignItems: 'center', padding: 5 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 15, paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 15 : 35,
+  },
+  backButton:  { justifyContent: 'center', alignItems: 'center', padding: 5 },
   headerTitle: { fontSize: 22, fontWeight: '600', color: '#000', textAlign: 'center' },
-  divider: { height: 1, backgroundColor: '#000', width: '100%' },
-  keyboardAvoid: { flex: 1 },
-  scrollContainer: { paddingHorizontal: 28, paddingTop: 30, paddingBottom: 60 },
-  inputGroupRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 18 },
-  fieldLabel: { fontSize: 14, fontWeight: '500', color: '#000', width: 100 },
-  dateBoxContainer: { borderWidth: 1, borderColor: '#000', borderRadius: 2, minWidth: 90, paddingHorizontal: 8, height: 28, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
-  dateBoxText: { fontSize: 13, color: '#000', fontWeight: '500' },
-  timeGroup: { flexDirection: 'row', alignItems: 'center' },
-  timeInput: { borderWidth: 1, borderColor: '#000', borderRadius: 2, width: 70, height: 28, backgroundColor: '#fff', textAlign: 'center', fontSize: 13, padding: 0 },
-  colon: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 8, color: '#000' },
+  divider:     { height: 1, backgroundColor: '#000', width: '100%' },
+  keyboardAvoid:   { flex: 1 },
+  scrollContainer: { paddingHorizontal: 28, paddingTop: 20, paddingBottom: 60 },
 
-  noticeContainer: {
-    paddingLeft: 100,
-    marginBottom: 18,
-    marginTop: -8,
+  // ── Default notice ──
+  defaultNoticeBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#eafaf1', borderRadius: 8, padding: 10,
+    marginBottom: 16, borderWidth: 1, borderColor: '#a9dfbf',
   },
-  noticeText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  noticeNormal: {
-    color: '#7f8c8d',
-  },
-  noticeError: {
-    color: '#ff4d4d',
-  },
+  defaultNoticeText: { marginLeft: 8, fontSize: 13, color: '#1e8449', fontWeight: '500' },
 
-  radioGroup: { flexDirection: 'row', alignItems: 'center' },
-  radioButton: { flexDirection: 'row', alignItems: 'center', marginRight: 20 },
-  radioCircle: { height: 14, width: 14, borderRadius: 7, borderWidth: 1, borderColor: '#000', alignItems: 'center', justifyContent: 'center', marginRight: 6 },
-  radioDot: { height: 8, width: 8, borderRadius: 4, backgroundColor: '#000' },
-  radioLabel: { fontSize: 12, color: '#000' },
-  button: { backgroundColor: '#A9A9A9', paddingVertical: 10, borderRadius: 20, marginTop: 35, width: '55%', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', height: 44 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
+  // ── Calendar ──
+  calendarCard: {
+    borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 4,
+    backgroundColor: '#fafafa', marginBottom: 20,
+  },
+  calMonthRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 8, marginBottom: 10,
+  },
+  calNavBtn:     { padding: 6 },
+  calMonthLabel: { fontSize: 16, fontWeight: '700', color: '#000' },
 
-  /* ==================== 📌 Sidebar 样式表 ==================== */
-  modalContainer: {
-    flex: 1,
-    flexDirection: 'row',
+  calDayHeaderRow: { flexDirection: 'row', marginBottom: 4, paddingHorizontal: 0 },
+  calDayHeader:    { textAlign: 'center', fontSize: 11, fontWeight: '600', color: '#888' },
+
+  calGrid:    { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell:    { alignItems: 'center', justifyContent: 'center', borderRadius: 6, margin: 1 },
+  calCellInactive: { backgroundColor: '#fde8e8' },
+  calCellToday:    { backgroundColor: '#eaf0fb', borderWidth: 1, borderColor: '#3b82f6' },
+  calCellSelected: { backgroundColor: '#d4edda', borderWidth: 1, borderColor: '#27ae60' },
+  calCellPast:     { backgroundColor: '#f3f4f6', opacity: 0.5 },
+
+  calCellText:         { fontSize: 13, color: '#000' },
+  calCellTextInactive: { color: '#c0392b', fontWeight: '700' },
+  calCellTextToday:    { color: '#2563eb', fontWeight: '700' },
+  calCellTextPast:     { color: '#9ca3af' },
+
+  legendRow: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    marginTop: 10, paddingHorizontal: 8, gap: 10,
   },
-  sidebar: {
-    width: Dimensions.get('window').width * 0.75,
-    height: '100%',
-    backgroundColor: '#fff',
-    borderRightWidth: 2,
-    borderRightColor: '#000',
-    paddingTop: Platform.OS === 'ios' ? 40 : 25,
-    zIndex: 10,
-  },
-  sidebarHeader: {
-    paddingHorizontal: 15,
-    paddingBottom: 10,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#000',
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 4 },
+  legendDot:  { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
+  legendText: { fontSize: 11, color: '#555' },
+
+  // ── Section header ──
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 10,
   },
-  avatarCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 1.5,
-    borderColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5,
-    overflow: 'hidden' // 🎯 确保图片加载出时完美收纳在圆圈内
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#000' },
+  sectionCount: { fontSize: 12, color: '#888' },
+
+  noRecordsText: { fontSize: 13, color: '#aaa', textAlign: 'center', marginBottom: 16 },
+
+  // ── Record card ──
+  recordCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: '#ddd', borderRadius: 8,
+    padding: 10, marginBottom: 8, backgroundColor: '#fff',
   },
-  avatarName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#000',
-    marginTop: 5
+  recordCardEditing: { borderColor: '#27ae60', backgroundColor: '#f0fdf4' },
+  recordCardLeft:    { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  recordCardActions: { flexDirection: 'row' },
+
+  statusBadge:   { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 },
+  badgeInactive: { backgroundColor: '#e74c3c' },
+  badgeActive:   { backgroundColor: '#27ae60' },
+  badgeText:     { fontSize: 10, fontWeight: '700', color: '#fff' },
+
+  recordDateText: { fontSize: 13, fontWeight: '600', color: '#000' },
+  recordTimeText: { fontSize: 12, color: '#555', marginTop: 2 },
+
+  actionBtn:  { width: 28, height: 28, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  editBtn:    { backgroundColor: '#3b82f6' },
+  deleteBtn:  { backgroundColor: '#e74c3c' },
+
+  // ── Form divider ──
+  formDivider: {
+    flexDirection: 'row', alignItems: 'center',
+    marginVertical: 20,
   },
-  sidebarItem: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#000',
-    alignItems: 'center',
+  formDividerLine:  { flex: 1, height: 1, backgroundColor: '#ddd' },
+  formDividerLabel: { marginHorizontal: 10, fontSize: 13, fontWeight: '600', color: '#555' },
+
+  cancelEditBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
   },
-  sidebarActiveItem: {
-    backgroundColor: '#A9A9A9',
+  cancelEditText: { fontSize: 13, color: '#e74c3c', marginLeft: 5 },
+
+  // ── Form fields (preserved from original) ──
+  inputGroupRow:    { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 18 },
+  fieldLabel:       { fontSize: 14, fontWeight: '500', color: '#000', width: 100 },
+  dateBoxContainer: {
+    borderWidth: 1, borderColor: '#000', borderRadius: 2,
+    minWidth: 90, paddingHorizontal: 8, height: 28,
+    backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center',
   },
-  sidebarItemText: {
-    fontSize: 22,
-    color: '#000',
-    fontWeight: 'normal',
+  dateBoxText: { fontSize: 13, color: '#000', fontWeight: '500' },
+  timeGroup:   { flexDirection: 'row', alignItems: 'center' },
+  timeInput:   {
+    borderWidth: 1, borderColor: '#000', borderRadius: 2,
+    width: 70, height: 28, backgroundColor: '#fff',
+    textAlign: 'center', fontSize: 13, padding: 0,
   },
-  sidebarFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1.5,
-    borderTopColor: '#000',
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+  colon: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 8, color: '#000' },
+
+  noticeContainer: { paddingLeft: 100, marginBottom: 18, marginTop: -8 },
+  noticeText:      { fontSize: 12, fontWeight: '500' },
+  noticeNormal:    { color: '#7f8c8d' },
+  noticeError:     { color: '#ff4d4d' },
+
+  radioGroup:  { flexDirection: 'row', alignItems: 'center' },
+  radioButton: { flexDirection: 'row', alignItems: 'center', marginRight: 20 },
+  radioCircle: {
+    height: 14, width: 14, borderRadius: 7,
+    borderWidth: 1, borderColor: '#000',
+    alignItems: 'center', justifyContent: 'center', marginRight: 6,
   },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  radioDot:   { height: 8, width: 8, borderRadius: 4, backgroundColor: '#000' },
+  radioLabel: { fontSize: 12, color: '#000' },
+
+  button: {
+    backgroundColor: '#A9A9A9', paddingVertical: 10, borderRadius: 20,
+    marginTop: 35, width: '55%', alignSelf: 'center',
+    alignItems: 'center', justifyContent: 'center', height: 44,
   },
-  logoutText: {
-    fontSize: 22,
-    color: '#000',
-    marginLeft: 10,
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
+
+  // ── Sidebar ──
+  modalContainer: { flex: 1, flexDirection: 'row' },
+  sidebar: {
+    width: Dimensions.get('window').width * 0.75,
+    height: '100%', backgroundColor: '#fff',
+    borderRightWidth: 2, borderRightColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 40 : 25, zIndex: 10,
   },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  },
+  sidebarHeader:     { paddingHorizontal: 15, paddingBottom: 10 },
+  avatarSection:     { alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1.5, borderBottomColor: '#000', marginBottom: 10 },
+  avatarCircle:      { width: 70, height: 70, borderRadius: 35, borderWidth: 1.5, borderColor: '#000', justifyContent: 'center', alignItems: 'center', marginBottom: 5, overflow: 'hidden' },
+  avatarName:        { fontSize: 12, fontWeight: '500', color: '#000', marginTop: 5 },
+  sidebarItem:       { width: '100%', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1.5, borderBottomColor: '#000', alignItems: 'center' },
+  sidebarActiveItem: { backgroundColor: '#A9A9A9' },
+  sidebarItemText:   { fontSize: 22, color: '#000', fontWeight: 'normal' },
+  sidebarFooter:     { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopWidth: 1.5, borderTopColor: '#000', paddingVertical: 12, backgroundColor: '#fff' },
+  logoutButton:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  logoutText:        { fontSize: 22, color: '#000', marginLeft: 10 },
+  backdrop:          { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
 });

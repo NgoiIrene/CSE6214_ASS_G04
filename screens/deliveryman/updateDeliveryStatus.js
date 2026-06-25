@@ -23,7 +23,7 @@ export default function UpdateDeliveryProgress() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
   const mapRef = useRef(null);
 
-  const orderRef = orderData?.order_ref || '#8680';
+  const orderRef = orderData?.order_number || '#8680';
   const customerName = orderData?.customer_name || 'Cindy Kiki';
   const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
   const pickupLocation = orderData?.pickup_location || 'MMU Starbees';
@@ -37,24 +37,6 @@ export default function UpdateDeliveryProgress() {
   const currentRiderCoords = stage === 1
     ? { latitude: 2.9278, longitude: 101.6415 }
     : { latitude: 2.9290, longitude: 101.6425 };
-
-  // ==========================================
-  // 🚨 Debug 专用探测器 (找出不绿的原因) 🚨
-  // ==========================================
-  useEffect(() => {
-    if (!orderData?.id) {
-      Alert.alert(
-        "⚠️ 严重警告：假数据模式", 
-        "当前页面没有获取到真实的数据库 ID！你现在看到的是写死的假数据。\n\n因为是假数据，所以你去数据库怎么改，这里都不会变绿！"
-      );
-    } else {
-      Alert.alert(
-        "🟢 监听器已连接！", 
-        `数据库连接成功！\n\n请去 Supabase 的 orders 表，找到 ID 包含：\n\n${orderData.id.substring(0, 8)}...\n\n把这一行的 status 改成 ready_for_pickup 试试！`
-      );
-    }
-  }, []);
-  // ==========================================
 
   // 🌟 核心：实时监听当前订单的状态，等待商家出餐
   useEffect(() => {

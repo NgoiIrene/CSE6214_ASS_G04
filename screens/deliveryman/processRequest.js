@@ -18,11 +18,11 @@ export default function ProcessDeliveryRequest() {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const orderRef = orderData?.order_ref || '#8680';
+  const orderRef = orderData?.order_number || '#8680';
   const customerName = orderData?.customer_name || 'Cindy Kiki';
   const vendorName = orderData?.vendor_name || 'Rasa Syiokk';
-  const pickupLocation = orderData?.pickup_location || 'MMU Starbees';
-  const dropoffLocation = orderData?.dropoff_location || 'Hostel HB3 & 4';
+  const pickupLocation = orderData?.vendor_name || 'MMU Starbees';
+  const dropoffLocation = orderData?.delivery_building || 'Hostel HB3 & 4';
   const foodDetails = orderData?.food_details || '2x Nasi Lemak w Ayam Rendang\n1x Teh Tarik (Ice)';
   const earningPrice = orderData?.earning ? `RM ${Number(orderData.earning).toFixed(2)}` : 'RM 5.00';
 
@@ -66,7 +66,8 @@ export default function ProcessDeliveryRequest() {
           rider_id: session.user.id 
         })
         .eq('id', orderData.id)
-        .eq('status', 'pending_rider') 
+        // .eq('status', 'pending_rider') 
+        .in('status', ['pending_rider', 'ready_for_pickup'])
         .select();
 
       if (error) throw error;
