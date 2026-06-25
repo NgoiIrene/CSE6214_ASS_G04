@@ -15,14 +15,13 @@ export const RiderProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, is_online')
+        .select('full_name, avatar_url')
         .eq('id', userId)
         .single();
 
       if (!error && data) {
         if (data.full_name) setRiderName(data.full_name);
         if (data.avatar_url) setAvatarUri(data.avatar_url); // 🌟 确保从数据库加载头像
-        if (data.is_online != null) setIsOnline(Boolean(data.is_online));
       }
     } catch (error) {
       console.log("Error fetching profile in Provider:", error);

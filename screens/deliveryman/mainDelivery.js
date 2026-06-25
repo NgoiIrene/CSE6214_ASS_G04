@@ -21,32 +21,8 @@ export default function DeliveryMain() {
   useFocusEffect(
     useCallback(() => {
       fetchMyShifts();
-      fetchOnlineStatus();
     }, [])
   );
-
-  const fetchOnlineStatus = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('is_online')
-        .eq('id', session.user.id)
-        .single();
-
-      if (!error && data) {
-        setIsOnline(data.is_online === true);
-      }
-    } catch (error) {
-      console.log('Failed to fetch online status:', error);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchOnlineStatus();
-  }, []);
 
   // 🌟 修复：精确到“小时”的时间比对自动删除 🌟
   const fetchMyShifts = async () => {
