@@ -13,10 +13,14 @@ import {
   Modal,
   KeyboardAvoidingView,
   Dimensions,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+
+// 🛠️ 引入 Expo SDK 54 新版 File API，用于读取本地文件的二进制 ArrayBuffer
+import { File } from 'expo-file-system';
 
 // 🔌 引入您项目中配置好的官方 Supabase 客户端实例
 import { supabase } from '../../supabaseClient';
@@ -84,7 +88,7 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
 }
 
 // ==================== 📱 主页面 SCREEN ====================
-export default function MenuScreen({ onBack, navigateToScreen }) {
+function MenuScreen({ onBack, navigateToScreen }) {
   // 🚪 侧边栏显隐状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -97,6 +101,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('ANNOUNCEMENT');
   const [tabs, setTabs] = useState(['ANNOUNCEMENT']); // 默认只有公告栏，其余分类从数据库动态加载
+  const [isLoading, setIsLoading] = useState(false); // 上传转圈阻断状态
 
   // ==================== ➕ 分类命名弹窗状态 ====================
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -106,7 +111,8 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   // ==================== 📢 公告板状态 (ANNOUNCEMENT) ====================
   const [welcomeText, setWelcomeText] = useState('Welcome to our store! Hope you have a nice day.');
   const [imageUri, setImageUri] = useState(null);
-  const [imageAspectRatio, setImageAspectRatio] = useState(1);
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 }); // 真实尺寸，避免闪烁
+  const [imageLoaded, setImageLoaded] = useState(false); // 图片加载完成标志，防止先以错误比例渲染
 
   // 专门用来控制公告栏是否处于编辑状态
   const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
@@ -127,7 +133,6 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // 1. 获取当前登录用户的 Auth 信息
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
           setProfileName('GUEST');
@@ -135,37 +140,37 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         }
         setVendorId(user.id);
 
-        // 2. 并发读取商家 Profile、分类、菜品、以及公告信息
         const [profileRes, categoriesRes, foodRes, announcementRes] = await Promise.all([
           supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single(),
-          supabase.from('categories').select('name').eq('vendor_id', user.id).order('created_at', { ascending: true }),
+          supabase.from('categories').select('category_id, name').eq('vendor_id', user.id).order('created_at', { ascending: true }),
           supabase.from('food_items').select('*').eq('vendor_id', user.id).order('created_at', { ascending: true }),
           supabase.from('announcements').select('content, image_url').eq('vendor_id', user.id).maybeSingle()
         ]);
 
-        // 绑定侧边栏个人信息
         if (profileRes.data) {
           setProfileName(profileRes.data.full_name || 'No Name');
           setProfileAvatar(profileRes.data.avatar_url || null);
         }
 
-        // 绑定公告栏内容
         if (announcementRes.data) {
           setWelcomeText(announcementRes.data.content || 'Welcome to our store! Hope you have a nice day.');
-          setImageUri(announcementRes.data.image_url || null);
+          const dbImgUrl = announcementRes.data.image_url || null;
+          setImageUri(dbImgUrl);
         }
 
-        // 绑定分类 Tab
+        const categoryMap = {};
         if (categoriesRes.data) {
+          categoriesRes.data.forEach(c => {
+            categoryMap[c.category_id] = c.name;
+          });
           const dbTabs = categoriesRes.data.map(c => c.name);
           setTabs(['ANNOUNCEMENT', ...dbTabs]);
         }
 
-        // 绑定菜品列表
         if (foodRes.data) {
           const mappedFoods = foodRes.data.map(item => ({
             id: item.id,
-            category: item.category,
+            category: categoryMap[item.category_id] || '',
             category_id: item.category_id,
             code: item.code,
             name: item.name,
@@ -186,7 +191,64 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
     initializeData();
   }, []);
 
-  // ==================== ⚡ 核心逻辑功能与 Supabase 交互 ====================
+  // ==================== 🖼️ 修复图片闪烁：imageUri 改变时重置加载状态 ====================
+  useEffect(() => {
+    if (!imageUri) {
+      setImageLoaded(false);
+      setImageSize({ width: 1, height: 1 });
+      return;
+    }
+    // 每次 URI 变化都先标记为未加载，由 onLoad 重新触发显示
+    setImageLoaded(false);
+
+    if (!imageUri.startsWith('file://')) {
+      // https URL：用 Image.getSize 预取尺寸（本地文件由 ImagePicker asset 提供）
+      let cancelled = false;
+      Image.getSize(
+        imageUri,
+        (w, h) => { if (!cancelled && w && h) setImageSize({ width: w, height: h }); },
+        (err) => console.log('Failed to get image size:', err)
+      );
+      return () => { cancelled = true; };
+    }
+  }, [imageUri]);
+
+  // ==================== 📦 核心稳定版上传：使用 expo-file-system 读取 Base64 规避 Fetch 报错 ====================
+  const uploadImageToStorage = async (localUri, announcements) => {
+    if (!localUri || !localUri.startsWith('file://')) {
+      return localUri;
+    }
+
+    try {
+      const fileExt = (localUri.split('.').pop() || 'jpg').toLowerCase();
+      const mimeType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${vendorId}/${fileName}`;
+
+      // 🛠️ 修复核心：使用 Expo SDK 54 的 File API 直接异步读取为 ArrayBuffer，无桥接开销且不抛出弃用警告
+      const file = new File(localUri);
+      const arrayBuffer = await file.arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from('announcements')
+        .upload(filePath, arrayBuffer, {
+          contentType: mimeType,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(announcements)
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  // ==================== ⚡ 业务交互逻辑 ====================
 
   const handleTabChange = (nextTab) => {
     if (activeTab === 'ANNOUNCEMENT' && isEditingAnnouncement && nextTab !== 'ANNOUNCEMENT') {
@@ -205,27 +267,57 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
   };
 
   const handleSaveAnnouncement = async () => {
+    setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('announcements')
-        .upsert(
-          {
-            vendor_id: vendorId,
-            content: welcomeText,
-            image_url: imageUri
-          },
-          { onConflict: 'vendor_id' }
-        );
+      let finalImageUrl = imageUri;
 
-      if (error) {
-        Alert.alert("Error", "Failed to sync announcement: " + error.message);
+      if (imageUri && imageUri.startsWith('file://')) {
+        finalImageUrl = await uploadImageToStorage(imageUri, 'announcements');
+      }
+
+      // 先查是否已有记录，再决定 insert 还是 update
+      // ⚠️ 重要：表的主键是 vendor_id，没有单独的 id 列！
+      const { data: existing, error: selectError } = await supabase
+        .from('announcements')
+        .select('vendor_id')
+        .eq('vendor_id', vendorId)
+        .maybeSingle();
+
+      if (selectError) {
+        console.error('SELECT error:', JSON.stringify(selectError));
+        throw selectError;
+      }
+
+      let dbError = null;
+
+      if (existing) {
+        // 已有记录 → update
+        const { error } = await supabase
+          .from('announcements')
+          .update({ content: welcomeText, image_url: finalImageUrl })
+          .eq('vendor_id', vendorId);
+        dbError = error;
       } else {
+        // 没有记录 → insert
+        const { error } = await supabase
+          .from('announcements')
+          .insert({ vendor_id: vendorId, content: welcomeText, image_url: finalImageUrl });
+        dbError = error;
+      }
+
+      if (dbError) {
+        console.error('DB write error:', JSON.stringify(dbError));
+        Alert.alert('Error', `Save failed [${dbError.code}]: ${dbError.message}`);
+      } else {
+        setImageUri(finalImageUrl);
         setIsEditingAnnouncement(false);
-        Alert.alert("Success", "Announcement saved successfully!");
+        Alert.alert('Success', 'Announcement saved successfully!');
       }
     } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "An unexpected error occurred.");
+      console.error('handleSaveAnnouncement error:', err);
+      Alert.alert('Error', 'Upload failed: ' + (err.message || String(err)));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -256,11 +348,13 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       quality: 1,
     });
     if (!result.canceled) {
-      const selectedUri = result.assets[0].uri;
-      Image.getSize(selectedUri, (width, height) => {
-        setImageAspectRatio(width / height);
-        setImageUri(selectedUri);
-      });
+      const asset = result.assets[0];
+      // 直接设置 URI，尺寸同步从 asset 获取，不需要异步 getSize
+      if (asset.width && asset.height) {
+        setImageSize({ width: asset.width, height: asset.height });
+      }
+      setImageLoaded(false); // 重置加载状态，等待新图片 onLoad
+      setImageUri(asset.uri);
     }
   };
 
@@ -371,12 +465,17 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
       return;
     }
 
+    setIsLoading(true);
     const priceNum = parseFloat(formPrice) || 0;
     const stockInt = parseInt(formStock, 10) || 0;
     const finalName = formName.toUpperCase();
 
     try {
-      // 获取当前分类的 category_id，以便绑定新菜品
+      let finalFoodImgUrl = formImg;
+      if (formImg && formImg.startsWith('file://')) {
+        finalFoodImgUrl = await uploadImageToStorage(formImg, 'announcements');
+      }
+
       const { data: catData } = await supabase
         .from('categories')
         .select('category_id')
@@ -394,7 +493,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
             price: priceNum,
             stock: stockInt,
             desc: formDesc,
-            image_url: formImg
+            image_url: finalFoodImgUrl
           })
           .eq('id', editingFoodId)
           .eq('vendor_id', vendorId);
@@ -405,7 +504,7 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
         }
 
         setFoodItems(foodItems.map(item => item.id === editingFoodId ? {
-          ...item, name: finalName, price: formPrice, stock: formStock, desc: formDesc, img: formImg
+          ...item, name: finalName, price: formPrice, stock: formStock, desc: formDesc, img: finalFoodImgUrl
         } : item));
       } else {
         const currentCatCount = foodItems.filter(i => i.category === activeTab).length;
@@ -415,14 +514,13 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           .from('food_items')
           .insert([{
             vendor_id: vendorId,
-            category: activeTab,
             category_id: currentCategoryId,
             code: newCode,
             name: finalName,
             price: priceNum,
             stock: stockInt,
             desc: formDesc,
-            image_url: formImg
+            image_url: finalFoodImgUrl
           }])
           .select()
           .single();
@@ -441,67 +539,40 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
           price: formPrice,
           stock: formStock || '0',
           desc: formDesc,
-          img: formImg
+          img: finalFoodImgUrl
         };
         setFoodItems([...foodItems, newFood]);
       }
       setFoodModalVisible(false);
     } catch (e) {
       console.error(e);
+      Alert.alert("Error", "An error occurred while saving food.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ==================== 🛠️ 终极安全级联删除分类函数 ====================
   const handleDeleteCategory = () => {
     if (activeTab === 'ANNOUNCEMENT') return;
 
-    Alert.alert("Delete Category", `Are you sure you want to delete the "${activeTab}" category and all its food items?`, [
+    Alert.alert("Delete Category", `Are you sure you want to delete "${activeTab}"? All inside items will be removed.`, [
       { text: "Cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
           try {
-            // 1. 根据分类的英文名称 (name) 查出其真实的唯一主键主键主键 ID (category_id)
-            const { data: catData, error: catFetchError } = await supabase
-              .from('categories')
-              .select('category_id')
-              .eq('vendor_id', vendorId)
-              .eq('name', activeTab)
-              .single();
-
-            if (catFetchError || !catData) {
-              Alert.alert("Error", "Failed to retrieve category info: " + (catFetchError?.message || "Not found"));
-              return;
-            }
-
-            const targetCategoryId = catData.category_id;
-
-            // 2. 解除外键约束限制：优先去菜品表里把关联了这个 category_id 的全部菜品数据清除
-            const { error: foodDeleteError } = await supabase
-              .from('food_items')
-              .delete()
-              .eq('vendor_id', vendorId)
-              .eq('category_id', targetCategoryId); 
-
-            if (foodDeleteError) {
-              Alert.alert("Error", "Failed to clear associated food items: " + foodDeleteError.message);
-              return;
-            }
-
-            // 3. 约束阻碍完全扫清后，顺理成章、安全地删除分类本身
             const { error: catDeleteError } = await supabase
               .from('categories')
               .delete()
               .eq('vendor_id', vendorId)
-              .eq('category_id', targetCategoryId);
+              .eq('name', activeTab);
 
             if (catDeleteError) {
-              Alert.alert("Error", "Failed to delete category: " + catDeleteError.message);
+              Alert.alert("Error", "Failed to complete deletion: " + catDeleteError.message);
               return;
             }
 
-            // 4. 同步页面前端导航和 Tabs UI 状态
             const currentIndex = tabs.indexOf(activeTab);
             let nextTargetTab = 'ANNOUNCEMENT';
             if (currentIndex < tabs.length - 1) {
@@ -513,12 +584,12 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
             if (nextTargetTab === 'ANNOUNCEMENT') setIsEditing(false);
 
             setTabs(tabs.filter(t => t !== activeTab));
-            setFoodItems(foodItems.filter(item => item.category_id !== targetCategoryId));
+            setFoodItems(foodItems.filter(item => item.category !== activeTab));
             setActiveTab(nextTargetTab);
 
-            Alert.alert("Success", "Category and items deleted successfully.");
+            Alert.alert("Success", "Category and internal foods deleted successfully.");
           } catch (err) {
-            console.error("Delete failed: ", err);
+            console.error(err);
             Alert.alert("Error", "An unexpected runtime error occurred.");
           }
         }
@@ -561,14 +632,15 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Syncing data with Cloud Storage...</Text>
+        </View>
+      )}
 
-      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
-      <Modal
-        transparent={true}
-        visible={isSidebarOpen}
-        animationType="none"
-        onRequestClose={() => setIsSidebarOpen(false)}
-      >
+      {/* 侧边栏 */}
+      <Modal transparent={true} visible={isSidebarOpen} animationType="none" onRequestClose={() => setIsSidebarOpen(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
@@ -576,46 +648,19 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
-
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                {profileAvatar ? (
-                  <Image source={{ uri: profileAvatar }} style={styles.sidebarAvatarImage} />
-                ) : (
-                  <Ionicons name="person-outline" size={45} color="#000" />
-                )}
+                {profileAvatar ? <Image source={{ uri: profileAvatar }} style={styles.sidebarAvatarImage} /> : <Ionicons name="person-outline" size={45} color="#000" />}
               </View>
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
-
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
-              <Text style={styles.sidebarItemText}>Home</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}>
-              <Text style={styles.sidebarItemText}>Profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('menu')}>
-              <Text style={styles.sidebarItemText}>Menu</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}>
-              <Text style={styles.sidebarItemText}>Update Status</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}>
-              <Text style={styles.sidebarItemText}>History Order</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}>
-              <Text style={styles.sidebarItemText}>Review</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
-              <Text style={styles.sidebarItemText}>Reset Password</Text>
-            </TouchableOpacity>
-
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}><Text style={styles.sidebarItemText}>Home</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('profile')}><Text style={styles.sidebarItemText}>Profile</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => handleMenuPress('menu')}><Text style={styles.sidebarItemText}>Menu</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('operationstatus')}><Text style={styles.sidebarItemText}>Update Status</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('historyorder')}><Text style={styles.sidebarItemText}>History Order</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('review')}><Text style={styles.sidebarItemText}>Review</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}><Text style={styles.sidebarItemText}>Reset Password</Text></TouchableOpacity>
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -623,112 +668,90 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
               </TouchableOpacity>
             </View>
           </View>
-          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
-            <View style={styles.backdrop} />
-          </TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}><View style={styles.backdrop} /></TouchableWithoutFeedback>
         </View>
       </Modal>
 
-      {/* ==================== 1. HEADER ==================== */}
+      {/* HEADER */}
       <View style={styles.header}>
         {!isEditing ? (
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsSidebarOpen(true)}>
-            <Ionicons name="menu" size={35} color="#000" />
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsSidebarOpen(true)}><Ionicons name="menu" size={35} color="#000" /></TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(false)}>
-            <Ionicons name="arrow-back-circle-outline" size={32} color="#000" />
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(false)}><Ionicons name="arrow-back-circle-outline" size={32} color="#000" /></TouchableOpacity>
         )}
-
         <Text style={styles.headerTitle}>Menu</Text>
-
         <TouchableOpacity style={styles.headerIconBtn} onPress={() => setIsEditing(!isEditing)}>
-          <Ionicons
-            name={isEditing ? "checkmark-circle-outline" : "create-outline"}
-            size={28}
-            color={isEditing ? "green" : "#000"}
-          />
+          <Ionicons name={isEditing ? "checkmark-circle-outline" : "create-outline"} size={28} color={isEditing ? "green" : "#000"} />
         </TouchableOpacity>
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 2. TAB BAR ==================== */}
+      {/* TAB BAR */}
       <View style={styles.tabBarContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarScroll}>
           {tabs.map((tab) => {
             const isSelected = activeTab === tab;
             return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabButton, isSelected && styles.tabButtonActive]}
-                onPress={() => handleTabChange(tab)}
-              >
+              <TouchableOpacity key={tab} style={[styles.tabButton, isSelected && styles.tabButtonActive]} onPress={() => handleTabChange(tab)}>
                 <Text style={[styles.tabText, isSelected && styles.tabTextActive]}>{tab}</Text>
               </TouchableOpacity>
             );
           })}
           {isEditing && (
-            <TouchableOpacity style={styles.tabAddButton} onPress={openAddCategoryModal}>
-              <Ionicons name="add" size={22} color="#000" />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.tabAddButton} onPress={openAddCategoryModal}><Ionicons name="add" size={22} color="#000" /></TouchableOpacity>
           )}
         </ScrollView>
       </View>
 
-      {/* ==================== 3. 主页面显示区 ==================== */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* CONTENT AREA */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {activeTab === 'ANNOUNCEMENT' && (
           <View style={{ flex: 1 }}>
             {isEditingAnnouncement && (
               <View style={styles.toolbarContainer}>
                 <View style={styles.leftTools}>
-                  <TouchableOpacity style={styles.toolIconBtn} onPress={() => setImageUri(null)}>
-                    <Ionicons name="trash-outline" size={24} color="#000" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.toolIconBtn} onPress={handleSelectAnnouncementImage}>
-                    <Ionicons name="image-outline" size={24} color="#000" />
-                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.toolIconBtn} onPress={() => setImageUri(null)}><Ionicons name="trash-outline" size={24} color="#000" /></TouchableOpacity>
+                  <TouchableOpacity style={styles.toolIconBtn} onPress={handleSelectAnnouncementImage}><Ionicons name="image-outline" size={24} color="#000" /></TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSaveAnnouncement}>
-                  <Text style={styles.saveButtonText}>SAVE</Text>
-                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveButton} onPress={handleSaveAnnouncement}><Text style={styles.saveButtonText}>SAVE</Text></TouchableOpacity>
               </View>
             )}
-
             <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.welcomeCard}>
-                {!isEditingAnnouncement && (
-                  <TouchableOpacity style={styles.cardEditBtn} onPress={() => setIsEditingAnnouncement(true)}>
-                    <Text style={styles.cardEditText}>edit</Text>
-                  </TouchableOpacity>
-                )}
-
+                {!isEditingAnnouncement && <TouchableOpacity style={styles.cardEditBtn} onPress={() => setIsEditingAnnouncement(true)}><Text style={styles.cardEditText}>edit</Text></TouchableOpacity>}
                 <View style={styles.cardHeader}>
-                  {profileAvatar ? (
-                    <Image source={{ uri: profileAvatar }} style={[styles.avatarIcon, { width: 60, height: 60, borderRadius: 30 }]} />
-                  ) : (
-                    <Ionicons name="person-circle-outline" size={60} color="#333" style={styles.avatarIcon} />
-                  )}
+                  {profileAvatar ? <Image source={{ uri: profileAvatar }} style={[styles.avatarIcon, { width: 60, height: 60, borderRadius: 30 }]} /> : <Ionicons name="person-circle-outline" size={60} color="#333" style={styles.avatarIcon} />}
                   <Text style={styles.brandTitle}>{profileName}</Text>
                 </View>
-
                 <View style={styles.cardBody}>
-                  {!isEditingAnnouncement ? (
-                    <Text style={styles.welcomeText}>{welcomeText}</Text>
-                  ) : (
-                    <TextInput
-                      style={styles.welcomeInput}
-                      multiline={true}
-                      value={welcomeText}
-                      onChangeText={setWelcomeText}
-                      autoFocus={true}
-                    />
-                  )}
+                  {!isEditingAnnouncement ? <Text style={styles.welcomeText}>{welcomeText}</Text> : <TextInput style={styles.welcomeInput} multiline value={welcomeText} onChangeText={setWelcomeText} autoFocus />}
                 </View>
+
+                {/* 📐 防闪烁图片容器：用 onLoad 回调更新 imageSize，并将真实比例直接应用到 style */}
                 {imageUri && (
-                  <View style={styles.imageWrapper}>
-                    <Image source={{ uri: imageUri }} style={[styles.realSelectedImage, { aspectRatio: imageAspectRatio }]} resizeMode="contain" />
+                  <View style={[styles.imageWrapper, !imageLoaded && { borderWidth: 0, backgroundColor: 'transparent' }]}>
+                    {!imageLoaded && (
+                      <ActivityIndicator size="small" color="#000" style={{ marginVertical: 20 }} />
+                    )}
+                    <Image
+                      source={{ uri: imageUri }}
+                      style={[
+                        styles.realSelectedImage,
+                        { aspectRatio: imageSize.width / imageSize.height },
+                        !imageLoaded && { position: 'absolute', opacity: 0, width: 1, height: 1 }
+                      ]}
+                      resizeMode="contain"
+                      onLoad={(e) => {
+                        const { width: w, height: h } = e.nativeEvent.source;
+                        if (w && h) {
+                          setImageSize({ width: w, height: h });
+                        }
+                        setImageLoaded(true);
+                      }}
+                      onError={() => {
+                        setImageLoaded(true);
+                      }}
+                    />
                   </View>
                 )}
               </View>
@@ -741,138 +764,76 @@ export default function MenuScreen({ onBack, navigateToScreen }) {
             {isEditing && (
               <View style={styles.hintBar}>
                 <View style={styles.hintLeftIcons}>
-                  <TouchableOpacity onPress={handleDeleteCategory} style={{ marginRight: 16 }}>
-                    <Ionicons name="trash-outline" size={22} color="#000" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={openEditCategoryModal}>
-                    <Ionicons name="create-outline" size={22} color="#000" />
-                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleDeleteCategory} style={{ marginRight: 16 }}><Ionicons name="trash-outline" size={22} color="#000" /></TouchableOpacity>
+                  <TouchableOpacity onPress={openEditCategoryModal}><Ionicons name="create-outline" size={22} color="#000" /></TouchableOpacity>
                 </View>
               </View>
             )}
-
             <ScrollView contentContainerStyle={styles.foodListContainer} keyboardShouldPersistTaps="handled">
               {foodItems.filter(item => item.category === activeTab).map((food) => (
                 <View key={food.id} style={styles.foodCard}>
                   {isEditing && (
                     <View style={styles.foodActionLeft}>
-                      <TouchableOpacity onPress={() => handleDeleteFood(food.id)}>
-                        <Ionicons name="trash-outline" size={20} color="red" style={{ marginRight: 8 }} />                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => openFoodModal(food)}>
-                        <Ionicons name="create-outline" size={20} color="blue" style={{ marginRight: 8 }} />
-                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteFood(food.id)}><Ionicons name="trash-outline" size={20} color="red" style={{ marginRight: 8 }} /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => openFoodModal(food)}><Ionicons name="create-outline" size={20} color="blue" style={{ marginRight: 8 }} /></TouchableOpacity>
                     </View>
                   )}
-
-                  {food.img ? (
-                    <Image source={{ uri: food.img }} style={styles.foodThumb} />
-                  ) : (
-                    <View style={styles.foodThumbEmpty}>
-                      <Ionicons name="fast-food-outline" size={20} color="#999" />
-                    </View>
-                  )}
-
+                  {food.img ? <Image source={{ uri: food.img }} style={styles.foodThumb} /> : <View style={styles.foodThumbEmpty}><Ionicons name="fast-food-outline" size={20} color="#999" /></View>}
                   <View style={styles.foodInfo}>
                     <Text style={styles.foodTitle}>{food.code} {food.name}</Text>
                     <Text style={styles.foodPrice}>RM {food.price}</Text>
                   </View>
-
                   <View style={styles.foodActionRight}>
-                    <StockController
-                      stockValue={food.stock}
-                      isEditing={isEditing}
-                      onChangeStock={(newStock) => handleUpdateSingleStock(food.id, newStock)}
-                    />
-                    {!isEditing && (
-                      <TouchableOpacity style={styles.addBtn}>
-                        <Ionicons name="add-circle" size={24} color="#000" />
-                      </TouchableOpacity>
-                    )}
+                    <StockController stockValue={food.stock} isEditing={isEditing} onChangeStock={(newStock) => handleUpdateSingleStock(food.id, newStock)} />
+                    {!isEditing && <TouchableOpacity style={styles.addBtn}><Ionicons name="add-circle" size={24} color="#000" /></TouchableOpacity>}
                   </View>
                 </View>
               ))}
-
-              {isEditing && (
-                <TouchableOpacity style={styles.addFoodBigBtn} onPress={() => openFoodModal(null)}>
-                  <Ionicons name="add" size={40} color="#000" />
-                </TouchableOpacity>
-              )}
+              {isEditing && <TouchableOpacity style={styles.addFoodBigBtn} onPress={() => openFoodModal(null)}><Ionicons name="add" size={40} color="#000" /></TouchableOpacity>}
             </ScrollView>
           </View>
         )}
       </KeyboardAvoidingView>
 
-      {/* ==================== 🛠️ 弹窗 1: 分类输入对话框 ==================== */}
+      {/* 分类弹窗 */}
       <Modal visible={categoryModalVisible} animationType="fade" transparent={true}>
         <View style={styles.dialogOverlay}>
           <View style={styles.dialogBox}>
             <Text style={styles.dialogTitle}>{isEditModeCategory ? "Edit Category Name" : "Add New Category"}</Text>
-            <Text style={styles.dialogSubTitle}>Enter a name for this category:</Text>
-            <TextInput
-              style={styles.dialogInput}
-              value={newCategoryName}
-              onChangeText={setNewCategoryName}
-              placeholder="e.g. SNACK, WESTERN"
-              autoFocus={true}
-              autoCapitalize="characters"
-            />
+            <TextInput style={styles.dialogInput} value={newCategoryName} onChangeText={setNewCategoryName} placeholder="e.g. SNACK" autoFocus autoCapitalize="characters" />
             <View style={styles.dialogActions}>
-              <TouchableOpacity style={[styles.dialogBtn, { borderColor: '#eee', borderRightWidth: 0.5 }]} onPress={() => setCategoryModalVisible(false)}>
-                <Text style={[styles.dialogBtnText, { color: '#666' }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dialogBtn} onPress={handleCategorySubmit}>
-                <Text style={[styles.dialogBtnText, { color: '#007AFF', fontWeight: 'bold' }]}>OK</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.dialogBtn} onPress={() => setCategoryModalVisible(false)}><Text style={{ color: '#666' }}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.dialogBtn} onPress={handleCategorySubmit}><Text style={{ color: '#007AFF', fontWeight: 'bold' }}>OK</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* ==================== 🍔 弹窗 2: Food Detail 详情编辑层 ==================== */}
+      {/* 菜品编辑弹窗 */}
       <Modal visible={foodModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <SafeAreaView style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalHeaderTitle}>{editingFoodId ? "Adjust Food" : "Add New Food"}</Text>
-              <TouchableOpacity onPress={() => setFoodModalVisible(false)}>
-                <Ionicons name="close" size={28} color="#000" />
-              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setFoodModalVisible(false)}><Ionicons name="close" size={28} color="#000" /></TouchableOpacity>
             </View>
-
-            <ScrollView contentContainerStyle={styles.modalForm} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={styles.modalForm}>
               <View style={styles.imageSelectorCenterWrapper}>
                 <TouchableOpacity style={styles.modalImageSelectorCircle} onPress={handleSelectFoodImage}>
-                  {formImg ? (
-                    <Image source={{ uri: formImg }} style={styles.modalSelectedImgCircle} />
-                  ) : (
-                    <View style={{ alignItems: 'center', justifyContent: 'center', padding: 10 }}>
-                      <Ionicons name="cloud-upload-outline" size={32} color="#aaa" />
-                      <Text style={{ fontSize: 10, color: '#aaa', marginTop: 4, textAlign: 'center' }}>Upload Photo</Text>
-                    </View>
-                  )}
+                  {formImg ? <Image source={{ uri: formImg }} style={styles.modalSelectedImgCircle} /> : <Text style={{ color: '#aaa' }}>Upload Photo</Text>}
                 </TouchableOpacity>
               </View>
-
               <Text style={styles.inputLabel}>Name:</Text>
-              <TextInput style={styles.modalInput} value={formName} onChangeText={setFormName} placeholder="e.g. MEE GORENG" />
-
+              <TextInput style={styles.modalInput} value={formName} onChangeText={setFormName} />
               <Text style={styles.inputLabel}>Price (RM):</Text>
-              <TextInput style={styles.modalInput} value={formPrice} onChangeText={setFormPrice} keyboardType="numeric" placeholder="e.g. 6" />
-
+              <TextInput style={styles.modalInput} value={formPrice} onChangeText={setFormPrice} keyboardType="numeric" />
               <Text style={styles.inputLabel}>Stock:</Text>
-              <TextInput style={styles.modalInput} value={formStock} onChangeText={setFormStock} keyboardType="numeric" placeholder="e.g. 50" />
-
-              <Text style={styles.inputLabel}>Description:</Text>
-              <TextInput style={[styles.modalInput, { height: 80 }]} value={formDesc} onChangeText={setFormDesc} multiline placeholder="Describe this dish..." />
-
-              <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSaveFoodForm}>
-                <Text style={styles.modalSubmitBtnText}>CONFIRM & SAVE</Text>
-              </TouchableOpacity>
+              <TextInput style={styles.modalInput} value={formStock} onChangeText={setFormStock} keyboardType="numeric" />
+              <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSaveFoodForm}><Text style={styles.modalSubmitBtnText}>CONFIRM & SAVE</Text></TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -884,31 +845,24 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
   headerIconBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000' },
-
   tabBarContainer: { width: '100%', borderBottomWidth: 1.5, borderColor: '#000', backgroundColor: '#fff', height: 50 },
   tabBarScroll: { flexDirection: 'row', alignItems: 'center' },
-
   tabButton: { paddingVertical: 10, paddingHorizontal: 16, borderRightWidth: 1.5, borderColor: '#000', minWidth: 95, height: '100%', alignItems: 'center', justifyContent: 'center' },
   tabButtonActive: { backgroundColor: '#A9A9A9' },
   tabText: { fontSize: 14, fontWeight: '500', color: '#000' },
   tabTextActive: { color: '#fff' },
   tabAddButton: { width: 50, height: '100%', justifyContent: 'center', alignItems: 'center', borderRightWidth: 1.5, borderColor: '#000' },
-
   dialogOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
   dialogBox: { width: 280, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', alignItems: 'center', paddingTop: 20 },
-  dialogTitle: { fontSize: 17, fontWeight: '600', color: '#000', marginBottom: 5 },
-  dialogSubTitle: { fontSize: 13, color: '#666', marginBottom: 15, paddingHorizontal: 10, textAlign: 'center' },
-  dialogInput: { width: '85%', height: 40, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 10, fontSize: 14, marginBottom: 20, textAlign: 'center', backgroundColor: '#fcfcfc' },
+  dialogTitle: { fontSize: 17, fontWeight: '600', color: '#000', marginBottom: 15 },
+  dialogInput: { width: '85%', height: 40, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 10, marginBottom: 20, textAlign: 'center' },
   dialogActions: { flexDirection: 'row', borderTopWidth: 0.5, borderColor: '#eee', width: '100%' },
   dialogBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  dialogBtnText: { fontSize: 16 },
-
   toolbarContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginTop: 15 },
   leftTools: { flexDirection: 'row', alignItems: 'center' },
   toolIconBtn: { marginRight: 15, padding: 5 },
   saveButton: { backgroundColor: '#A9A9A9', paddingVertical: 4, paddingHorizontal: 16, borderRadius: 12 },
   saveButtonText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-
   scrollContainer: { paddingHorizontal: 20, paddingTop: 15, alignItems: 'center' },
   welcomeCard: { width: '100%', borderWidth: 1.5, borderColor: '#000', borderRadius: 24, padding: 20, backgroundColor: '#fff', position: 'relative' },
   cardEditBtn: { position: 'absolute', top: 15, right: 20 },
@@ -916,87 +870,63 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   avatarIcon: { marginRight: 12 },
   brandTitle: { fontSize: 26, fontWeight: 'bold', color: '#000', flex: 1 },
-  cardBody: { width: '100%' },
+  cardBody: { width: '100%', marginBottom: 5 },
   welcomeText: { fontSize: 16, lineHeight: 24, color: '#000', textAlign: 'center' },
   welcomeInput: { fontSize: 16, lineHeight: 24, color: '#000', textAlign: 'center', padding: 10, minHeight: 80, borderWidth: 1, borderColor: '#e5e5e5', borderRadius: 8, backgroundColor: '#fafafa' },
-  imageWrapper: { width: '100%', marginTop: 15, alignItems: 'center' },
-  realSelectedImage: { width: '100%', borderRadius: 12, borderWidth: 1, borderColor: '#000', backgroundColor: '#fafafa' },
+
+  imageWrapper: {
+    width: '100%',
+    marginTop: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#fafafa',
+    borderWidth: 1,
+    borderColor: '#000'
+  },
+  realSelectedImage: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: '#fafafa'
+  },
 
   hintBar: { flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'space-between' },
   hintLeftIcons: { flexDirection: 'row', alignItems: 'center' },
-
   foodListContainer: { padding: 15, paddingTop: 5 },
   foodCard: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#000', borderRadius: 20, padding: 10, marginBottom: 12, backgroundColor: '#fff' },
   foodActionLeft: { flexDirection: 'row', alignItems: 'center' },
-
   foodThumb: { width: 45, height: 45, borderRadius: 22.5, marginRight: 10 },
   foodThumbEmpty: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 10, borderWidth: 0.5, borderColor: '#ccc' },
-
   foodInfo: { flex: 1 },
   foodTitle: { fontSize: 14, fontWeight: 'bold', color: '#000' },
   foodPrice: { fontSize: 12, color: '#333', marginTop: 2 },
-
   foodActionRight: { flexDirection: 'row', alignItems: 'center' },
   addBtn: { padding: 2, marginLeft: 4 },
-
   stockTextStatic: { fontSize: 13, fontWeight: 'bold', marginRight: 8, color: '#000' },
-  stockStepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#000',
-    borderRadius: 15,
-    height: 28,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-    marginRight: 4
-  },
+  stockStepperContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#000', borderRadius: 15, height: 28, backgroundColor: '#fff', overflow: 'hidden', marginRight: 4 },
   stepperBtn: { width: 26, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   stepperValueContainer: { minWidth: 32, height: '100%', alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#e5e5e5', paddingHorizontal: 4, backgroundColor: '#f9f9f9' },
   stepperValueText: { fontSize: 13, fontWeight: 'bold', color: '#000', textAlign: 'center' },
   stepperInput: { minWidth: 32, height: '100%', borderColor: '#e5e5e5', borderLeftWidth: 1, borderRightWidth: 1, textAlign: 'center', padding: 0, fontSize: 13, fontWeight: 'bold', color: '#000', backgroundColor: '#fff' },
-
   addFoodBigBtn: { width: '100%', height: 54, borderWidth: 1.5, borderColor: '#000', borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginTop: 10, backgroundColor: '#fff' },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#eee' },
   modalHeaderTitle: { fontSize: 18, fontWeight: 'bold' },
   modalForm: { padding: 20 },
-
   imageSelectorCenterWrapper: { width: '100%', alignItems: 'center', marginBottom: 20 },
   modalImageSelectorCircle: { width: 110, height: 110, borderRadius: 55, backgroundColor: '#f8f8f8', borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#ccc', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   modalSelectedImgCircle: { width: '100%', height: '100%', borderRadius: 55 },
-
   inputLabel: { fontSize: 14, fontWeight: '600', marginBottom: 5, color: '#333' },
   modalInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 15, fontSize: 14, backgroundColor: '#fff' },
   modalSubmitBtn: { backgroundColor: '#A9A9A9', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-
-  /* ==================== Sidebar 样式表 ==================== */
   modalContainer: { flex: 1, flexDirection: 'row' },
-  sidebar: {
-    width: Dimensions.get('window').width * 0.75,
-    height: '100%',
-    backgroundColor: '#fff',
-    borderRightWidth: 2,
-    borderRightColor: '#000',
-    paddingTop: Platform.OS === 'ios' ? 40 : 25,
-    zIndex: 10,
-  },
+  sidebar: { width: Dimensions.get('window').width * 0.75, height: '100%', backgroundColor: '#fff', borderRightWidth: 2, borderRightColor: '#000', paddingTop: Platform.OS === 'ios' ? 40 : 25, zIndex: 10 },
   sidebarHeader: { paddingHorizontal: 15, paddingBottom: 10 },
   avatarSection: { alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1.5, borderBottomColor: '#000', marginBottom: 10 },
-  avatarCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 1.5,
-    borderColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5,
-    overflow: 'hidden',
-  },
+  avatarCircle: { width: 70, height: 70, borderRadius: 35, borderWidth: 1.5, borderColor: '#000', justifyContent: 'center', alignItems: 'center', marginBottom: 5, overflow: 'hidden' },
   sidebarAvatarImage: { width: '100%', height: '100%', borderRadius: 35 },
   avatarName: { fontSize: 16, fontWeight: 'bold', color: '#000' },
   sidebarItem: { width: '100%', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1.5, borderBottomColor: '#000', alignItems: 'center' },
@@ -1006,4 +936,21 @@ const styles = StyleSheet.create({
   logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   logoutText: { fontSize: 22, color: '#000', marginLeft: 10 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
+
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    zIndex: 9999,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600'
+  }
 });
+
+export { MenuScreen };
+export default MenuScreen;
