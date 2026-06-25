@@ -83,12 +83,12 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
           if (foodData?.vendor_id) {
             setVendorId(foodData.vendor_id); // 存起来，等下放进 orders 表
 
-            // 1. 查 Vendor 地址
-            const { data: vendorProfile } = await supabase.from('profiles').select('address, full_name').eq('id', foodData.vendor_id).single();
-            if (vendorProfile?.address) {
-              setVendorAddress(`${vendorProfile.full_name} - ${vendorProfile.address}`);
+            // 1. 查 Vendor 地址 (🌟 现在的地址直接等于 Vendor 的名字)
+            const { data: vendorProfile } = await supabase.from('profiles').select('full_name').eq('id', foodData.vendor_id).single();
+            if (vendorProfile?.full_name) {
+              setVendorAddress(vendorProfile.full_name);
             } else {
-              setVendorAddress(`${vendorProfile.full_name || 'Vendor'} (Address not set)`);
+              setVendorAddress('Vendor Name Unknown');
             }
 
             // ==========================================

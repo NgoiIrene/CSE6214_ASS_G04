@@ -52,7 +52,7 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
         if (orderResult.vendor_id) {
           const { data: vendorResult } = await supabase
             .from('profiles')
-            .select('full_name, address')
+            .select('full_name') // 🌟 去掉 address 的查询
             .eq('id', orderResult.vendor_id)
             .single();
 
@@ -263,9 +263,9 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
 
   if (loading) return <ActivityIndicator size="large" style={{ flex: 1 }} />;
 
-  // 提取 Vendor 信息
+  // 提取 Vendor 信息 (🌟 名字和地址都指向 full_name)
   const vendorName = orderData?.profiles?.full_name || "Vendor";
-  const vendorLocation = orderData?.profiles?.address || "Address not set";
+  const vendorLocation = orderData?.profiles?.full_name || "Vendor";
 
   return (
     <SafeAreaView style={styles.container}>

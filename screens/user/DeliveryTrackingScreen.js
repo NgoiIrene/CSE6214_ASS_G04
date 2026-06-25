@@ -165,11 +165,20 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                 // 🟢 2. Accepted by Delivery Man
                 else if (currentStatus === 'accepted_by_rider') {
                     setCurrentStatusLevel(4);
+                    // 🌟 骑手终于接单了，立刻禁用取消按钮！
+                    setIsCancelDisabled(true);
+                }
+                // 🌟 新增逻辑：Vendor 食物做好了，但一直没有骑手接单
+                else if (currentStatus === 'ready_for_pickup') {
+                    setCurrentStatusLevel(3); // UI 进度条依然停留在 Preparing 阶段
+                    // 🌟 重新激活取消按钮，让用户可以自己取消！
+                    setIsCancelDisabled(false);
                 }
                 // 🟢 1. Accepted by Vendor & Preparing (Level 2 和 3 一起亮起)
                 else if (currentStatus === 'pending_rider') {
                     setCurrentStatusLevel(3);
                 }
+
                 // 🟡 还在 pending 状态 (Vendor 还没接单)
                 else if (currentStatus === 'pending_vendor') {
                     setCurrentStatusLevel(1);
@@ -332,7 +341,12 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                 {/* 3. CANCEL & NOTE ... (其余 UI 部分保持完全不变) ... */}
                 <View style={styles.cancelSection}>
                     <TouchableOpacity style={[styles.cancelBtn, isCancelDisabled && styles.btnDisabled]} disabled={isCancelDisabled} onPress={handleCancelOrder}>
-                        <Text style={styles.cancelBtnText}>{isCancelDisabled ? "Cannot Cancel" : `Cancel Order (${countdown}s)`}</Text>
+                        {/* 🌟 智能显示文字：如果倒计时还没结束显示秒数；如果是重新激活的，就只显示 Cancel Order */}
+                        <Text style={styles.cancelBtnText}>
+                            {isCancelDisabled
+                                ? "Cannot Cancel"
+                                : (countdown > 0 ? `Cancel Order (${countdown}s)` : "Cancel Order")}
+                        </Text>
                     </TouchableOpacity>
                 </View>
                 <View style={styles.noteBox}>
