@@ -109,11 +109,6 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
       setIsLoading(true);
       let finalAvatarUrl = pendingProfile.avatar_url;
 
-<<<<<<< HEAD
-
-      if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
-        
-=======
       // 🌟 新增的图片上传逻辑
       if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
         
@@ -123,43 +118,21 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
         });
         
         // 2. 生成一个唯一的文件名
->>>>>>> 4ef8f30d0f0693d48eabed19c8f5745e8a450408
         const fileExt = finalAvatarUrl.split('.').pop() || 'jpeg';
-        const mimeType = fileExt.toLowerCase() === 'jpg' ? 'jpeg' : fileExt.toLowerCase(); 
         const fileName = `${profile.id}_${Date.now()}.${fileExt}`;
         const filePath = `admin_avatars/${fileName}`;
 
-<<<<<<< HEAD
-       
-        const formData = new FormData();
-        formData.append('file', {
-          uri: finalAvatarUrl,
-          name: fileName,
-          type: `image/${mimeType}`
-        });
-
-     
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(filePath, formData, {
-             cacheControl: '3600',
-             upsert: false 
-=======
         // 3. 使用 decode 将 Base64 转为 ArrayBuffer 并上传
         const { error: uploadError } = await supabase.storage
           .from('avatars') 
           .upload(filePath, decode(base64), {
             contentType: `image/${fileExt}`,
             upsert: true
->>>>>>> 4ef8f30d0f0693d48eabed19c8f5745e8a450408
           });
 
-        if (uploadError) {
-          console.log("Supabase Upload Error:", uploadError);
-          throw new Error("图片上传到服务器失败: " + uploadError.message);
-        }
+        if (uploadError) throw uploadError;
 
-    
+        // 4. 获取上传成功后的公共云端链接 (Public URL)
         const { data: publicUrlData } = supabase.storage
           .from('avatars')
           .getPublicUrl(filePath);
@@ -168,7 +141,7 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
       } 
       // ⚠️ 很多时候就是不小心删掉了上面这个闭合 if 语句的大括号！
 
-     
+      // 🌟 更新数据库：存入的已经是云端网址了
       const { error: dbUpdateError } = await supabase
         .from('profiles')
         .update({
@@ -182,7 +155,7 @@ export default function AdminProfileScreen({ onProfileUpdate }) {
 
       if (dbUpdateError) throw dbUpdateError;
 
-     
+      // 更新画面状态
       const updatedProfile = { ...pendingProfile, avatar_url: finalAvatarUrl };
       setProfile(updatedProfile);
       setPendingProfile(updatedProfile);
