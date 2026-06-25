@@ -226,7 +226,8 @@ function OrderDetailScreen({ orderData, initialStatus, onBack, onAcceptOrder, on
               <TouchableOpacity style={styles.declineButton} onPress={() => onDeclineOrder(orderData.id)}>
                 <Text style={styles.declineButtonText}>DECLINE</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.acceptButton} onPress={() => onAcceptOrder(orderData.id)}>
+              {/* 🌟 这里的参数改为了传递整个 orderData 对象，方便主逻辑判断 order_type */}
+              <TouchableOpacity style={styles.acceptButton} onPress={() => onAcceptOrder(orderData)}>
                 <Text style={styles.acceptButtonText}>ACCEPT</Text>
               </TouchableOpacity>
             </>
@@ -302,11 +303,10 @@ export default function App({ route, navigateToScreen }) {
     if (!currentVendorId) return;
 
     try {
-      // 1️⃣ 同时拉取订单列表 和 佣金率配置
       const [ordersResult, finResult] = await Promise.all([
         supabase
           .from('orders')
-          .select('*')
+          .select('*, profiles:user_id(full_name)')
           .eq('vendor_id', currentVendorId)
           .in('status', ['pending_vendor', 'pending_rider', 'accepted', 'completed', 'preparing'])
           .order('created_at', { ascending: false }),
@@ -319,13 +319,12 @@ export default function App({ route, navigateToScreen }) {
 
       if (ordersResult.error) throw ordersResult.error;
 
-      // 2️⃣ 取出佣金率（若拉取失败则默认 0，不影响订单显示）
       const commissionRate = finResult.data ? Number(finResult.data.commission_rate) : 0;
 
       if (ordersResult.data) {
-        // 3️⃣ 为每笔订单动态注入 profit = subtotal * (100 - commissionRate) / 100
         const enriched = ordersResult.data.map(o => ({
           ...o,
+          customer_name: o.profiles?.full_name || o.customer_name || 'Customer',
           profit: Number(o.subtotal || 0) * (100 - commissionRate) / 100,
         }));
 
@@ -365,16 +364,23 @@ export default function App({ route, navigateToScreen }) {
   // 处理侧边栏导航逻辑
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false);
-    if (targetScreen === 'order') return; // 如果已经是当前页，直接关闭
+    if (targetScreen === 'order') return; 
     if (navigateToScreen) navigateToScreen(targetScreen);
   };
 
-  const handleAcceptOrder = async (orderId) => {
+  {/* 🌟 修改后的接单处理函数 */}
+  const handleAcceptOrder = async (order) => {
     try {
+      // 检查安全边界并做不区分大小写的匹配，同时去除所有空格以兼容 'pickup' 和 'pick up'
+      const orderType = String(order?.order_type || '').toLowerCase().replace(/\s+/g, '');
+      
+      // 如果是 pickup，则进入 preparing 状态；否则保持原样的 pending_rider 状态
+      const targetStatus = orderType === 'pickup' ? 'preparing' : 'pending_rider';
+
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'pending_rider' })
-        .eq('id', orderId);
+        .update({ status: targetStatus })
+        .eq('id', order.id);
 
       if (error) throw error;
       setScreen('HOME');
@@ -408,14 +414,12 @@ export default function App({ route, navigateToScreen }) {
       <Modal transparent={true} visible={isSidebarOpen} animationType="none" onRequestClose={() => setIsSidebarOpen(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.sidebar}>
-            {/* 顶栏：Menu 切换按钮 */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
             
-            {/* 用户头像区域 */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
                 {avatarUrl ? (
@@ -427,7 +431,6 @@ export default function App({ route, navigateToScreen }) {
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* 导航列表：当前在 Order (Home) 页面，保持高亮 */}
             <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => setIsSidebarOpen(false)}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -450,7 +453,6 @@ export default function App({ route, navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
-            {/* 底部退出登录 */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -554,7 +556,6 @@ const styles = StyleSheet.create({
   doneButton: { backgroundColor: '#D3D3D3', borderRadius: 18, paddingVertical: 8, width: '45%', alignItems: 'center' },
   doneButtonText: { color: '#fff', fontSize: 20, fontWeight: '500' },
 
-  /* ==================== 📌 Sidebar 样式表（已完美对齐 Review 文件） ==================== */
   modalContainer: { flex: 1, flexDirection: 'row' },
   sidebar: {
     width: SCREEN_WIDTH * 0.75,
