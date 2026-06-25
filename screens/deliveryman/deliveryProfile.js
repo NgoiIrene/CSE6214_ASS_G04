@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import React, { useState, useEffect, useContext } from 'react';
 import { RiderContext } from './RiderProvider';
 import { supabase } from '../../supabaseClient';
@@ -86,31 +87,50 @@ export default function DeliveryProfile() {
     setProfileData({ ...profileData, [key]: value });
   };
 
+  const friendlyMessage = (msg) => {
+    if (!msg) return '请求失败，请检查网络后重试。';
+    const lower = String(msg).toLowerCase();
+    if (lower.includes('network request failed')) return '网络请求失败，请检查网络连接后重试。';
+    if (lower.includes('timeout') || lower.includes('timed out')) return '请求超时，请稍后重试。';
+    return msg;
+  };
+
+  // 优化后的图片上传逻辑
   const uploadAvatar = async (uri, userId) => {
     try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // 更安全地获取文件扩展名，防止 URI 没有后缀时报错
+      let fileExt = uri.substring(uri.lastIndexOf('.') + 1);
+      if (!['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt.toLowerCase())) {
+        fileExt = 'jpeg'; // 默认回退为 jpeg
+      }
+      const mimeType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
       
-      const fileExt = uri.split('.').pop() || 'jpeg';
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `public/${fileName}`;
+      const filePath = `delivery_avatars/${fileName}`;
 
+      // 使用 expo-file-system 的 File API 直接异步读取为 ArrayBuffer，避免 fetch(file://) 导致的网络请求失败报错
+      const file = new File(uri);
+      const arrayBuffer = await file.arrayBuffer();
+
+      // 连接到名为 'avatars' 的 bucket 并上传
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, blob, {
-          contentType: `image/${fileExt}`,
+        .upload(filePath, arrayBuffer, {
+          contentType: mimeType,
           upsert: true
         });
 
       if (uploadError) throw uploadError;
 
+      // 获取公开的访问链接
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
       return publicUrl;
     } catch (error) {
-      Alert.alert("Image Upload Error", error.message);
+      console.error("Upload error:", error);
+      Alert.alert("Image Upload Error", friendlyMessage(error.message));
       return null;
     }
   };
@@ -123,14 +143,20 @@ export default function DeliveryProfile() {
 
       let finalAvatarUrl = avatarUri;
 
+      // 如果当前头像是本地文件 (file://)，则执行上传到 bucket
       if (avatarUri && avatarUri.startsWith('file://')) {
         const uploadedUrl = await uploadAvatar(avatarUri, user.id);
         if (uploadedUrl) {
           finalAvatarUrl = uploadedUrl;
-          setAvatarUri(uploadedUrl);
+          setAvatarUri(uploadedUrl); // 更新 Context 里的 URL 为云端 URL
+        } else {
+          // 如果上传失败，提前退出保存
+          setIsSaving(false);
+          return; 
         }
       }
 
+      // 更新数据库 profiles 表
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -143,7 +169,7 @@ export default function DeliveryProfile() {
         .eq('id', user.id);
 
       if (error) {
-        Alert.alert("Save Failed", error.message);
+        Alert.alert("Save Failed", friendlyMessage(error?.message));
         return;
       }
 
@@ -152,7 +178,7 @@ export default function DeliveryProfile() {
       setIsEditing(false);
     } catch (e) {
       console.log(e);
-      Alert.alert("Error", "An unexpected error occurred.");
+      Alert.alert("Error", friendlyMessage(e?.message));
     } finally {
       setIsSaving(false);
     }
@@ -242,7 +268,6 @@ export default function DeliveryProfile() {
             )}
           </TouchableOpacity>
           <Text style={styles.partnerName}>{profileData.name}</Text>
-          {/* 🌟 已经删除了这里的 ACTIVE RIDER 徽章 */}
         </View>
 
         <View style={styles.infoCard}>
