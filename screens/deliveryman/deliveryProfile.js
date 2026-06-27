@@ -88,10 +88,10 @@ export default function DeliveryProfile() {
   };
 
   const friendlyMessage = (msg) => {
-    if (!msg) return '请求失败，请检查网络后重试。';
+    if (!msg) return 'Request failed. Please try again later.';
     const lower = String(msg).toLowerCase();
-    if (lower.includes('network request failed')) return '网络请求失败，请检查网络连接后重试。';
-    if (lower.includes('timeout') || lower.includes('timed out')) return '请求超时，请稍后重试。';
+    if (lower.includes('network request failed')) return 'Network request failed. Please check your internet connection and try again.';
+    if (lower.includes('timeout') || lower.includes('timed out')) return 'Request timed out. Please try again later.';
     return msg;
   };
 
