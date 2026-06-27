@@ -321,10 +321,13 @@ export default function DeliveryMain() {
 
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIconBox} onPress={() => setIsSidebarOpen(true)} activeOpacity={0.7}>
-          <Ionicons name="menu" size={28} color="#333" />
+          {/* 👇 在这里新增一个带边框的 View 将图标包裹起来 👇 */}
+          <View style={styles.menuIconBorder}>
+            <Ionicons name="menu" size={26} color="black" /> 
+          </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>HOME</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 40, marginLeft: 15 }} />
       </View>
 
       <View style={styles.contentContainer}>
@@ -424,7 +427,20 @@ export default function DeliveryMain() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8F9FA', },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 10, backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: '#E0E0E0', },
-  menuIconBox: { padding: 5, marginLeft: -5, },
+  // 修改这行原有的样式：
+  menuIconBox: { paddingHorizontal: 5 }, 
+  
+  // 👇 在下方新增这个边框样式 👇
+  menuIconBorder: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 8, 
+    borderWidth: 1.5, 
+    borderColor: '#000', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#FFF' 
+  },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#000', letterSpacing: 1, },
   contentContainer: { flex: 1, },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 20, },
