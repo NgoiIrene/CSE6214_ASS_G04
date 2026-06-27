@@ -319,10 +319,10 @@ export default function ReviewScreen({ navigateToScreen }) {
       {/* ==================== Header Navigation ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerMenuBtn} onPress={() => setIsSidebarOpen(true)}>
-          <Ionicons name="menu-outline" size={28} color="#000" />
+          <Ionicons name="menu" size={35} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review</Text>
-        <View style={{ width: 32 }} />
+        <View style={{ width: 35 }} />
       </View>
       <View style={styles.divider} />
 
@@ -454,8 +454,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 15 : 35,
   },
   headerMenuBtn: {
-    width: 32, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#000', borderRadius: 6, padding: 2,
+    width: 35, justifyContent: 'center', alignItems: 'center',
   },
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000', textAlign: 'center' },
 

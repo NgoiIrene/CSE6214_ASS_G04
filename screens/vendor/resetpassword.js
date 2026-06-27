@@ -313,15 +313,15 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={handleHeaderLeftPress}>
           {step === 1 ? (
-            <Ionicons name="menu-outline" size={28} color="#000" />
+            <Ionicons name="menu" size={35} color="#000" />
           ) : (
-            <Ionicons name="arrow-back-outline" size={24} color="#000" />
+            <Ionicons name="arrow-back-outline" size={35} color="#000" />
           )}
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {step === 1 ? "Email Verification" : "Reset Password"}
         </Text>
-        <View style={{ width: 32 }} /> 
+        <View style={{ width: 35 }} /> 
       </View>
       <View style={styles.divider} />
 
@@ -429,13 +429,9 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 15 : 35,
   },
   headerBackBtn: { 
-    width: 32, 
+    width: 35, 
     justifyContent: 'center', 
-    alignItems: 'center', 
-    borderWidth: 1.5, 
-    borderColor: '#000', 
-    borderRadius: 6,
-    padding: 2
+    alignItems: 'center'
   },
   headerTitle: { fontSize: 24, fontWeight: 'normal', color: '#000' },
   

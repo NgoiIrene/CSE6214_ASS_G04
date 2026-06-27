@@ -204,7 +204,7 @@ export default function ProfileScreen({ navigateToScreen }) {
           <View style={styles.sidebar}>
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
-                <Ionicons name="menu" size={32} />
+                <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
             <View style={styles.avatarSection}>
@@ -240,7 +240,7 @@ export default function ProfileScreen({ navigateToScreen }) {
       {/* --- Header --- */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => setIsSidebarOpen(true)}>
-          <Ionicons name="menu-outline" size={28} />
+          <Ionicons name="menu" size={35} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEditMode ? "Edit Profile" : "My Profile"}</Text>
         <TouchableOpacity onPress={isEditMode ? handleCancelEdit : handleStartEdit}>
@@ -338,7 +338,7 @@ export default function ProfileScreen({ navigateToScreen }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
-  headerBackBtn: { width: 32, borderWidth: 1.5, borderColor: '#000', borderRadius: 6, padding: 2, alignItems: 'center' },
+  headerBackBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 24 },
   divider: { height: 2, backgroundColor: '#000' },
   content: { padding: 25 },
