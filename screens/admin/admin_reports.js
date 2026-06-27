@@ -188,6 +188,8 @@ export default function GenerateReport() {
         });
         await Sharing.shareAsync(uri, { UTI: 'public.png', mimeType: 'image/png' });
       }
+      // 🌟 ADDED SUCCESS NOTIFICATION HERE 🌟
+      Alert.alert("Success", "Report exported successfully.");
     } catch (error) {
       Alert.alert("Export Error", "Something went wrong: " + error.message);
     }
