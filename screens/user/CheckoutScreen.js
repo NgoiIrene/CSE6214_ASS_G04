@@ -137,7 +137,7 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
       if (!user) throw new Error("Please login first");
 
       if (walletBalance < totalPayment) {
-        Alert.alert("Insufficient Balance", "Please top up your wallet.");
+        Alert.alert("Insufficient Balance", "Please top up your wallet through your profile.");
         return;
       }
 
