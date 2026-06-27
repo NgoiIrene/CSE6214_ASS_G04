@@ -14,13 +14,24 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Calendar } from 'react-native-calendars';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
+
+LocaleConfig.locales = {
+  en: {
+    monthNames: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    monthNamesShort: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    dayNames: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    dayNamesShort: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+    today: 'Today'
+  }
+};
+LocaleConfig.defaultLocale = 'en';
 
 export default function EarningsAndHistory() {
   const navigation = useNavigation();
   const { avatarUri, riderName } = useContext(RiderContext);
 
-  // 获取今天的日期 (YYYY-MM-DD 格式)
+  // Get today's date (YYYY-MM-DD format)
   const getTodayStr = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -29,16 +40,16 @@ export default function EarningsAndHistory() {
     return `${year}-${month}-${day}`;
   };
 
-  // ================= 1. 状态管理 =================
+  // ================= 1. State management =================
   const [activeTab, setActiveTab] = useState('Week');
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // 🌟 从数据库拉取的真实历史数据
+  // 🌟 Real history data fetched from database
   const [historyData, setHistoryData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 每次进入此页面，自动从 Supabase 的 orders 表拉取已完成订单
+  // 🌟 On each page entry, automatically fetch completed orders from Supabase
   useFocusEffect(
     useCallback(() => {
       fetchHistory();
@@ -51,18 +62,18 @@ export default function EarningsAndHistory() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      // 🌟 核心修改：直接查 orders 表，且只看 completed 的单子！
+      // 🌟 Key change: query the orders table directly and only completed orders!
       const { data, error } = await supabase
         .from('orders')
         .select('*, profiles:user_id(full_name)')
         .eq('rider_id', session.user.id)
-        .eq('status', 'completed') // 🎯 只要已完成的订单
-        .order('created_at', { ascending: false }); // 最新的排在最上面
+        .eq('status', 'completed') // 🎯 only completed orders
+        .order('created_at', { ascending: false }); // latest first
 
       if (error) {
         Alert.alert("Fetch Error", error.message);
       } else if (data) {
-        // 🌟 将 orders 里的 created_at 格式化为日历能读懂的结构
+          // 🌟 format orders created_at into a structure the calendar can understand
         const formattedData = data.map(item => {
           const dateObj = new Date(item.created_at);
           const year = dateObj.getFullYear();
@@ -72,8 +83,8 @@ export default function EarningsAndHistory() {
           return {
             ...item,
             customer_name: item.profiles?.full_name || item.customer_name || 'Customer',
-            calendar_date: `${year}-${month}-${day}`, // 专门给日历过滤用的 YYYY-MM-DD
-            display_time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) // 显示用的 14:30 PM
+            calendar_date: `${year}-${month}-${day}`, // used for calendar filtering in YYYY-MM-DD
+            display_time: dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) // Forces English AM/PM
           };
         });
 
@@ -93,7 +104,7 @@ export default function EarningsAndHistory() {
     return `${year}-${month}-${day}`;
   };
 
-  // 核心算法：日历大面积涂色
+  // Core algorithm: mark the calendar range
   const markedDates = useMemo(() => {
     const marks = {};
     const dateObj = new Date(selectedDate);
@@ -139,20 +150,20 @@ export default function EarningsAndHistory() {
     return marks;
   }, [selectedDate, activeTab]);
 
-  // 🌟 根据日历选中的区间过滤数据 (对比 calendar_date)
+  // 🌟 Filter data by the selected date range in the calendar (compare calendar_date)
   const filteredData = useMemo(() => {
     const activeMarkedDates = Object.keys(markedDates);
     return historyData.filter(item => activeMarkedDates.includes(item.calendar_date));
   }, [markedDates, historyData]);
 
-  // 计算所选区间的总收入
+  // calculate total earnings for the selected date range
   const totalEarnings = useMemo(() => {
     return filteredData.reduce((sum, item) => sum + (Number(item.earning) || 0), 0).toFixed(2);
   }, [filteredData]);
 
   const handleBack = () => navigation.goBack();
 
-  // ================= 2. 界面渲染 =================
+  // ================= 2. UI rendering =================
   return (
     <SafeAreaView style={styles.container}>
 
@@ -217,19 +228,19 @@ export default function EarningsAndHistory() {
             filteredData.map((item) => (
               <TouchableOpacity key={item.id} style={styles.historyCard} activeOpacity={0.7}>
                 <View style={styles.cardLeft}>
-                  {/* 🌟 日期与时间 */}
+                  {/* 🌟 date and time */}
                   <Text style={styles.timeText}>{item.calendar_date} • {item.display_time}</Text>
                   
-                  {/* 🌟 订单编号 */}
+                  {/* 🌟 order id */}
                   <Text style={styles.orderIdText}>Order {item.order_number}</Text>
                   
-                  {/* 🌟 顾客名字 */}
+                  {/* 🌟 customer name */}
                   <View style={styles.customerRow}>
                     <Ionicons name="person" size={12} color="#666" />
                     <Text style={styles.customerText}>{item.customer_name}</Text>
                   </View>
                   
-                  {/* 🌟 食物详情 */}
+                  {/* 🌟 food details */}
                   <View style={styles.foodRow}>
                     <Ionicons name="restaurant-outline" size={12} color="#888" />
                     <Text style={styles.foodText} numberOfLines={2}>{item.food_details}</Text>
@@ -237,7 +248,7 @@ export default function EarningsAndHistory() {
 
                 </View>
                 <View style={styles.cardRight}>
-                  {/* 🌟 外卖员收益 */}
+                  {/* 🌟 rider earnings */}
                   <Text style={styles.earningText}>RM {Number(item.earning).toFixed(2)}</Text>
                   <Ionicons name="checkmark-circle" size={18} color="#00C853" style={{ marginLeft: 6 }} />
                 </View>
@@ -255,7 +266,7 @@ export default function EarningsAndHistory() {
 
       </ScrollView>
 
-      {/* 侧边栏 */}
+      {/* sidebar */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity
