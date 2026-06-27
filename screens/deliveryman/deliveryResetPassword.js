@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import emailjs from '@emailjs/react-native';
 
-// 🌟 引入你的 Supabase 和 Rider 全局状态
+//  import Supabase and Rider
 import { supabase } from '../../supabaseClient'; 
 import { RiderContext } from './RiderProvider';
 
@@ -19,14 +19,14 @@ export default function DeliveryResetPassword() {
   const [isLoading, setIsLoading] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
 
-  // 表单输入状态
+  // inputs state
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [generatedPin, setGeneratedPin] = useState(''); 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // 🛠️ EmailJS 凭证
+  // email
   const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
   const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
   const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
@@ -46,7 +46,7 @@ export default function DeliveryResetPassword() {
     setConfirmPassword('');
   };
 
-  // ⚡ 1. 发送验证码邮件
+  // send verification email
   const handleVerify = async () => {
     const userEmail = email.trim();
     if (!userEmail) {
@@ -74,7 +74,7 @@ export default function DeliveryResetPassword() {
     }
   };
 
-  // ⚡ 2. 验证 PIN 码
+  // verify otp
   const handleContinue = () => {
     const enteredEmail = email.trim();
     const enteredPin = pin.trim();
@@ -92,7 +92,7 @@ export default function DeliveryResetPassword() {
     setStep(2); 
   };
 
-  // ⚡ 3. 重置密码 (调用 Supabase RPC)
+  // reset password
   const handleReset = async () => {
     if (!password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields!");
@@ -221,7 +221,7 @@ export default function DeliveryResetPassword() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ==================== 侧边栏 (🌟 RESET PASSWORD 高亮) ==================== */}
+      {/* ==================== 侧边栏 (   RESET PASSWORD 高亮) ==================== */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -256,7 +256,7 @@ export default function DeliveryResetPassword() {
   );
 }
 
-// 统一整合了 Delivery Man 的主框架和 Vendor 表单的线框样式
+// delivery man main framework
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 10, backgroundColor: '#FFF', borderBottomWidth: 1.5, borderColor: '#E0E0E0' },
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#000', letterSpacing: 1 },
   scrollContainer: { paddingHorizontal: 20, paddingTop: 40, paddingBottom: 30, alignItems: 'center' },
   
-  // Wireframe 表单样式
+  // Wireframe 
   wireframeCard: { width: '100%', borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 15, paddingVertical: 40, backgroundColor: '#fff', borderRadius: 12, elevation: 4, shadowColor: '#000', shadowOffset: {width:0,height:2}, shadowOpacity:0.1, shadowRadius:4 },
   wireframeInputRow: { marginBottom: 25, width: '100%' },
   inlineFieldRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', paddingVertical: 12, paddingHorizontal: 30, alignSelf: 'center', marginTop: 20, backgroundColor: '#fff' },
   wireframeSubmitBtnText: { fontSize: 15, color: '#000', fontWeight: 'bold' },
 
-  // Sidebar 样式 (与其他页面完美统一)
+  // Sidebar 
   sidebarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', zIndex: 100 },
   closeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
   sidebar: { width: '75%', backgroundColor: '#FFF', height: '100%', shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 15 },

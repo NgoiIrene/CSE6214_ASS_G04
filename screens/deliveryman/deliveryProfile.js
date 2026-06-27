@@ -95,24 +95,25 @@ export default function DeliveryProfile() {
     return msg;
   };
 
-  // 优化后的图片上传逻辑
+  // upload pic that alr optimized
   const uploadAvatar = async (uri, userId) => {
     try {
-      // 更安全地获取文件扩展名，防止 URI 没有后缀时报错
+      // more safer to get the file name, prevent URI error later
       let fileExt = uri.substring(uri.lastIndexOf('.') + 1);
       if (!['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt.toLowerCase())) {
-        fileExt = 'jpeg'; // 默认回退为 jpeg
+        fileExt = 'jpeg'; // default back to jpeg
       }
       const mimeType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
       
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       const filePath = `delivery_avatars/${fileName}`;
 
-      // 使用 expo-file-system 的 File API 直接异步读取为 ArrayBuffer，避免 fetch(file://) 导致的网络请求失败报错
+      // Use the `expo-file-system` File API to read the file directly and asynchronously as an `ArrayBuffer`, 
+      // thereby avoiding network request errors associated with `fetch(file://)`.
       const file = new File(uri);
       const arrayBuffer = await file.arrayBuffer();
 
-      // 连接到名为 'avatars' 的 bucket 并上传
+      // connect to the bucket named 'avatars', and uppload
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, arrayBuffer, {
@@ -122,7 +123,7 @@ export default function DeliveryProfile() {
 
       if (uploadError) throw uploadError;
 
-      // 获取公开的访问链接
+      // get public access link
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -143,20 +144,20 @@ export default function DeliveryProfile() {
 
       let finalAvatarUrl = avatarUri;
 
-      // 如果当前头像是本地文件 (file://)，则执行上传到 bucket
+      // if current profile pic is local file (file://)，then upload to bucket
       if (avatarUri && avatarUri.startsWith('file://')) {
         const uploadedUrl = await uploadAvatar(avatarUri, user.id);
         if (uploadedUrl) {
           finalAvatarUrl = uploadedUrl;
-          setAvatarUri(uploadedUrl); // 更新 Context 里的 URL 为云端 URL
+          setAvatarUri(uploadedUrl); // update URL in context as cloud URL
         } else {
-          // 如果上传失败，提前退出保存
+          // if the uploads failed, save and exit 
           setIsSaving(false);
           return; 
         }
       }
 
-      // 更新数据库 profiles 表
+      // update profile table in database
       const { error } = await supabase
         .from('profiles')
         .update({

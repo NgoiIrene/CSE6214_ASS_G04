@@ -1,7 +1,7 @@
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useContext, useCallback } from 'react';
-import { Calendar, LocaleConfig } from 'react-native-calendars'; // 🌟 替换了原先的 DateTimePicker
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { RiderContext } from './RiderProvider';
 import { supabase } from '../../supabaseClient';
 import {
@@ -9,7 +9,6 @@ import {
   Text, TouchableOpacity, View, ActivityIndicator
 } from 'react-native';
 
-// 🌟 显式配置 react-native-calendars 为纯英文
 LocaleConfig.locales = {
   en: {
     monthNames: ['January','February','March','April','May','June','July','August','September','October','November','December'],
@@ -31,7 +30,6 @@ export default function WorkingShift() {
     return today;
   };
 
-  // 🌟 新增：用于将 Date 对象转换为 YYYY-MM-DD 字符串传递给日历组件
   const formatDateString = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -136,7 +134,6 @@ export default function WorkingShift() {
     return copy < getToday();
   };
 
-  // 🌟 新增：处理自定义英文日历选定日期的逻辑
   const onCalendarDateSelect = (dateString) => {
     const [year, month, day] = dateString.split('-').map(Number);
     const selectedDate = new Date(year, month - 1, day);
@@ -457,7 +454,6 @@ const styles = StyleSheet.create({
   logoutButton: { flexDirection: 'row', paddingVertical: 20, paddingHorizontal: 25, alignItems: 'center' },
   logoutText: { fontSize: 15, fontWeight: 'bold', color: '#FF3B30' },
   
-  // 🌟 新增：全英文自定义日历弹窗的遮罩样式
   calendarModalOverlay: {
     position: 'absolute',
     top: 0,

@@ -24,7 +24,7 @@ export default function DeliveryMain() {
     }, [])
   );
 
-  // 🌟 修复：精确到“小时”的时间比对自动删除 🌟
+  // Automatic deletion based on time comparison accurate to the hour
   const fetchMyShifts = async () => {
     setIsLoading(true);
     try {
@@ -41,11 +41,11 @@ export default function DeliveryMain() {
         Alert.alert("Fetch Error ❌", error.message);
       } else if (data) {
         
-        const now = new Date(); // 当前真实时间 (包含小时)
+        const now = new Date(); // current actual time(include hour)
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // 仅留日期
+        today.setHours(0, 0, 0, 0); // only date
 
-        // 定义每个班次的结束小时 (24小时制)
+        // working shift (24hrs)
         const endHours = {
           '8.00AM - 10.00AM': 10,
           '10.00AM - 12.00PM': 12,
@@ -64,18 +64,18 @@ export default function DeliveryMain() {
           let isExpired = false;
 
           if (shiftDateObj < today) {
-            isExpired = true; // 日期已经过了
+            isExpired = true; // expired 
           } else if (shiftDateObj.getTime() === today.getTime()) {
             const endHour = endHours[shift.shift_time] || 24; 
             if (now.getHours() >= endHour) {
-              isExpired = true; // 时间过了这个小时
+              isExpired = true; // expired time
             }
           }
 
           if (isExpired) {
-            expiredShiftIds.push(shift.id); // 丢进过期名单
+            expiredShiftIds.push(shift.id); // throw into expired list
           } else {
-            validShifts.push(shift); // 还没过期
+            validShifts.push(shift); // still ongoing
           }
         });
 
@@ -180,7 +180,7 @@ export default function DeliveryMain() {
     }
   };
 
-  // 🌟 修复：如果没有排班则不准上线 🌟
+  // if there is no confirmed working shift, cannot toggle online
   const handleToggleOnline = async (newValue) => {
     if (newValue === true && shifts.length === 0) {
       Alert.alert(
@@ -252,7 +252,8 @@ export default function DeliveryMain() {
           return;
         }
 
-        // 如果订单已经分配给了 rider，则不要当作新请求再发一次。
+        // If the order has already been assigned to a rider
+        //  do not send it again as a new request.
         if (newOrder.rider_id) {
           return;
         }
@@ -427,10 +428,7 @@ export default function DeliveryMain() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8F9FA', },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 10, backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: '#E0E0E0', },
-  // 修改这行原有的样式：
   menuIconBox: { paddingHorizontal: 5 }, 
-  
-  // 👇 在下方新增这个边框样式 👇
   menuIconBorder: { 
     width: 40, 
     height: 40, 

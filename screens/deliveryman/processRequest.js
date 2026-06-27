@@ -20,13 +20,12 @@ export default function ProcessDeliveryRequest() {
   const [vendorProfileName, setVendorProfileName] = useState(null);
   const [customerProfileName, setCustomerProfileName] = useState(null);
   
-  // 🌟 1. 新加这行代码，用来控制地图缩放
+  // control map zooming.
   const mapRef = useRef(null);
 
-  // 🌟 核心：存储计算出来的 Earning
+  // save earnings
   const [calculatedEarning, setCalculatedEarning] = useState(5.00); 
 
-  // 🌟 核心：去 delivery_zones 抓取 base_fee 然后永远 - 1
   useEffect(() => {
     const fetchBaseFee = async () => {
       if (orderData?.vendor_id) {
@@ -37,7 +36,7 @@ export default function ProcessDeliveryRequest() {
           .single();
 
         if (data && data.base_fee) {
-          setCalculatedEarning(data.base_fee - 1); // 永远 base_fee - 1
+          setCalculatedEarning(data.base_fee ); 
         }
       } else if (orderData?.earning) {
         setCalculatedEarning(Number(orderData.earning));
@@ -68,7 +67,7 @@ export default function ProcessDeliveryRequest() {
     fetchProfileNames();
   }, [orderData]);
 
-  // 🌟 统一使用数据库真实的字段名称
+  // database actual database field names
   const [orderRef] = useState('ORD-' + Math.floor(100000 + Math.random() * 900000));
   const customerName = customerProfileName || orderData?.customer_name || orderData?.customer?.full_name || orderData?.user_name || 'Cindy Kiki';
   const vendorName = vendorProfileName || orderData?.vendor_name || orderData?.vendor?.full_name || orderData?.vendor || 'Rasa Syiokk';
@@ -124,7 +123,7 @@ export default function ProcessDeliveryRequest() {
         .update({ 
           status: 'preparing',
           rider_id: session.user.id,
-          earning: calculatedEarning // 顺手把算好的钱存回去，保底
+          earning: calculatedEarning 
         })
         .eq('id', orderData.id)
         .in('status', ['pending_rider', 'ready_for_pickup'])
