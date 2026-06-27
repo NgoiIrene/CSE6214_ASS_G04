@@ -1,4 +1,3 @@
-// deliveryNavigator.js
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 
@@ -10,14 +9,14 @@ import WorkingShift from './workingshift';
 import DeliveryProfile from './deliveryProfile';
 import DeliveryResetPassword from './deliveryResetPassword';
 
-// 🌟 引入刚创建的全局 Provider
+//  Rider Provider
 import { RiderProvider } from './RiderProvider'; 
 
 const Stack = createNativeStackNavigator();
 
 export default function DeliveryNavigator() {
   return (
-    // 🌟 用 RiderProvider 包裹 Navigator
+    //  use RiderProvider over Navigator
     <RiderProvider>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={DeliveryMain} />

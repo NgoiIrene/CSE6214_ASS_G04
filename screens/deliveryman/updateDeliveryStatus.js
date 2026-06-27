@@ -26,7 +26,7 @@ export default function UpdateDeliveryProgress() {
   const [customerProfileAddress, setCustomerProfileAddress] = useState(null);
   const mapRef = useRef(null);
   
-  // 🌟 一模一样的逻辑，抓取 earning
+  // get earnings
   const [calculatedEarning, setCalculatedEarning] = useState(5.00); 
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function UpdateDeliveryProgress() {
           .single();
 
         if (data && data.base_fee) {
-          setCalculatedEarning(data.base_fee - 1); // 永远 base_fee - 1
+          setCalculatedEarning(data.base_fee); 
         }
       } else if (orderData?.earning) {
         setCalculatedEarning(Number(orderData.earning));
@@ -77,7 +77,7 @@ export default function UpdateDeliveryProgress() {
     fetchProfileNames();
   }, [orderData]);
 
-  // 🌟 统一使用数据库真实的字段名称
+  // actual database field names
   const [orderRef] = useState('ORD-' + Math.floor(100000 + Math.random() * 900000));
   const customerName = customerProfileName || orderData?.customer_name || orderData?.customer?.full_name || orderData?.customer || orderData?.user_name || 'Cindy Kiki';
   const vendorName = vendorProfileName || orderData?.vendor_name || orderData?.vendor?.full_name || orderData?.vendor || 'Rasa Syiokk';
@@ -203,8 +203,8 @@ export default function UpdateDeliveryProgress() {
 
   useEffect(() => {
     if (stage === 1) {
-      // 🌟 让骑手图标开始沿着去餐厅的路线移动
-      animateRiderAlongRoute(pickupRouteCoordinates, 60000); // 15秒开到餐厅
+      // rider icon start moving along the route 
+      animateRiderAlongRoute(pickupRouteCoordinates, 60000); // 60s heading to the stall
     }
   }, [stage]);
 
@@ -251,17 +251,17 @@ export default function UpdateDeliveryProgress() {
 
   const currentPickupRoute = pickupRouteCoordinates;
 
-  // 🌟 动作 1：确认取餐 (对应 Picked up by Delivery Man)
+  //  Picked up by Delivery Man
   const handleConfirmPickUp = async () => {
     try {
       if (orderData?.id) {
         const { error } = await supabase
           .from('orders')
-          .update({ status: 'pickup_rider' }) // 更新状态为 pickup
+          .update({ status: 'pickup_rider' }) // update status
           .eq('id', orderData.id);
         if (error) throw error;
       }
-      setStage(2); // 进入准备出发阶段
+      setStage(2); 
       setRiderCoords(starbeesCoords);
       setTimeout(() => {
         mapRef.current?.fitToCoordinates(pickupRouteCoordinates, {
@@ -276,17 +276,17 @@ export default function UpdateDeliveryProgress() {
     }
   };
 
-  // 🌟 动作 2：开始配送 (对应 Out for Delivery)
+  // Action2：start delivery (Out for Delivery)
   const handleStartDelivery = async () => {
     try {
       if (orderData?.id) {
         const { error } = await supabase
           .from('orders')
-          .update({ status: 'otw_delivery' }) // 更新状态为 delivery
+          .update({ status: 'otw_delivery' }) // update status to delivery
           .eq('id', orderData.id);
         if (error) throw error;
       }
-      setStage(3); // 进入配送阶段
+      setStage(3); 
       setRemainingMinutes(2);
       animateRiderAlongRoute(routeCoordinates, 120000);
       setTimeout(() => {

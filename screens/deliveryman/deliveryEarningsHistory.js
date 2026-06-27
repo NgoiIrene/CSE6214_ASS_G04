@@ -45,11 +45,11 @@ export default function EarningsAndHistory() {
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // 🌟 Real history data fetched from database
+  // Real history data fetched from database
   const [historyData, setHistoryData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 On each page entry, automatically fetch completed orders from Supabase
+  // On each page entry, automatically fetch completed orders from Supabase
   useFocusEffect(
     useCallback(() => {
       fetchHistory();
@@ -62,18 +62,18 @@ export default function EarningsAndHistory() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      // 🌟 Key change: query the orders table directly and only completed orders!
+      // Key change: query the orders table directly and only completed orders!
       const { data, error } = await supabase
         .from('orders')
         .select('*, profiles:user_id(full_name)')
         .eq('rider_id', session.user.id)
-        .eq('status', 'completed') // 🎯 only completed orders
+        .eq('status', 'completed') // only completed orders
         .order('created_at', { ascending: false }); // latest first
 
       if (error) {
         Alert.alert("Fetch Error", error.message);
       } else if (data) {
-          // 🌟 format orders created_at into a structure the calendar can understand
+          // format orders created_at into a structure the calendar can understand
         const formattedData = data.map(item => {
           const dateObj = new Date(item.created_at);
           const year = dateObj.getFullYear();
@@ -150,7 +150,7 @@ export default function EarningsAndHistory() {
     return marks;
   }, [selectedDate, activeTab]);
 
-  // 🌟 Filter data by the selected date range in the calendar (compare calendar_date)
+  // Filter data by the selected date range in the calendar (compare calendar_date)
   const filteredData = useMemo(() => {
     const activeMarkedDates = Object.keys(markedDates);
     return historyData.filter(item => activeMarkedDates.includes(item.calendar_date));
@@ -228,19 +228,19 @@ export default function EarningsAndHistory() {
             filteredData.map((item) => (
               <TouchableOpacity key={item.id} style={styles.historyCard} activeOpacity={0.7}>
                 <View style={styles.cardLeft}>
-                  {/* 🌟 date and time */}
+                  {/*  date and time */}
                   <Text style={styles.timeText}>{item.calendar_date} • {item.display_time}</Text>
                   
-                  {/* 🌟 order id */}
+                  {/*  order id */}
                   <Text style={styles.orderIdText}>Order {item.order_number}</Text>
                   
-                  {/* 🌟 customer name */}
+                  {/*  customer name */}
                   <View style={styles.customerRow}>
                     <Ionicons name="person" size={12} color="#666" />
                     <Text style={styles.customerText}>{item.customer_name}</Text>
                   </View>
                   
-                  {/* 🌟 food details */}
+                  {/*  food details */}
                   <View style={styles.foodRow}>
                     <Ionicons name="restaurant-outline" size={12} color="#888" />
                     <Text style={styles.foodText} numberOfLines={2}>{item.food_details}</Text>
@@ -248,7 +248,7 @@ export default function EarningsAndHistory() {
 
                 </View>
                 <View style={styles.cardRight}>
-                  {/* 🌟 rider earnings */}
+                  {/*  rider earnings */}
                   <Text style={styles.earningText}>RM {Number(item.earning).toFixed(2)}</Text>
                   <Ionicons name="checkmark-circle" size={18} color="#00C853" style={{ marginLeft: 6 }} />
                 </View>
