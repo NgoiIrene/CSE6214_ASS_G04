@@ -217,7 +217,9 @@ export default function GenerateReport() {
           <TouchableOpacity
             key={key}
             style={[styles.badgeButton, category === key && styles.activeBadgeButton]}
-            onPress={() => setCategory(key)}
+            onPress={() => {setCategory(key);if (key === 'settlement' && format === 'PNG') {
+                setFormat('PDF');
+              }}}
           >
             <Text style={[styles.badgeText, category === key && styles.activeBadgeText]}>
               {key === 'overall' ? 'Revenue' : key === 'settlement' ? 'Settlement' : 'Top-Selling'}
@@ -308,14 +310,19 @@ export default function GenerateReport() {
 
       <Text style={styles.exportHeader}>Export Options</Text>
       <View style={styles.radioGroupRow}>
-        {['PDF', 'PNG'].map((type) => (
-          <TouchableOpacity key={type} style={styles.radioOption} onPress={() => setFormat(type)}>
-            <View style={styles.outerRadio}>
-              {format === type && <View style={styles.innerRadio} />}
-            </View>
-            <Text style={styles.radioText}>{type}</Text>
-          </TouchableOpacity>
-        ))}
+        {['PDF', 'PNG'].map((type) => {
+          // 🌟 新增逻辑：如果是 settlement 且当前遍历到 PNG，则不渲染该按钮
+          if (category === 'settlement' && type === 'PNG') return null;
+
+          return (
+            <TouchableOpacity key={type} style={styles.radioOption} onPress={() => setFormat(type)}>
+              <View style={styles.outerRadio}>
+                {format === type && <View style={styles.innerRadio} />}
+              </View>
+              <Text style={styles.radioText}>{type}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <TouchableOpacity style={styles.exportButton} onPress={handleExport}>
