@@ -63,7 +63,6 @@ export default function ConfigureSystemSettings() {
         console.error("Error fetching financials:", finError);
       } else if (finData) {
         setCommissionRate(Number(finData.commission_rate).toString());
-        // 读取新增的设定值
         if (finData.sst_rate !== undefined) setSstRate(Number(finData.sst_rate).toString());
         if (finData.min_top_up !== undefined) setMinTopUp(Number(finData.min_top_up).toString());
       }
