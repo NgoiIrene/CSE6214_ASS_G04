@@ -4,7 +4,7 @@ import {
   Platform, Dimensions, KeyboardAvoidingView, Alert, Modal, Image, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../supabaseClient'; // 确保路径正确
+import { supabase } from '../../supabaseClient'; // Make sure the path is correct
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -13,7 +13,7 @@ export default function ManageMenuContent() {
   const [isMainDropdownOpen, setIsMainDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // ==================== Menu 专属状态 ====================
+  // ==================== Menu exclusive state ====================
   const [vendorFilter, setVendorFilter] = useState('All');
   const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
   const [dynamicVendors, setDynamicVendors] = useState(['All']); 
@@ -23,11 +23,11 @@ export default function ManageMenuContent() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  // ==================== Review 专属状态 ====================
+  // ==================== Review exclusive state ====================
   const [searchReviewQuery, setSearchReviewQuery] = useState('');
   const [reviews, setReviews] = useState([]);
 
-  // ==================== 核心数据库逻辑 ====================
+  // ==================== Core database logic ====================
 
   useEffect(() => {
     if (mainCategory === 'menu') {
@@ -97,9 +97,9 @@ export default function ManageMenuContent() {
     } finally {
       setIsLoading(false);
     }
-  }; // 🌟 修复关键：这里必须闭合 handleSaveMenu 函数！
+  }; // 🌟 Critical fix: the handleSaveMenu function must be closed here!
 
-  // 🌟 将 fetchReviews 变成独立函数，与 handleSaveMenu 平级
+  // 🌟 Turn fetchReviews into a standalone function, at the same level as handleSaveMenu
   const fetchReviews = async () => {
     setIsLoading(true);
     try {
@@ -127,7 +127,7 @@ export default function ManageMenuContent() {
       setReviews(formattedReviews || []);
     } catch (error) {
       console.log("Fetch Reviews Error: ", error.message);
-      // 🌟 改成这样，让手机直接弹出真正的数据库底层报错！
+      // 🌟 Changed to show the actual database error directly on the device!
       Alert.alert("Database Error", error.message);
     } finally {
       setIsLoading(false);

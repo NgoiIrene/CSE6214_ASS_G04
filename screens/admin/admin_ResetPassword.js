@@ -16,14 +16,14 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
   const [step, setStep] = useState(1);                     
   const [isLoading, setIsLoading] = useState(false); 
 
-  // 表单输入状态
+  // Form input state
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [generatedPin, setGeneratedPin] = useState(''); 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // 🛠️ EmailJS 凭证 (和你之前的一样)
+  // 🛠️ EmailJS credentials (same as before)
   const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
   const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
   const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
@@ -43,7 +43,7 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
     setConfirmPassword('');
   };
 
-  // ⚡ 1. 发送验证码邮件
+  // ⚡ 1. Send verification code email
   const handleVerify = async () => {
     const userEmail = email.trim();
     if (!userEmail) {
@@ -75,7 +75,7 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
     }
   };
 
-  // ⚡ 2. 验证 PIN 码
+  // ⚡ 2. Verify PIN code
   const handleContinue = () => {
     const enteredEmail = email.trim();
     const enteredPin = pin.trim();
@@ -97,7 +97,7 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
     setStep(2); 
   };
 
-  // ⚡ 3. 重置密码
+  // ⚡ 3. Reset password
   const handleReset = async () => {
     if (!password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields!");
@@ -135,7 +135,7 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
             onPress: () => { 
               resetAllFields(); 
               if (onResetSuccess) {
-                onResetSuccess(); // 成功后通过 prop 告诉 Navigation 切回主页
+                onResetSuccess(); // On success, notify Navigation via prop to switch back to home page
               }
             } 
           } 
@@ -151,12 +151,12 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
     }
   };
 
-  // 注意：这里没有 SafeAreaView，也没有 Header 和 Sidebar，因为外层的 Navigation 已经包办了
+  // Note: There is no SafeAreaView, Header, or Sidebar here, because the outer Navigation already handles that
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
       <View style={styles.wireframeCard}>
         
-        {/* STEP 1: Email 验证界面 */}
+        {/* STEP 1: Email Verification screen */}
         {step === 1 && (
           <View style={{ width: '100%' }}>
             <View style={styles.wireframeInputRow}>
@@ -199,7 +199,7 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
           </View>
         )}
 
-        {/* STEP 2: 修改新密码界面 */}
+        {/* STEP 2: Change new password screen */}
         {step === 2 && (
           <View style={{ width: '100%' }}>
             <View style={styles.wireframeInputRow}>
@@ -242,7 +242,7 @@ export default function AdminResetPasswordScreen({ onResetSuccess }) {
 const styles = StyleSheet.create({
   scrollContainer: { paddingHorizontal: 25, paddingTop: 20, paddingBottom: 30, alignItems: 'center' },
   
-  // 主卡片与输入框 (移除了原来没用的外围边距，让它自适应)
+  // Main card and input fields (removed original unused outer margins, let it auto-adjust)
   wireframeCard: { width: '100%', borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 20, paddingVertical: 45, backgroundColor: '#fff', marginTop: 10, borderRadius: 8 },
   wireframeInputRow: { marginBottom: 25, width: '100%' },
   inlineFieldRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },

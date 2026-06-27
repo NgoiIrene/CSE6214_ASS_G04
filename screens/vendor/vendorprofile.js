@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
-// 1. 引入刚才创建的 supabase 客户端
+// 1. Import the Supabase client created earlier
 import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -15,9 +15,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function ProfileScreen({ navigateToScreen }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // 加载状态
+  const [isLoading, setIsLoading] = useState(true); // Loading state
   
-  // 资料数据流（结构与你的 Supabase profiles 表完全对应）
+  // Profile data flow (structure fully matches your Supabase profiles table)
   const [profile, setProfile] = useState({
     id: '',
     full_name: '',
@@ -26,37 +26,37 @@ export default function ProfileScreen({ navigateToScreen }) {
     gender: 'Female',
     age: '',
     account_type: '',
-    avatar_url: null // 【已更新】同步数据库 avatar_url 字段
+    avatar_url: null // [Updated] Synced with database avatar_url field
   });
 
-  // 编辑模式下的临时缓冲区
+  // Temporary buffer in edit mode
   const [pendingProfile, setPendingProfile] = useState({ ...profile });
 
-  // 2. 页面加载时自动读取 Supabase 数据
+  // 2. Automatically fetch Supabase data on page load
   useEffect(() => {
     fetchUserProfile();
   }, []);
 
-  // 从 Supabase 获取用户资料
+  // Fetch user profile from Supabase
   const fetchUserProfile = async () => {
     try {
       setIsLoading(true);
       
-      // a. 获取当前登录用户的 auth 信息
+      // a. Get the current logged-in user's auth info
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
         Alert.alert("Error", "User not logged in or session expired.");
-        if (navigateToScreen) navigateToScreen('login'); // 没登录则跳转去登录
+        if (navigateToScreen) navigateToScreen('login'); // Redirect to login if not logged in
         return;
       }
 
-      // b. 用用户的 id 去 profiles 表查询对应数据
+      // b. Use the user's id to query corresponding data from the profiles table
       const { data, error: dbError } = await supabase
         .from('profiles')
-        .select('id, full_name, account_type, phone_number, gender, age, email, avatar_url') // 【已更新】加入 avatar_url 查询
-        .eq('id', user.id) // 条件：表里的 id 等于当前登录的 user.id
-        .single(); // 因为 id 是主键，只取单条数据
+        .select('id, full_name, account_type, phone_number, gender, age, email, avatar_url') // [Updated] Added avatar_url to the query
+        .eq('id', user.id) // Condition: the id in the table must equal the current logged-in user.id
+        .single(); // Since id is the primary key, fetch only a single record
 
       if (dbError) throw dbError;
 
@@ -64,12 +64,12 @@ export default function ProfileScreen({ navigateToScreen }) {
         const fetchedData = {
           id: data.id,
           full_name: data.full_name || '',
-          email: data.email || user.email, // 如果 profile 没存 email，就用 auth 的 email
+          email: data.email || user.email, // If profile doesn't have email, use the auth email
           phone_number: data.phone_number || '',
           gender: data.gender || 'Female',
           age: data.age ? String(data.age) : '',
           account_type: data.account_type || '',
-          avatar_url: data.avatar_url || null // 【已更新】读取数据库图片
+          avatar_url: data.avatar_url || null // [Updated] Read image from database
         };
         setProfile(fetchedData);
         setPendingProfile(fetchedData);
@@ -81,24 +81,24 @@ export default function ProfileScreen({ navigateToScreen }) {
     }
   };
 
-  // 进入编辑模式时，同步最新数据到缓冲区
+  // When entering edit mode, sync the latest data to the buffer
   const handleStartEdit = () => {
     setPendingProfile({ ...profile });
     setIsEditMode(true);
   };
 
-  // 取消编辑
+  // Cancel editing
   const handleCancelEdit = () => {
     setIsEditMode(false);
   };
 
-  // 侧边栏菜单跳转逻辑
+  // Sidebar menu navigation logic
   const handleMenuSelect = (screenName) => {
     setIsSidebarOpen(false);
     if (navigateToScreen) navigateToScreen(screenName);
   };
 
-  // 更换头像（本地预览）
+  // Change avatar (local preview)
   const pickAvatar = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -108,14 +108,14 @@ export default function ProfileScreen({ navigateToScreen }) {
     });
     
     if (!result.canceled) {
-      // 【已更新】将选中的图片路径塞入缓冲区的 avatar_url 中
+      // [Updated] Insert the selected image path into the avatar_url of the buffer
       setPendingProfile({ ...pendingProfile, avatar_url: result.assets[0].uri });
     }
   };
 
-  // 3. 保存资料到 Supabase
+  // 3. Save profile to Supabase
   const handleSave = async () => {
-    // 表单非空验证
+    // Form non-empty validation
     if (!pendingProfile.full_name.trim()) {
       Alert.alert("Error", "Full Name cannot be empty.");
       return;
@@ -134,7 +134,7 @@ export default function ProfileScreen({ navigateToScreen }) {
 
       let finalAvatarUrl = pendingProfile.avatar_url;
 
-      // 如果发现是本地文件路径，先上传到 Supabase Storage
+      // If a local file path is detected, first upload it to Supabase Storage
       if (finalAvatarUrl && finalAvatarUrl.startsWith('file://')) {
         const fileExt = (finalAvatarUrl.split('.').pop() || 'jpg').toLowerCase();
         const mimeType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
@@ -160,21 +160,21 @@ export default function ProfileScreen({ navigateToScreen }) {
         finalAvatarUrl = publicUrlData.publicUrl;
       }
 
-      // 将修改后的数据 update 回 Supabase
+      // Update the modified data back to Supabase
       const { error } = await supabase
         .from('profiles')
         .update({
           full_name: pendingProfile.full_name.trim(),
           phone_number: pendingProfile.phone_number.trim(),
           gender: pendingProfile.gender,
-          age: parseInt(pendingProfile.age, 10), // 转为数字存入数据库
-          avatar_url: finalAvatarUrl, // 同步更新图片网址到数据库
+          age: parseInt(pendingProfile.age, 10), // Convert to number for storage in database
+          avatar_url: finalAvatarUrl, // Sync updated image URL to database
         })
-        .eq('id', profile.id); // 锁定当前用户的行
+        .eq('id', profile.id); // Lock the current user's row
 
       if (error) throw error;
 
-      // 数据库更新成功后，同步本地状态
+      // After successful database update, sync local state
       const updatedProfile = { ...pendingProfile, avatar_url: finalAvatarUrl };
       setProfile(updatedProfile);
       setPendingProfile(updatedProfile);
@@ -187,7 +187,7 @@ export default function ProfileScreen({ navigateToScreen }) {
     }
   };
 
-  // 如果正在加载，显示加载圈圈
+  // If loading, show a loading spinner
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -198,7 +198,7 @@ export default function ProfileScreen({ navigateToScreen }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* --- 侧边栏 --- */}
+      {/* --- Sidebar --- */}
       <Modal transparent={true} visible={isSidebarOpen} animationType="none" onRequestClose={() => setIsSidebarOpen(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.sidebar}>
@@ -209,14 +209,14 @@ export default function ProfileScreen({ navigateToScreen }) {
             </View>
             <View style={styles.avatarSection}>
               <View style={styles.sidebarAvatarCircle}>
-                {/* 【已更新】侧边栏头像根据 profile.avatar_url 动态展示 */}
+                {/* [Updated] Sidebar avatar dynamically renders based on profile.avatar_url */}
                 {profile.avatar_url ? (
                   <Image source={{ uri: profile.avatar_url }} style={styles.sidebarAvatarImage} />
                 ) : (
                   <Ionicons name="person-outline" size={45} />
                 )}
               </View>
-              {/* 【已更新】样式进行了优化升级，摆脱太小看不见的问题 */}
+              {/* [Updated] Style has been optimized to fix the too-small and invisible issue */}
               <Text style={styles.avatarName}>{profile.full_name || 'No Name'}</Text>
             </View>
             {['order', 'profile', 'menu', 'operationstatus', 'historyorder', 'review', 'resetpassword'].map((item) => (
@@ -249,13 +249,13 @@ export default function ProfileScreen({ navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* --- 内容区域 --- */}
+      {/* --- Content area --- */}
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.wireframeCard}>
           
-          {/* 头像组件 */}
+          {/* Avatar component */}
           <TouchableOpacity disabled={!isEditMode} onPress={pickAvatar} style={styles.avatarBox}>
-            {/* 【已更新】区分编辑模式缓冲区和普通查看模式下的 avatar_url */}
+            {/* [Updated] Distinguish between edit mode buffer and normal view mode avatar_url */}
             {isEditMode ? (
               pendingProfile.avatar_url ? <Image source={{ uri: pendingProfile.avatar_url }} style={styles.avatarImage} /> : <Ionicons name="person" size={50} />
             ) : (
@@ -274,7 +274,7 @@ export default function ProfileScreen({ navigateToScreen }) {
             )}
           </View>
 
-          {/* Email Address (只读字段) */}
+          {/* Email Address (read-only field) */}
           <View style={styles.inputRow}>
             <Text style={styles.label}>EMAIL ADDRESS (READ-ONLY):</Text>
             <Text style={[styles.valueText, isEditMode && styles.readOnlyText]}>{profile.email || '—'}</Text>
@@ -323,7 +323,7 @@ export default function ProfileScreen({ navigateToScreen }) {
             )}
           </View>
 
-          {/* 保存按钮 */}
+          {/* Save button */}
           {isEditMode && (
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
               <Text style={{ fontWeight: 'bold' }}>Save Profile</Text>
@@ -362,8 +362,8 @@ const styles = StyleSheet.create({
   sidebarHeader: { paddingHorizontal: 15, paddingBottom: 10 },
   avatarSection: { alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1.5, marginBottom: 10 },
   sidebarAvatarCircle: { width: 70, height: 70, borderRadius: 35, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginBottom: 5, overflow: 'hidden' },
-  sidebarAvatarImage: { width: 70, height: 70, borderRadius: 34 }, // 加了圆角防止溢出
-  avatarName: { fontSize: 16, fontWeight: 'bold', marginTop: 8, color: '#000' }, // 【已优化】调大字号加粗
+  sidebarAvatarImage: { width: 70, height: 70, borderRadius: 34 }, // Added border radius to prevent overflow
+  avatarName: { fontSize: 16, fontWeight: 'bold', marginTop: 8, color: '#000' }, // [Optimized] Increased font size and made bold
   sidebarItem: { width: '100%', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1.5, alignItems: 'center' },
   sidebarActiveItem: { backgroundColor: '#A9A9A9' },
   sidebarItemText: { fontSize: 22 },

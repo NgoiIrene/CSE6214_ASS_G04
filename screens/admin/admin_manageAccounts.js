@@ -4,19 +4,19 @@ import {
   ScrollView, Platform, Alert, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../supabaseClient'; // 确保路径正确
+import { supabase } from '../../supabaseClient'; // Make sure the path is correct
 
 export default function ManageAccounts() {
   const [currentView, setCurrentView] = useState('list');
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // 核心数据状态
+  // Core data state
   const [accounts, setAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false); // 用于按钮点击时的局部加载
+  const [isProcessing, setIsProcessing] = useState(false); // For local loading during button clicks
 
-  // 1. 页面加载时抓取所有用户 (除了被标记为 Deleted 的)
+  // 1. Fetch all users on page load (excluding those marked as Deleted)
   useEffect(() => {
     fetchAccounts();
   }, []);
@@ -27,12 +27,12 @@ export default function ManageAccounts() {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, account_type, status, phone_number, created_at')
-        .neq('status', 'Deleted') // 不显示已软删除的用户
+        .neq('status', 'Deleted') // Do not display soft-deleted users
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // 容错处理：如果某些旧数据没有 status，默认为 Active
+      // Error handling: if some old data has no status, default to Active
       const formattedData = data.map(acc => ({
         ...acc,
         status: acc.status || 'Active'
@@ -46,14 +46,14 @@ export default function ManageAccounts() {
     }
   };
 
-  // 搜索过滤逻辑
+  // Search filter logic
   const filteredAccounts = accounts.filter(acc => 
     (acc.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
     (acc.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
     (acc.id?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
-  // ==================== 动作处理逻辑 ====================
+  // ==================== Action handling logic ====================
 
   const handleViewUser = (user) => {
     setSelectedUser({ ...user }); 
@@ -95,7 +95,7 @@ export default function ManageAccounts() {
     }
   };
 
-  // 冻结 / 解冻账户 (Temporarily Block / Unblock)
+  // Freeze / Unfreeze account (Temporarily Block / Unblock)
   const handleToggleBlock = async () => {
     const isCurrentlyBlocked = selectedUser.status === 'Blocked';
     const newStatus = isCurrentlyBlocked ? 'Active' : 'Blocked';
@@ -121,7 +121,7 @@ export default function ManageAccounts() {
               
               Alert.alert("Success", `Account has been ${newStatus.toLowerCase()}.`);
               setSelectedUser({ ...selectedUser, status: newStatus });
-              fetchAccounts(); // 刷新列表数据
+              fetchAccounts(); // Refresh list data
             } catch (error) {
               Alert.alert("Action Failed", error.message);
             } finally {
@@ -133,7 +133,7 @@ export default function ManageAccounts() {
     );
   };
 
-  // 删除账户 (Soft Delete)
+  // Delete account (Soft Delete)
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
@@ -146,7 +146,7 @@ export default function ManageAccounts() {
           onPress: async () => {
             try {
               setIsProcessing(true);
-              // 软删除：把 status 变成 Deleted
+              // Soft delete: change status to Deleted
               const { error } = await supabase
                 .from('profiles')
                 .update({ status: 'Deleted' })
@@ -155,8 +155,8 @@ export default function ManageAccounts() {
               if (error) throw error;
               
               Alert.alert("Success", "Account has been deleted.");
-              fetchAccounts(); // 刷新列表，软删除的将不会显示
-              setCurrentView('list'); // 踢回列表页
+              fetchAccounts(); // Refresh list, soft-deleted items will no longer be shown
+              setCurrentView('list'); // Return to the list page
             } catch (error) {
               Alert.alert("Delete Failed", error.message);
             } finally {
@@ -168,14 +168,14 @@ export default function ManageAccounts() {
     );
   };
 
-  // 格式化日期显示
+  // Format date display
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB'); // 显示为 DD/MM/YYYY
+    return date.toLocaleDateString('en-GB'); // Display as DD/MM/YYYY
   };
 
-  // ==================== UI 渲染区 ====================
+  // ==================== UI Rendering Area ====================
 
   if (isLoading && currentView === 'list') {
     return (

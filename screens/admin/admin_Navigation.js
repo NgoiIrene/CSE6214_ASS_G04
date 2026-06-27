@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../supabaseClient';
 
-// 🌟 1. 引入你的其他页面 (确保路径和你的文件名一模一样)
+// 🌟 1. Import your other pages (make sure the paths match your file names exactly)
 import HomeScreen from './admin_Home';
 import ManageAccounts from './admin_manageAccounts';
 import ManageAdvertisingBanner from './admin_manageAdvertising';
@@ -21,21 +21,21 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SIDEBAR_WIDTH = 280;
 
 export default function App() {
-  // 🌟 2. 核心 State：记录当前打开的是哪个页面，默认是 'Home'
+  // 🌟 2. Core State: records which page is currently open, defaults to 'Home'
   const [currentPage, setCurrentPage] = useState('Home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  //状态：用于存储 Sidebar 显示的个人信息
+  // State: stores the personal info displayed in the Sidebar
   const [sidebarProfile, setSidebarProfile] = useState({
     full_name: 'Admin',
     avatar_url: null
   });
 
-  // 动画控制
+  // Animation control
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
-  // 每次组件加载时，去 Supabase 抓取当前管理员的名字和头像
+  // Fetch the current admin's name and avatar from Supabase each time the component loads
   const fetchSidebarProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -58,12 +58,12 @@ export default function App() {
     }
   };
 
-  // 页面初次加载时执行抓取
+  // Fetch on initial page load
   useEffect(() => {
     fetchSidebarProfile();
   }, []);
 
-  // 🌟 3. 这是真正的 toggleSidebar 逻辑，只放动画计算
+  // 🌟 3. This is the real toggleSidebar logic, only contains animation calculations
   const toggleSidebar = (open) => {
     setIsSidebarOpen(open);
     Animated.parallel([
@@ -80,7 +80,7 @@ export default function App() {
     ]).start();
   };
 
-  // 🌟 4. 点击菜单时的动作：设定新页面，并关掉侧边栏
+  // 🌟 4. Action when clicking a menu item: set the new page and close the sidebar
   const handleMenuClick = (moduleName) => {
     setCurrentPage(moduleName);
     toggleSidebar(false);
@@ -95,7 +95,7 @@ export default function App() {
     toggleSidebar(false);
   };
 
-  // 🌟 5. 核心渲染器：根据当前点击的菜单，决定中间显示哪个你写好的 UI 页面
+  // 🌟 5. Core renderer: based on the clicked menu item, decide which UI page to show
   const renderMainContent = () => {
     switch (currentPage) {
       case 'Home':
@@ -119,11 +119,11 @@ export default function App() {
     }
   };
 
-  // 🌟 6. 这里是 RETURN 区域：所有你看到的画面 (UI) 都在这里
+  // 🌟 6. This is the RETURN area: all the UI you see on screen is here
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* 遮罩层 */}
+      {/* Overlay layer */}
       <Animated.View
         style={[styles.overlayWrapper, { opacity: overlayAnim }]}
         pointerEvents={isSidebarOpen ? 'auto' : 'none'}>
@@ -132,7 +132,7 @@ export default function App() {
         </TouchableWithoutFeedback>
       </Animated.View>
 
-      {/* 侧边栏 */}
+      {/* Sidebar */}
       <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
         <View style={styles.sidebarHeader}>
           <TouchableOpacity style={styles.hamburgerBtn} onPress={() => toggleSidebar(false)}>
@@ -142,7 +142,7 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {/* Sidebar 头像和名字 */}
+        {/* Sidebar avatar and name */}
         <View style={styles.userSection}>
           <View style={styles.avatarCircle}>
             {sidebarProfile.avatar_url ? (
@@ -168,7 +168,7 @@ export default function App() {
           {[
             'Profile', 'Manage Accounts', 'Manage Menu & Content',
             'Generate Reports', 'Configure System Settings',
-            'Manage Advertising Board' // 删除了 Process Application Approval
+            'Manage Advertising Board' // Removed: Process Application Approval
           ].map((item, index) => (
             <TouchableOpacity
               key={index}
@@ -190,7 +190,7 @@ export default function App() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* 右侧主界面的顶部 Header */}
+      {/* Top Header for the main content area on the right */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.hamburgerBtn} onPress={() => toggleSidebar(true)}>
           <View style={styles.hamburgerLine} />
@@ -203,7 +203,7 @@ export default function App() {
 
       <View style={styles.divider} />
 
-      {/* 主界面内容渲染 */}
+      {/* Main content rendering */}
       <View style={{ flex: 1 }}>
         {renderMainContent()}
       </View>

@@ -2,35 +2,35 @@ import React, { useState } from 'react';
 import { View, StyleSheet, StatusBar, Alert } from 'react-native';
 import { supabase } from '../../supabaseClient';
 
-// ==================== 🛠️ 真实子页面引入 ====================
+// ==================== 🛠️ Real sub-page imports ====================
 import OrderScreen from './order';
 import ReviewScreen from './review';
 import MenuScreen from './menu';
 import HistoryOrderScreen from './historyorder';
 import OperationStatusScreen from './operationstatus';
 import ResetPasswordScreen from './resetpassword';
-import ProfileScreen from './vendorprofile'; // 确保文件名与此处完全一致
+import ProfileScreen from './vendorprofile'; // Make sure the filename matches exactly
 
 export default function App() {
-  // 初始设为 'order' 页面
+  // Initially set to the 'order' page
   const [currentScreen, setCurrentScreen] = useState('order');
 
-  // 路由跳转核心方法
+  // Core routing method
   const navigateToScreen = async (screenName) => {
-    console.log(`[路由导航] 正在前往页面: ${screenName}`);
+    console.log(`[Router Navigation] Navigating to page: ${screenName}`);
     if (screenName === 'logout') {
       const { error } = await supabase.auth.signOut();
       if (error) {
         Alert.alert('Logout failed', error.message || 'Please try again.');
         return;
       }
-      // 登出成功后，根 App 会收到 auth state 改变并切回 Auth 登录页
+      // After successful logout, the root App will receive the auth state change and return to the Auth login page
       return;
     }
     setCurrentScreen(screenName);
   };
 
-  // 根据子页面侧边栏传回的字符串渲染对应的真实组件
+  // Renders the corresponding real component based on the string returned by the child page sidebar
   const renderScreen = () => {
     switch (currentScreen) {
       case 'menu':
@@ -45,7 +45,7 @@ export default function App() {
         return <OperationStatusScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
       case 'resetpassword':
         return <ResetPasswordScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
-      case 'profile': // ✨ 新增：个人资料页面分支
+      case 'profile': // ✨ New addition: personal profile page branch
         return <ProfileScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
       default:
         return <MenuScreen navigateToScreen={navigateToScreen} onBack={navigateToScreen} />;
