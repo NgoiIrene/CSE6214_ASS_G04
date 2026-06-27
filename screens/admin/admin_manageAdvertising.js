@@ -111,7 +111,7 @@ export default function ManageAdvertisingBanner() {
     }
   };
 
-  // 🌟 这里是使用了 FormData 的稳定上传函数
+  // 🌟 This is the stable upload function using FormData
   const handleSaveBanner = async () => {
     if (!editTitle || !editFileName || !editLocalImageUri) {
       Alert.alert("Validation Error", "Please fill in all fields and select a file.");

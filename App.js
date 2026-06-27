@@ -17,10 +17,10 @@ import UserNavigator from './screens/user/user_Navigation';
 
 const Stack = createNativeStackNavigator();
 
-// 🌟 核心防闪烁机制：红绿灯标志
+// 🌟 Core anti-flicker mechanism: traffic light flag
 let isSigningUpFlag = false;
 
-// ==================== 1. 登录与注册页面 (Auth Screen) ====================
+// ==================== 1. Login and Registration Page (Auth Screen) ====================
 const AuthScreen = () => {
   const [currentPage, setCurrentPage] = useState('login');
   const [isLoading, setIsLoading] = useState(false);
@@ -75,9 +75,9 @@ const AuthScreen = () => {
     if (error) {
       setIsLoading(false);
 
-      isSigningUpFlag = false; // 🟢 发生错误，恢复绿灯
+      isSigningUpFlag = false; // 🟢 Error occurred, restore green light
       //return Alert.alert("Error", error.message);
-      console.error("Signup Raw Error: ", error); // 在终端打印完整错误，方便追踪
+      console.error("Signup Raw Error: ", error); // Print the full error in the terminal for easy tracking
 return Alert.alert("Error", error?.message || "An unexpected server error occurred.");
     }
 
@@ -300,7 +300,7 @@ return Alert.alert("Error", error?.message || "An unexpected server error occurr
   );
 };
 
-// ==================== 🌟 2. 独立出来的加载和错误组件 ====================
+// ==================== 🌟 2. Standalone Loading and Error Components ====================
 const RoleCheckScreen = () => (
   <View style={styles.centerContainer}>
     <ActivityIndicator size="large" color="#000" />
@@ -348,44 +348,44 @@ export default function App() {
 const fetchUserRole = async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('account_type, status') // 🌟 1. 这里加上 status，把它一起查出来
+      .select('account_type, status') // 🌟 1. Add status here so it gets fetched together
       .eq('id', userId)
       .single();
 
     if (!error && data) {
-      // 🌟 2. 核心拦截逻辑：检查状态
+      // 🌟 2. Core interception logic: check status
       if (data.status === 'Blocked') {
-        // 发现被封禁，立刻执行登出，清除 session
+        // Detected banned, immediately sign out and clear session
         await supabase.auth.signOut();
-        // 弹窗警告
+        // Show alert warning
         Alert.alert(
           "Account Suspended ❌", 
           "Your account has been blocked by the administrator. Please contact support."
         );
-        // 清空角色状态，让他回到登录页
+        // Clear role state and redirect back to login page
         setUserRole(null); 
       } else {
-        // 正常用户，赋予对应的身份，放行进入 App
+        // Normal user, assign corresponding role and allow entry into the app
         setUserRole(data.account_type);
       }
 
       if (data.status === 'Deleted') {
-        // 发现被封禁，立刻执行登出，清除 session
+        // Detected deleted account, immediately sign out and clear session
         await supabase.auth.signOut();
-        // 弹窗警告
+        // Show alert warning
         Alert.alert(
           "Account deleted ❌", 
           "Your account has been delete by the administrator. Please contact support."
         );
-        // 清空角色状态，让他回到登录页
+        // Clear role state and redirect back to login page
         setUserRole(null); 
       } else {
-        // 正常用户，赋予对应的身份，放行进入 App
+        // Normal user, assign corresponding role and allow entry into the app
         setUserRole(data.account_type);
       }
       
     } else {
-      // 如果查询出错或找不到资料，确保设为空
+      // If query fails or record not found, ensure role is set to null
       setUserRole(null);
     }
     setIsAppLoading(false);
@@ -400,7 +400,7 @@ const fetchUserRole = async (userId) => {
     );
   }
 
-  // 🌟 干净整洁，绝对不会报语法错误的 Navigator
+  // 🌟 Clean and tidy Navigator that will never throw a syntax error
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>

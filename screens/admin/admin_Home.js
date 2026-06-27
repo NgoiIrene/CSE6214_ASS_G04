@@ -43,11 +43,11 @@ export default function HomeScreen() {
         .from('advertising_banners')
         .select('*', { count: 'exact', head: true });
 
-      // 🌟 核心修复：完全匹配你真实的 order 表结构！
+      // 🌟 Core fix: fully match your actual order table structure!
       const ordersPromise = supabase
-        .from('orders') // 换成了你真实的表名: order
-        .select('id, order_number,total_price, status, created_at') // 换成了你真实的列名
-        .order('created_at', { ascending: false }) // 默认用 Supabase 自带的 created_at 排序
+        .from('orders') // Changed to your actual table name: orders
+        .select('id, order_number,total_price, status, created_at') // Changed to your actual column names
+        .order('created_at', { ascending: false }) // Default sort using Supabase built-in created_at
         .limit(5);
 
       const [usersRes, menuRes, adsRes, ordersRes] = await Promise.all([
@@ -147,16 +147,16 @@ export default function HomeScreen() {
              recentOrders.map((order, index) => (
   <View key={order.id || index} style={[styles.orderRow, index === recentOrders.length - 1 && { borderBottomWidth: 0 }]}>
     <View style={{ flex: 1 }}>
-      {/* 🌟 修复 1：使用 order_number (如果没有 order_number 则使用 id) */}
+      {/* 🌟 Fix 1: Use order_number (fall back to id if order_number is missing) */}
       <Text style={styles.orderIdText}>
         Order #{String(order.order_number || order.id || 'N/A').substring(0, 8).toUpperCase()}
       </Text>
       
-      {/* 状态徽章 */}
+      {/* Status badge */}
       {renderStatusBadge(order.status)}
     </View>
     
-    {/* 🌟 修复 2：使用 total_price */}
+    {/* 🌟 Fix 2: Use total_price */}
     <Text style={styles.orderAmountText}>
       RM {parseFloat(order.total_price || 0).toFixed(2)}
     </Text>
