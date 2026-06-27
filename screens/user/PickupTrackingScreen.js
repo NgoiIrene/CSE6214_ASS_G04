@@ -344,7 +344,7 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  container: { flex: 1, backgroundColor: '#F8F9FA', paddingTop: 0 },
   header: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#ffffff', borderBottomWidth: 2, borderColor: '#000000' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
   scrollContent: { padding: 16, paddingBottom: 16 },
