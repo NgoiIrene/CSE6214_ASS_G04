@@ -130,7 +130,7 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
               id: vendor.id,
               name: vendor.full_name || vendor.username || 'Unnamed Vendor',
               rating: avgRating, // 👈 动态平均分
-              cuisine: vendorTags.length > 0 ? vendorTags.join(', ') : 'Local food',
+              cuisine: vendorTags.length > 0 ? vendorTags.join(', ') : 'LOCAL FOOD',
               image: vendor.avatar_url || 'https://via.placeholder.com/150',
               tags: vendorTags
             };
