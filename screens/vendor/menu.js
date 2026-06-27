@@ -19,15 +19,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
-// 🛠️ 引入 Expo SDK 54 新版 File API，用于读取本地文件的二进制 ArrayBuffer
+// 🛠️ Import the new File API from Expo SDK 54 for reading local file binary ArrayBuffer
 import { File } from 'expo-file-system';
 
-// 🔌 引入您项目中配置好的官方 Supabase 客户端实例
+// 🔌 Import the configured official Supabase client instance from your project
 import { supabase } from '../../supabaseClient';
 
 const { width } = Dimensions.get('window');
 
-// ==================== 🔢 智能库存快捷控制器组件 ====================
+// ==================== 🔢 Smart stock quick-control sub-component ====================
 function StockController({ stockValue, onChangeStock, isEditing }) {
   const [isTextInputMode, setIsTextInputMode] = useState(false);
   const [localValue, setLocalValue] = useState(stockValue.toString());
@@ -87,40 +87,40 @@ function StockController({ stockValue, onChangeStock, isEditing }) {
   );
 }
 
-// ==================== 📱 主页面 SCREEN ====================
+// ==================== 📱 Main Screen ====================
 function MenuScreen({ onBack, navigateToScreen }) {
-  // 🚪 侧边栏显隐状态
+  // 🚪 Sidebar open/close state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // 👤 用户与商家状态
+  // 👤 User and vendor state
   const [vendorId, setVendorId] = useState(null);
   const [profileName, setProfileName] = useState('Loading...');
   const [profileAvatar, setProfileAvatar] = useState(null);
 
-  // ==================== 🛠️ 全局状态控制 ====================
+  // ==================== 🛠️ Global state controls ====================
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('ANNOUNCEMENT');
-  const [tabs, setTabs] = useState(['ANNOUNCEMENT']); // 默认只有公告栏，其余分类从数据库动态加载
-  const [isLoading, setIsLoading] = useState(false); // 上传转圈阻断状态
+  const [tabs, setTabs] = useState(['ANNOUNCEMENT']); // Default has only announcement, other categories loaded dynamically from database
+  const [isLoading, setIsLoading] = useState(false); // Upload loading spinner state
 
-  // ==================== ➕ 分类命名弹窗状态 ====================
+  // ==================== ➕ Category naming modal state ====================
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isEditModeCategory, setIsEditModeCategory] = useState(false);
 
-  // ==================== 📢 公告板状态 (ANNOUNCEMENT) ====================
+  // ==================== 📢 Announcement board state ====================
   const [welcomeText, setWelcomeText] = useState('Welcome to our store! Hope you have a nice day.');
   const [imageUri, setImageUri] = useState(null);
-  const [imageSize, setImageSize] = useState({ width: 1, height: 1 }); // 真实尺寸，避免闪烁
-  const [imageLoaded, setImageLoaded] = useState(false); // 图片加载完成标志，防止先以错误比例渲染
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 }); // Real dimensions, avoid flickering
+  const [imageLoaded, setImageLoaded] = useState(false); // Image loaded flag, prevents rendering with wrong ratio first
 
-  // 专门用来控制公告栏是否处于编辑状态
+  // Dedicated control for whether the announcement is in edit mode
   const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
 
-  // ==================== 🍛 菜品列表数据状态 ====================
+  // ==================== 🍛 Food item data state ====================
   const [foodItems, setFoodItems] = useState([]);
 
-  // ==================== 📝 Food Detail 弹窗状态 ====================
+  // ==================== 📝 Food Detail modal state ====================
   const [foodModalVisible, setFoodModalVisible] = useState(false);
   const [editingFoodId, setEditingFoodId] = useState(null);
   const [formName, setFormName] = useState('');
@@ -128,10 +128,10 @@ function MenuScreen({ onBack, navigateToScreen }) {
   const [formStock, setFormStock] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formImg, setFormImg] = useState(null);
-  const [formAllergen, setFormAllergen] = useState('');  // 过敏原状态
-  const [formCalories, setFormCalories] = useState('');  // 卡路里状态
+  const [formAllergen, setFormAllergen] = useState('');  // Allergen field state
+  const [formCalories, setFormCalories] = useState('');  // Calories field state
 
-  // ==================== 🔄 核心：初始化拉取商家的全套数据 ====================
+  // ==================== 🔄 Core: Initialize and fetch all vendor data ====================
   useEffect(() => {
     const initializeData = async () => {
       try {
@@ -194,18 +194,18 @@ function MenuScreen({ onBack, navigateToScreen }) {
     initializeData();
   }, []);
 
-  // ==================== 🖼️ 修复图片闪烁：imageUri 改变时重置加载状态 ====================
+  // ==================== 🖼️ Fix image flickering: reset load state when imageUri changes ====================
   useEffect(() => {
     if (!imageUri) {
       setImageLoaded(false);
       setImageSize({ width: 1, height: 1 });
       return;
     }
-    // 每次 URI 变化都先标记为未加载，由 onLoad 重新触发显示
+    // Reset to not-loaded each time URI changes; onLoad will re-trigger display
     setImageLoaded(false);
 
     if (!imageUri.startsWith('file://')) {
-      // https URL：用 Image.getSize 预取尺寸（本地文件由 ImagePicker asset 提供）
+      // https URL: use Image.getSize to prefetch dimensions (local files provided by ImagePicker asset)
       let cancelled = false;
       Image.getSize(
         imageUri,
@@ -216,7 +216,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
     }
   }, [imageUri]);
 
-  // ==================== 📦 核心稳定版上传：使用 expo-file-system 读取 Base64 规避 Fetch 报错 ====================
+  // ==================== 📦 Stable upload: use expo-file-system to read Base64 and avoid Fetch errors ====================
   const uploadImageToStorage = async (localUri, bucketName) => {
     if (!localUri || !localUri.startsWith('file://')) {
       return localUri;
@@ -228,7 +228,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `${vendorId}/${fileName}`;
 
-      // 🛠️ 修复核心：使用 Expo SDK 54 的 File API 直接异步读取为 ArrayBuffer，无桥接开销且不抛出弃用警告
+      // 🛠️ Core fix: use Expo SDK 54's File API to directly read as ArrayBuffer asynchronously, no bridge overhead and no deprecation warnings
       const file = new File(localUri);
       const arrayBuffer = await file.arrayBuffer();
 
@@ -251,7 +251,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
     }
   };
 
-  // ==================== ⚡ 业务交互逻辑 ====================
+  // ==================== ⚡ Business interaction logic ====================
 
   const handleTabChange = (nextTab) => {
     if (activeTab === 'ANNOUNCEMENT' && isEditingAnnouncement && nextTab !== 'ANNOUNCEMENT') {
@@ -278,8 +278,8 @@ function MenuScreen({ onBack, navigateToScreen }) {
         finalImageUrl = await uploadImageToStorage(imageUri, 'announcements');
       }
 
-      // 先查是否已有记录，再决定 insert 还是 update
-      // ⚠️ 重要：表的主键是 vendor_id，没有单独的 id 列！
+      // Check first if an existing record exists, then decide to insert or update
+      // ⚠️ Important: the table's primary key is vendor_id, there is no separate id column!
       const { data: existing, error: selectError } = await supabase
         .from('announcements')
         .select('vendor_id')
@@ -294,14 +294,14 @@ function MenuScreen({ onBack, navigateToScreen }) {
       let dbError = null;
 
       if (existing) {
-        // 已有记录 → update
+        // Existing record → update
         const { error } = await supabase
           .from('announcements')
           .update({ content: welcomeText, image_url: finalImageUrl })
           .eq('vendor_id', vendorId);
         dbError = error;
       } else {
-        // 没有记录 → insert
+        // No record → insert
         const { error } = await supabase
           .from('announcements')
           .insert({ vendor_id: vendorId, content: welcomeText, image_url: finalImageUrl });
@@ -352,11 +352,11 @@ function MenuScreen({ onBack, navigateToScreen }) {
     });
     if (!result.canceled) {
       const asset = result.assets[0];
-      // 直接设置 URI，尺寸同步从 asset 获取，不需要异步 getSize
+      // Set URI directly; get dimensions synchronously from asset, no async getSize needed
       if (asset.width && asset.height) {
         setImageSize({ width: asset.width, height: asset.height });
       }
-      setImageLoaded(false); // 重置加载状态，等待新图片 onLoad
+      setImageLoaded(false); // Reset load state, wait for new image onLoad
       setImageUri(asset.uri);
     }
   };
@@ -467,9 +467,9 @@ function MenuScreen({ onBack, navigateToScreen }) {
   };
 
   const handleSaveFoodForm = async () => {
-    // 🚨 校验逻辑更新：
-    // 必填：Name, Price, Allergen, Calories, Stock
-    // 选填：Desc (可以为空)
+    // 🚨 Validation logic update:
+    // Required: Name, Price, Allergen, Calories, Stock
+    // Optional: Desc (can be empty)
     if (!formName || !formPrice || !formAllergen.trim() || !formCalories.trim() || formStock === '') {
       Alert.alert("Error", "Name, Price, Stock, Allergen, and Calories are required.");
       return;
@@ -477,11 +477,11 @@ function MenuScreen({ onBack, navigateToScreen }) {
 
     setIsLoading(true);
     const priceNum = parseFloat(formPrice) || 0;
-    const stockInt = parseInt(formStock, 10) || 0; // 即使没填，这里初始化为 0
+    const stockInt = parseInt(formStock, 10) || 0; // Initialize to 0 even if not filled
     const caloriesNum = parseFloat(formCalories) || 0;
     const finalName = formName.toUpperCase();
     const finalAllergen = formAllergen.trim();
-    const finalDesc = formDesc.trim(); // 获取描述，保持其可选性
+    const finalDesc = formDesc.trim(); // Get description, keep it optional
 
     try {
       let finalFoodImgUrl = formImg;
@@ -505,7 +505,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
             name: finalName,
             price: priceNum,
             stock: stockInt,
-            desc: finalDesc,         // 更新描述，即使为空也存入
+            desc: finalDesc,         // Update description, store even if empty
             image_url: finalFoodImgUrl,
             allergen: finalAllergen,
             calories: caloriesNum
@@ -537,7 +537,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
             name: finalName,
             price: priceNum,
             stock: stockInt,
-            desc: finalDesc,         // 插入描述，即使为空
+            desc: finalDesc,         // Insert description, even if empty
             image_url: finalFoodImgUrl,
             allergen: finalAllergen,
             calories: caloriesNum
@@ -660,7 +660,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
         </View>
       )}
 
-      {/* 侧边栏 */}
+      {/* Sidebar */}
       <Modal transparent={true} visible={isSidebarOpen} animationType="none" onRequestClose={() => setIsSidebarOpen(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.sidebar}>
@@ -800,7 +800,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
                   )}
                   {food.img ? <Image source={{ uri: food.img }} style={styles.foodThumb} /> : <View style={styles.foodThumbEmpty}><Ionicons name="fast-food-outline" size={20} color="#999" /></View>}
                   <View style={styles.foodInfo}>
-                    {/* ✨ 已移除原本渲染中的 food.code */}
+                    {/* ✨ food.code rendering has been removed */}
                     <Text style={styles.foodTitle}>{food.name}</Text>
                     <Text style={styles.foodPrice}>RM {food.price}</Text>
                   </View>
@@ -816,7 +816,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
         )}
       </KeyboardAvoidingView>
 
-      {/* 分类弹窗 */}
+      {/* Category modal */}
       <Modal visible={categoryModalVisible} animationType="fade" transparent={true}>
         <View style={styles.dialogOverlay}>
           <View style={styles.dialogBox}>
@@ -830,7 +830,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
         </View>
       </Modal>
 
-      {/* 菜品编辑弹窗 */}
+      {/* Food item edit modal */}
       <Modal visible={foodModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <SafeAreaView style={styles.modalContent}>
@@ -854,7 +854,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
               <Text style={styles.inputLabel}>Stock:</Text>
               <TextInput style={styles.modalInput} value={formStock} onChangeText={setFormStock} keyboardType="numeric" />
 
-              {/* 过敏原字段 */}
+              {/* Allergen field */}
               <Text style={styles.inputLabel}>Allergen:</Text>
               <TextInput
                 style={styles.modalInput}
@@ -863,7 +863,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
                 placeholder="e.g. Peanuts, Eggs / None"
               />
 
-              {/* 卡路里字段 */}
+              {/* Calories field */}
               <Text style={styles.inputLabel}>Calories (kcal):</Text>
               <TextInput
                 style={styles.modalInput}

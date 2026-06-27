@@ -13,11 +13,11 @@ import {
   Dimensions,
   Modal,
   TouchableWithoutFeedback,
-  Image // 🎯 确保导入了 Image 组件用于显示头像
+  Image // 🎯 Ensure Image component is imported for displaying avatars
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import emailjs from '@emailjs/react-native';
-// 🎯 已经配对成功的相对路径，成功引入 Supabase 客户端实例
+// 🎯 Successfully paired relative path, successfully importing the Supabase client instance
 import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -27,45 +27,45 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
   const [isLoading, setIsLoading] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
 
-  // 表单输入状态
+  // Form input state
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [generatedPin, setGeneratedPin] = useState(''); 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // 👤 新增：Supabase 用户资料状态（Sidebar 动态展示使用）
+  // 👤 New: Supabase user profile state (used for dynamic Sidebar display)
   const [profileName, setProfileName] = useState('Loading...');
   const [avatarUrl, setAvatarUrl] = useState(null);
 
-  // 🛠️ EmailJS 凭证
+  // 🛠️ EmailJS credentials
   const EMAILJS_SERVICE_ID = 'service_cfa71kb';       
   const EMAILJS_TEMPLATE_ID = 'template_4lhl9wd';     
   const EMAILJS_PUBLIC_KEY = 'IWTAe2ZuqgcQdTyX_';     
 
-  // ⚙️ 副作用 1：初始化 EmailJS
+  // ⚙️ Effect 1: Initialize EmailJS
   useEffect(() => {
     emailjs.init({
       publicKey: EMAILJS_PUBLIC_KEY,
     });
   }, []);
 
-  // 👤 副作用 2：动态拉取当前登录用户的 profiles 数据来展示在 Sidebar 上
+  // 👤 Effect 2: Dynamically fetch current logged-in user's profiles data to display in Sidebar
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
-        // 1. 从官方 Auth 拿到当前会话的用户 UID
+        // 1. Get the current session's user UID from Auth
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) {
           setProfileName('Guest');
           return;
         }
 
-        // 2. 拿着 UID 去你的 profiles 表查 full_name 和 avatar_url
+        // 2. Use the UID to query full_name and avatar_url from your profiles table
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('full_name, avatar_url')
-          .eq('id', user.id) // 🎯 这里的 'id' 对应你 profiles 表中关联用户的字段名
+          .eq('id', user.id) // 🎯 'id' here corresponds to the field name in your profiles table that links to the user
           .single();
 
         if (profileError) throw profileError;
@@ -76,14 +76,14 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
         }
       } catch (error) {
         console.log('Fetch profile error:', error.message);
-        setProfileName('User'); // 出错或无数据时的默认降级显示
+        setProfileName('User'); // Default fallback when error or no data
       }
     };
 
     fetchUserProfile();
   }, []);
 
-  // 清空所有状态的辅助函数
+  // Helper: reset all state fields
   const resetAllFields = () => {
     setStep(1);
     setEmail('');
@@ -93,7 +93,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
     setConfirmPassword('');
   };
 
-  // ⚡ 1. 发送验证码邮件 (保持使用你配置好的 EmailJS)
+  // ⚡ 1. Send verification code email (using your configured EmailJS)
   const handleVerify = async () => {
     const userEmail = email.trim();
     if (!userEmail) {
@@ -101,7 +101,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       return;
     }
 
-    // 生成 6 位随机验证码并临时保存在本地内存中
+    // Generate a 6-digit random PIN and temporarily save it in local memory
     const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPin(randomPin); 
     setIsLoading(true);
@@ -126,7 +126,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
     }
   };
 
-  // ⚡ 2. Continue 拦截检查 (纯前端 PIN 码安全对比，通过后证明账号归属)
+  // ⚡ 2. Continue button check (pure front-end PIN code comparison, verifies account ownership)
   const handleContinue = () => {
     const enteredEmail = email.trim();
     const enteredPin = pin.trim();
@@ -136,7 +136,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       return;
     }
 
-    // 比对输入和刚刚发送出去的 PIN
+    // Compare entered PIN with the one just sent
     if (!generatedPin || enteredPin !== generatedPin) {
       Alert.alert(
         "Verification Failed ❌",
@@ -146,11 +146,11 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       return; 
     }
     
-    // 成功自证身份，放行进入 Step 2 修改新密码
+    // Identity verified, proceed to Step 2 to set new password
     setStep(2); 
   };
 
-  // ⚡ 3. 重置密码 (联动调用 Supabase 中你成功创建的自定义 RPC 数据库函数)
+  // ⚡ 3. Reset password (calls the custom RPC database function you created in Supabase)
   const handleReset = async () => {
     if (!password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields!");
@@ -174,7 +174,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
     setIsLoading(true);
 
     try {
-      // 🎯 核心调用：唤醒你在 SQL Editor 成功运行过的特殊权限修改函数
+      // 🎯 Core call: invoke the special privileged modify function you successfully ran in SQL Editor
       const { data, error } = await supabase.rpc('reset_user_password_by_email', {
         target_email: email.trim(),
         new_password: password
@@ -189,7 +189,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
             onPress: () => { 
               resetAllFields(); 
               if (navigateToScreen) {
-                navigateToScreen('order'); // 成功后安全跳回主页
+                navigateToScreen('order'); // Safely navigate back to main page after success
               } 
             } 
           } 
@@ -206,7 +206,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
     }
   };
 
-  // ⚡ 顶部左侧按钮点击逻辑
+  // ⚡ Top-left button press logic
   const handleHeaderLeftPress = () => {
     if (step === 1) {
       setIsSidebarOpen(true); 
@@ -215,7 +215,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
     }
   };
 
-  // ⚡ 侧边栏菜单项点击跳转逻辑
+  // ⚡ Sidebar menu item press navigation logic
   const handleMenuSelect = (screenName) => {
     setIsSidebarOpen(false); 
     resetAllFields(); 
@@ -230,7 +230,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       
-      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      {/* ==================== 🚪 Sidebar Component ==================== */}
       <Modal
         transparent={true}
         visible={isSidebarOpen}
@@ -238,16 +238,16 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
         onRequestClose={() => setIsSidebarOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* 左侧实体菜单 */}
+          {/* Left side physical menu */}
           <View style={styles.sidebar}>
-            {/* 顶栏：Menu 切换按钮 */}
+            {/* Top bar: Menu toggle button */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 (已经改为根据 Supabase 数据进行动态渲染) */}
+            {/* User avatar area (already changed to render dynamically based on Supabase data) */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
                 {avatarUrl ? (
@@ -259,11 +259,11 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
                   <Ionicons name="person-outline" size={45} color="#000" />
                 )}
               </View>
-              {/* 动态绑定全名 */}
+              {/* Dynamically bind full name */}
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* 导航列表 */}
+            {/* Navigation list */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuSelect('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -288,12 +288,12 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
 
-            {/* 当前在 Reset Password 页面：高亮显示 */}
+            {/* Currently on Reset Password page: highlight it */}
             <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => setIsSidebarOpen(false)}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
-            {/* 底部退出登录 */}
+            {/* Bottom logout button */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuSelect('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -302,14 +302,14 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
             </View>
           </View>
 
-          {/* 右侧空白处暗色遮罩层 */}
+          {/* Right side dark overlay backdrop */}
           <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
             <View style={styles.backdrop} />
           </TouchableWithoutFeedback>
         </View>
       </Modal>
 
-      {/* ==================== 顶部导航栏 ==================== */}
+      {/* ==================== Top Navigation Bar ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={handleHeaderLeftPress}>
           {step === 1 ? (
@@ -325,11 +325,11 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* 主卡片区域 */}
+      {/* Main card area */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.wireframeCard}>
           
-          {/* STEP 1: Email 验证界面 */}
+          {/* STEP 1: Email Verification UI */}
           {step === 1 && (
             <View style={{ width: '100%' }}>
               <View style={styles.wireframeInputRow}>
@@ -372,7 +372,7 @@ export default function ResetPasswordScreen({ navigateToScreen }) {
             </View>
           )}
 
-          {/* STEP 2: 修改新密码界面 */}
+          {/* STEP 2: New Password UI */}
           {step === 2 && (
             <View style={{ width: '100%' }}>
               <View style={styles.wireframeInputRow}>
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
   scrollContainer: { paddingHorizontal: 25, paddingTop: 20, paddingBottom: 30, alignItems: 'center' },
   
-  // 头部样式
+  // Header styles
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 24, fontWeight: 'normal', color: '#000' },
   
-  // 主卡片与输入框
+  // Main card and input fields
   wireframeCard: { width: '100%', borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 20, paddingVertical: 45, backgroundColor: '#fff', marginTop: 30 },
   wireframeInputRow: { marginBottom: 25, width: '100%' },
   inlineFieldRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   wireframeSubmitBtn: { borderWidth: 1.5, borderColor: '#000', paddingVertical: 8, paddingHorizontal: 30, alignSelf: 'center', marginTop: 20, backgroundColor: '#fff' },
   wireframeSubmitBtnText: { fontSize: 15, color: '#000', fontWeight: 'bold' },
 
-  /* ==================== 📌 Sidebar 样式表 ==================== */
+  /* ==================== 📌 Sidebar Style Sheet ==================== */
   modalContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
-    overflow: 'hidden' // 确保加载出来的图片不会超出边框范围
+    overflow: 'hidden' // Ensure the loaded image does not overflow the border
   },
   avatarName: {
     fontSize: 12,

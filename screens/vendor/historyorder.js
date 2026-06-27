@@ -11,43 +11,43 @@ import {
   Modal,
   TouchableWithoutFeedback,
   ActivityIndicator,
-  Image // 🎯 确保导入了 Image 组件用于显示头像
+  Image // 🎯 Ensure Image component is imported for displaying avatars
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// 🎯 引入 Supabase 客户端实例 (根据你的项目结构，路径保持与 resetpassword 相同)
+// 🎯 Import the Supabase client instance (path matches resetpassword based on project structure)
 import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
-  // 🚪 侧边栏显隐状态
+  // 🚪 Sidebar open/close state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
 
-  // 👤 Supabase 用户资料状态（Sidebar 动态展示使用）
+  // 👤 Supabase user profile state (used for dynamic Sidebar display)
   const [profileName, setProfileName] = useState('Loading...');
   const [avatarUrl, setAvatarUrl] = useState(null);
 
-  // 📦 真实订单数据源
+  // 📦 Real order data source
   const [orders, setOrders] = useState([]);
 
-  // 1. 获取今天的真实系统时间
+  // 1. Get today's real system time
   const today = useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth(); // 0-11
+  const currentMonth = today.getMonth(); // 0-11 (zero-indexed month)
   const currentDate = today.getDate();
 
-  // 2. 日历状态管理：默认定位到当前真实年、月
+  // 2. Calendar state management: default to current real year and month
   const [viewYear, setViewYear] = useState(currentYear);
   const [viewMonth, setViewMonth] = useState(currentMonth);
 
-  // 3. 筛选模式：默认进入为 'D' (天)
+  // 3. Filter mode: default is 'D' (Day)
   const [filterType, setFilterType] = useState('D');
 
-  // 4. 用户选中的具体日子：默认进入为当天 (几号)
+  // 4. Specific day selected by user: defaults to today's date
   const [selectedDay, setSelectedDay] = useState(currentDate);
 
-  // ==================== 👤 副作用 1：动态拉取当前登录用户的 profiles 数据 ====================
+  // ==================== 👤 Effect 1: Dynamically fetch profiles data for current logged-in user ====================
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -78,16 +78,16 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     fetchUserProfile();
   }, []);
 
-  // ==================== 📦 副作用 2：动态拉取当前 Vendor 对应的所有订单 ====================
+  // ==================== 📦 Effect 2: Dynamically fetch all orders for the current Vendor ====================
   useEffect(() => {
     const fetchVendorOrders = async () => {
       try {
         setIsLoadingOrders(true);
-        // 1. 获取当前登录的 Vendor 用户
+        // 1. Get the currently logged-in Vendor user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) return;
 
-        // 2. 拉取订单列表（status 为 'completed'），包含订单中的 vendor_commission (不关联 system_financial_settings)
+        // 2. Fetch order list (status = 'completed'), including vendor_commission from orders (without joining system_financial_settings)
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select('id, created_at, order_number, subtotal, total_price, vendor_commission, profiles:user_id(full_name)')
@@ -98,9 +98,9 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
         if (ordersError) throw ordersError;
 
         if (ordersData) {
-          // 格式规范化转换
+          // Normalize and format data
           const formattedOrders = ordersData.map(o => {
-            // 解析 created_at 为本地日期和时间
+            // Parse created_at into local date and time
             const dateObj = new Date(o.created_at);
             const year = dateObj.getFullYear();
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -110,7 +110,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
             const minutes = String(dateObj.getMinutes()).padStart(2, '0');
             const timeStr = `${hours}:${minutes}`;
 
-            // 计算利润: subtotal - vendor_commission
+            // Calculate profit: subtotal - vendor_commission
             const profit = Number(o.subtotal || 0) - Number(o.vendor_commission || 0);
 
             return {
@@ -135,7 +135,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     fetchVendorOrders();
   }, []);
 
-  // 5. 动态计算当前月份的日历矩阵
+  // 5. Dynamically compute the calendar grid for the current month
   const calendarDays = useMemo(() => {
     const firstDayInstance = new Date(viewYear, viewMonth, 1);
     const startDayOfWeek = firstDayInstance.getDay();
@@ -151,7 +151,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return daysArray;
   }, [viewYear, viewMonth]);
 
-  // 6. 获取当前选中的周区间精确定位时间戳
+  // 6. Get the precise timestamp range for the currently selected week
   const currentWeekRange = useMemo(() => {
     const selectedDateInstance = new Date(viewYear, viewMonth, selectedDay);
     const selectedWeekDay = selectedDateInstance.getDay();
@@ -165,7 +165,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return { start: sunday.getTime(), end: saturday.getTime() };
   }, [viewYear, viewMonth, selectedDay]);
 
-  // 🚀 核心过滤：根据选择过滤对应周期的订单数据
+  // 🚀 Core filter: filter order data based on the selected period
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const orderDate = new Date(order.date);
@@ -190,12 +190,12 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     });
   }, [orders, filterType, viewYear, viewMonth, selectedDay, currentWeekRange]);
 
-  // 💰 动态累加筛选后的总利润 (Total Profit)
+  // 💰 Dynamically accumulate total profit from filtered orders
   const totalProfitAmount = useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.profit, 0);
   }, [filteredOrders]);
 
-  // 7. 核心高亮逻辑：判断某一天是否应该亮起
+  // 7. Core highlight logic: determine whether a given day should be highlighted
   const isDayHighlighted = (day) => {
     if (!day) return false;
 
@@ -216,7 +216,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return false;
   };
 
-  // 8. 判定某个格子是否属于未来日期
+  // 8. Determine whether a calendar cell is a future date
   const isFutureDay = (day) => {
     if (!day) return false;
     if (viewYear > currentYear) return true;
@@ -224,7 +224,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
     return viewYear === currentYear && viewMonth === currentMonth && day > currentDate;
   };
 
-  // 9. 月份切换处理函数
+  // 9. Month navigation handler functions
   const handlePrevMonth = () => {
     let targetMonth = viewMonth - 1;
     let targetYear = viewYear;
@@ -262,14 +262,14 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   const isAtCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // 辅助函数：将 YYYY-MM-DD 转换为 D/M/YYYY
+  // Helper: convert YYYY-MM-DD to D/M/YYYY format
   const formatDateStr = (dateStr) => {
     if (!dateStr) return '';
     const [y, m, d] = dateStr.split('-');
     return `${parseInt(d)}/${parseInt(m)}/${y}`;
   };
 
-  // ⚙️ 处理侧边栏导航点击与跳转
+  // ⚙️ Handle sidebar navigation item press and screen transition
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false);
     if (targetScreen === 'historyorder') return;
@@ -284,7 +284,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      {/* ==================== 🚪 Sidebar Component ==================== */}
       <Modal
         transparent={true}
         visible={isSidebarOpen}
@@ -299,7 +299,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 */}
+            {/* User avatar area */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
                 {avatarUrl ? (
@@ -314,7 +314,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* 导航列表 */}
+            {/* Navigation list */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -351,7 +351,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
         </View>
       </Modal>
 
-      {/* ==================== 头部导航 ==================== */}
+      {/* ==================== Header Navigation ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => setIsSidebarOpen(true)}>
           <Ionicons name="menu" size={35} color="#000" />
@@ -361,13 +361,13 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 营业总计：显示计算后的总利润 (Total Profit) ==================== */}
+      {/* ==================== Revenue Summary: Display Calculated Total Profit ==================== */}
       <View style={styles.totalContainer}>
         <Text style={styles.totalText}>TOTAL PROFIT : RM {totalProfitAmount.toFixed(2)}</Text>
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== D / W / M 切换标签 ==================== */}
+      {/* ==================== D / W / M Filter Tabs ==================== */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tabButton, filterType === 'D' ? styles.activeTab : styles.inactiveTab]}
@@ -390,10 +390,10 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 主内容区 ==================== */}
+      {/* ==================== Main Content Area ==================== */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
 
-        {/* ==================== 动态日历面板 ==================== */}
+        {/* ==================== Dynamic Calendar Panel ==================== */}
         <View style={styles.googleCalendarCard}>
           <View style={styles.calendarHeader}>
             <Text style={styles.calendarMonthText}>{monthNames[viewMonth]} {viewYear}</Text>
@@ -458,7 +458,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
           </View>
         </View>
 
-        {/* ==================== 底部历史订单卡片列表 ==================== */}
+        {/* ==================== Bottom Order History Card List ==================== */}
         <View style={styles.resultBar}>
           <Text style={styles.resultBarText}>{filteredOrders.length} Found:</Text>
         </View>
@@ -486,7 +486,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
                     <Text style={styles.orderPriceSubText}>Total Price: RM {order.price.toFixed(2)}</Text>
                   </View>
                 </View>
-                {/* 右侧区域：高亮渲染该笔订单为当前 Vendor 产生的真实 Profit (利润) */}
+                {/* Right section: highlight the real profit generated for the current Vendor from this order */}
                 <View style={styles.cardRightContent}>
                   <Text style={styles.profitLabelText}>PROFIT</Text>
                   <Text style={styles.priceText}>RM {order.profit.toFixed(2)}</Text>
@@ -501,7 +501,7 @@ export default function OrderHistoryScreen({ onBack, navigateToScreen }) {
   );
 }
 
-// ==================== 🎨 粗线框极简风格样式表 ====================
+// ==================== 🎨 Bold-border minimalist style sheet ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   emptyContainer: { padding: 30, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: '#999', fontSize: 14 },
 
-  /* ==================== 📌 Sidebar 样式表 ==================== */
+  /* ==================== 📌 Sidebar Style Sheet ==================== */
   modalContainer: {
     flex: 1,
     flexDirection: 'row',

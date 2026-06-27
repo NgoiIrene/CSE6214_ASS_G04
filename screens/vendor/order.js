@@ -5,12 +5,12 @@ import {
   Modal, Dimensions, TouchableWithoutFeedback, Alert, Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// 🌟 引入 Supabase
+// 🌟 Import Supabase
 import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// 🌟 辅助工具：将时间秒数格式化为 MM:SS（支持负数超时显示）
+// 🌟 Helper: formats seconds into MM:SS (supports negative overdue display)
 const formatCountdown = (totalSeconds) => {
   const isOverdue = totalSeconds < 0;
   const absSeconds = Math.abs(totalSeconds);
@@ -20,12 +20,12 @@ const formatCountdown = (totalSeconds) => {
   const formattedTime = `${mins < 10 ? `0${mins}` : mins}:${secs < 10 ? `0${secs}` : secs}`;
 
   if (isOverdue) {
-    return `-${formattedTime} OVERDUE`; // 超时变为负数
+    return `-${formattedTime} OVERDUE`; // Overdue changes to negative display
   }
   return `${formattedTime} MIN LEFT`;
 };
 
-// 🌟 辅助工具：把用户下单的纯文本食物清单转回数组（同时兼容换行符和逗号分隔）
+// 🌟 Helper: parse the plain-text food list from an order back into an array (compatible with both newlines and comma separators)
 const parseFoodDetails = (detailsString) => {
   if (!detailsString) return [];
 
@@ -47,7 +47,7 @@ const parseFoodDetails = (detailsString) => {
   }).filter(Boolean);
 };
 
-// ==================== 🕒 真实世界时间独立倒计时组件 ====================
+// ==================== 🕒 Real-world time independent countdown component ====================
 function OrderCountdown({ createdAt, style, isLarge = false }) {
   const [secondsLeft, setSecondsLeft] = useState(0);
 
@@ -56,7 +56,7 @@ function OrderCountdown({ createdAt, style, isLarge = false }) {
 
     const calculateSecondsLeft = () => {
       const createdTime = new Date(createdAt).getTime(); 
-      const duration = 20 * 60 * 1000;                  // 设定备餐时间：20分钟
+      const duration = 20 * 60 * 1000;                  // Preparation time: 20 minutes
       const deadlineTime = createdTime + duration;       
 
       const now = new Date().getTime();                  
@@ -75,7 +75,7 @@ function OrderCountdown({ createdAt, style, isLarge = false }) {
   const isOverdue = secondsLeft < 0;
   const countdownText = formatCountdown(secondsLeft);
 
-  // 🌟 根据文本长度动态计算字体大小，防止压碎左侧布局
+  // 🌟 Dynamically compute font size based on text length to prevent squishing the left layout
   let dynamicFontSize = isLarge ? 24 : 16;
   if (countdownText.length > 12) {
     dynamicFontSize = isLarge ? 14 : 11;
@@ -88,7 +88,7 @@ function OrderCountdown({ createdAt, style, isLarge = false }) {
   );
 }
 
-// ==================== 📄 主页列表组件 ====================
+// ==================== 📔 Main list component ====================
 function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOrders, acceptedOrders, onOpenMenu, acceptedAtMap }) {
   const displayOrders = currentTab === 'requested' ? requestedOrders : acceptedOrders;
 
@@ -155,7 +155,7 @@ function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOr
   );
 }
 
-// ==================== 📄 订单详情页组件 ====================
+// ==================== 📔 Order detail page component ====================
 function OrderDetailScreen({ orderData, initialStatus, onBack, onAcceptOrder, onDeclineOrder, onDoneOrder }) {
   if (!orderData) return null;
 
@@ -226,7 +226,7 @@ function OrderDetailScreen({ orderData, initialStatus, onBack, onAcceptOrder, on
               <TouchableOpacity style={styles.declineButton} onPress={() => onDeclineOrder(orderData.id)}>
                 <Text style={styles.declineButtonText}>DECLINE</Text>
               </TouchableOpacity>
-              {/* 🌟 这里的参数改为了传递整个 orderData 对象，方便主逻辑判断 order_type */}
+              {/* 🌟 The parameter here has been changed to pass the entire orderData object so the main logic can determine order_type */}
               <TouchableOpacity style={styles.acceptButton} onPress={() => onAcceptOrder(orderData)}>
                 <Text style={styles.acceptButtonText}>ACCEPT</Text>
               </TouchableOpacity>
@@ -242,7 +242,7 @@ function OrderDetailScreen({ orderData, initialStatus, onBack, onAcceptOrder, on
   );
 }
 
-// ==================== 📱 主干逻辑 ====================
+// ==================== 📱 Main logic ====================
 export default function App({ route, navigateToScreen }) {
   const [screen, setScreen] = useState('HOME');
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -252,15 +252,15 @@ export default function App({ route, navigateToScreen }) {
   const [requestedOrders, setRequestedOrders] = useState([]);
   const [acceptedOrders, setAcceptedOrders] = useState([]);
 
-  // 🌟 本地记录每笔订单的接单时间，用于倒计时（不需要改数据库）
+  // 🌟 Track acceptance time locally per order for countdown (no database change needed)
   const [acceptedAtMap, setAcceptedAtMap] = useState({});
 
-  // 👤 侧边栏动态个人资料状态
+  // 👤 Sidebar dynamic profile state
   const [profileName, setProfileName] = useState('Loading...');
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [currentVendorId, setCurrentVendorId] = useState(null);
 
-  // ⚙️ 从 Supabase 同步加载商家个人资料（完美对齐 Review 的实现）
+  // ⚙️ Load vendor profile from Supabase synchronously (aligned with Review implementation)
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -301,7 +301,7 @@ export default function App({ route, navigateToScreen }) {
     fetchUserProfile();
   }, [route]);
 
-  // 从数据库拉取订单列表（同时拉取佣金率，动态计算利润）
+  // Fetch order list from database (also fetch commission rate to calculate profit dynamically)
   const fetchOrders = async () => {
     if (!currentVendorId) return;
 
@@ -364,20 +364,20 @@ export default function App({ route, navigateToScreen }) {
     }
   }, [currentVendorId]);
 
-  // 处理侧边栏导航逻辑
+  // Handle sidebar navigation logic
   const handleMenuPress = (targetScreen) => {
     setIsSidebarOpen(false);
     if (targetScreen === 'order') return; 
     if (navigateToScreen) navigateToScreen(targetScreen);
   };
 
-  {/* 🌟 修改后的接单处理函数 */}
+  {/* 🌟 Modified accept order handler */}
   const handleAcceptOrder = async (order) => {
     try {
-      // 检查安全边界并做不区分大小写的匹配，同时去除所有空格以兼容 'pickup' 和 'pick up'
+      // Safe boundary check with case-insensitive matching, and strip all spaces to handle 'pickup' and 'pick up'
       const orderType = String(order?.order_type || '').toLowerCase().replace(/\s+/g, '');
       
-      // 如果是 pickup，则进入 preparing 状态；否则保持原样的 pending_rider 状态
+      // If pickup, set to preparing; otherwise keep pending_rider
       const targetStatus = orderType === 'pickup' ? 'preparing' : 'pending_rider';
 
       const { error } = await supabase
@@ -387,7 +387,7 @@ export default function App({ route, navigateToScreen }) {
 
       if (error) throw error;
 
-      // 🌟 记录本地接单时间：倒计时从现在开始，而不是从下单时间开始
+      // 🌟 Record local acceptance time: countdown starts from now, not from order time
       setAcceptedAtMap(prev => ({ ...prev, [order.id]: new Date().toISOString() }));
 
       setScreen('HOME');
@@ -417,7 +417,7 @@ export default function App({ route, navigateToScreen }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       
-      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      {/* ==================== 🚪 Sidebar Component ==================== */}
       <Modal transparent={true} visible={isSidebarOpen} animationType="none" onRequestClose={() => setIsSidebarOpen(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.sidebar}>
@@ -489,7 +489,7 @@ export default function App({ route, navigateToScreen }) {
           onOpenMenu={() => setIsSidebarOpen(true)}
           acceptedAtMap={acceptedAtMap}
           onNavigateToDetail={(order) => {
-            // 🌟 把本地接单时间一并传给详情页
+            // 🌟 Also pass the local acceptance time to the detail page
             setSelectedOrder({ ...order, accepted_at_local: acceptedAtMap[order.id] || null });
             setScreen('DETAIL');
           }}
@@ -499,7 +499,7 @@ export default function App({ route, navigateToScreen }) {
   );
 }
 
-// ==================== 🎨 粗线框极简风格样式表 ====================
+// ==================== 🎨 Bold-border minimalist style sheet ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },

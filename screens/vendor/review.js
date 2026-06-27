@@ -12,30 +12,30 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   ActivityIndicator,
-  Image // 🎯 确保导入了 Image 组件用于显示侧边栏头像
+  Image // 🎯 Ensure Image component is imported for displaying sidebar avatars
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// 🎯 引入你的 Supabase 客户端实例
+// 🎯 Import your Supabase client instance
 import { supabase } from '../../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ReviewScreen({ navigateToScreen }) {
-  // 1. 状态管理
-  const [selectedStar, setSelectedStar] = useState(null); // 当前选中的星级筛选（null 表示不过滤）
-  const [searchQuery, setSearchQuery] = useState('');     // 搜索栏文本
-  const [isAscending, setIsAscending] = useState(false);   // 排序：默认按时间降序（最新的在上）
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 🚪 侧边栏显隐状态
+  // 1. State Management
+  const [selectedStar, setSelectedStar] = useState(null); // Currently selected star filter (null means no filter)
+  const [searchQuery, setSearchQuery] = useState('');     // Search bar text
+  const [isAscending, setIsAscending] = useState(false);   // Sort order: default descending by time (newest first)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 🚪 Sidebar open/close state
 
-  // 👤 新增：Supabase 用户资料状态（Sidebar 动态展示使用）
+  // 👤 New: Supabase user profile state (used for dynamic Sidebar display)
   const [profileName, setProfileName] = useState('Loading...');
   const [avatarUrl, setAvatarUrl] = useState(null);
 
-  // 📊 新增：从数据库读取的真实评价数据状态
+  // 📊 New: Real review data state fetched from database
   const [dbReviews, setDbReviews] = useState([]);
   const [isReviewsLoading, setIsReviewsLoading] = useState(true);
 
-  // ⚙️ 副作用 1：动态拉取当前登录用户的 profiles 数据来展示在 Sidebar 上
+  // ⚙️ Effect 1: Dynamically fetch current logged-in user's profiles data to display in Sidebar
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -59,14 +59,14 @@ export default function ReviewScreen({ navigateToScreen }) {
         }
       } catch (error) {
         console.log('Fetch profile error:', error.message);
-        setProfileName('User'); // 出错或无数据时的默认降级显示
+        setProfileName('User'); // Default fallback when error or no data
       }
     };
 
     fetchUserProfile();
   }, []);
 
-  // ⚙️ 副作用 2：拉取当前 vendor 的 Reviews
+  // ⚙️ Effect 2: Fetch Reviews for the current vendor
   useEffect(() => {
     const fetchReviewsFromDB = async () => {
       try {
@@ -79,7 +79,7 @@ export default function ReviewScreen({ navigateToScreen }) {
           return;
         }
 
-        // 修改后的查询逻辑
+        // Updated query logic
         const { data: reviewsData, error: reviewsError } = await supabase
           .from('reviews')
           .select(`
@@ -88,11 +88,11 @@ export default function ReviewScreen({ navigateToScreen }) {
       vendor_id
     )
   `)
-          .eq('orders.vendor_id', user.id); // 这里的 orders.vendor_id 会强制进行 inner join 过滤
+          .eq('orders.vendor_id', user.id); // The orders.vendor_id here forces an inner join filter
 
         if (reviewsError) {
           console.error('Reviews fetch error:', reviewsError);
-          // 可选 fallback（仅开发时用）
+          // Optional fallback (development use only)
           // const { data: fallback } = await supabase.from('reviews').select('*');
           setDbReviews([]);
           return;
@@ -146,16 +146,16 @@ export default function ReviewScreen({ navigateToScreen }) {
   }, []);
 
 
-  // 2. 核心过滤与排序逻辑
+  // 2. Core filtering and sorting logic
   const filteredReviews = useMemo(() => {
     let result = [...dbReviews];
 
-    // 星级筛选
+    // Star rating filter
     if (selectedStar !== null) {
       result = result.filter(review => review.stars === selectedStar);
     }
 
-    // 搜索筛选
+    // Search filter
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       result = result.filter(review =>
@@ -164,23 +164,23 @@ export default function ReviewScreen({ navigateToScreen }) {
       );
     }
 
-    // ==================== 修复后的排序逻辑 ====================
+    // ==================== Fixed sorting logic ====================
     result.sort((a, b) => {
-      // 使用 created_at 时间戳排序（最准确）
+      // Sort using created_at timestamp (most accurate)
       const dateA = new Date(a.created_at || a.date);
       const dateB = new Date(b.created_at || b.date);
 
       if (isAscending) {
-        return dateA - dateB;   // 升序（最早的在上）
+        return dateA - dateB;   // Ascending (oldest first)
       } else {
-        return dateB - dateA;   // 降序（最新的在上）← 默认
+        return dateB - dateA;   // Descending (newest first) ← default
       }
     });
 
     return result;
   }, [dbReviews, selectedStar, searchQuery, isAscending]);
 
-  // 3. 处理星级按钮点击
+  // 3. Handle star button press
   const handleStarPress = (star) => {
     if (selectedStar === star) {
       setSelectedStar(null);
@@ -189,17 +189,17 @@ export default function ReviewScreen({ navigateToScreen }) {
     }
   };
 
-  // 4. 处理侧边栏跳转逻辑
+  // 4. Handle sidebar navigation
   const handleMenuPress = (targetScreen) => {
-    setIsSidebarOpen(false); // 关闭侧边栏
+    setIsSidebarOpen(false); // Close sidebar
     if (targetScreen === 'review') return;
 
     if (navigateToScreen) {
-      navigateToScreen(targetScreen); // 触发外部主路由层路由跳转
+      navigateToScreen(targetScreen); // Trigger the outer main router to navigate
     }
   };
 
-  // 5. 文本高亮渲染函数
+  // 5. Text highlight render function
   const renderHighlightedContent = (text, highlight) => {
     if (!text) return null;
     if (!highlight.trim()) return <Text style={styles.reviewContentText}>{text}</Text>;
@@ -220,7 +220,7 @@ export default function ReviewScreen({ navigateToScreen }) {
     );
   };
 
-  // 6. 渲染星星评分图标
+  // 6. Render star rating icons
   const renderStars = (rating) => {
     const starIcons = [];
     for (let i = 1; i <= 5; i++) {
@@ -236,7 +236,7 @@ export default function ReviewScreen({ navigateToScreen }) {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* ==================== 🚪 侧边栏（Sidebar）组件 ==================== */}
+      {/* ==================== 🚪 Sidebar Component ==================== */}
       <Modal
         transparent={true}
         visible={isSidebarOpen}
@@ -244,16 +244,16 @@ export default function ReviewScreen({ navigateToScreen }) {
         onRequestClose={() => setIsSidebarOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* 左侧实体菜单 */}
+          {/* Left side physical menu */}
           <View style={styles.sidebar}>
-            {/* 顶栏：Menu 切换按钮 */}
+            {/* Top bar: Menu toggle button */}
             <View style={styles.sidebarHeader}>
               <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
                 <Ionicons name="menu" size={32} color="#000" />
               </TouchableOpacity>
             </View>
 
-            {/* 用户头像区域 (🎯 已成功对接 Supabase 个人资料数据进行动态渲染) */}
+            {/* User avatar area (successfully connected to Supabase profile data for dynamic rendering) */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
                 {avatarUrl ? (
@@ -265,11 +265,11 @@ export default function ReviewScreen({ navigateToScreen }) {
                   <Ionicons name="person-outline" size={45} color="#000" />
                 )}
               </View>
-              {/* 动态绑定全名 */}
+              {/* Dynamically bind full name */}
               <Text style={styles.avatarName}>{profileName}</Text>
             </View>
 
-            {/* 导航列表 */}
+            {/* Navigation list */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('order')}>
               <Text style={styles.sidebarItemText}>Home</Text>
             </TouchableOpacity>
@@ -290,17 +290,17 @@ export default function ReviewScreen({ navigateToScreen }) {
               <Text style={styles.sidebarItemText}>History Order</Text>
             </TouchableOpacity>
 
-            {/* 当前在 Review 页面：高亮显示 */}
+            {/* Currently on Review page: highlight it */}
             <TouchableOpacity style={[styles.sidebarItem, styles.sidebarActiveItem]} onPress={() => setIsSidebarOpen(false)}>
               <Text style={styles.sidebarItemText}>Review</Text>
             </TouchableOpacity>
 
-            {/* 修改密码页面的跳转入口 */}
+            {/* Reset password page navigation entry */}
             <TouchableOpacity style={styles.sidebarItem} onPress={() => handleMenuPress('resetpassword')}>
               <Text style={styles.sidebarItemText}>Reset Password</Text>
             </TouchableOpacity>
 
-            {/* 底部退出登录 */}
+            {/* Bottom logout button */}
             <View style={styles.sidebarFooter}>
               <TouchableOpacity style={styles.logoutButton} onPress={() => handleMenuPress('logout')}>
                 <Ionicons name="log-out-outline" size={24} color="#000" />
@@ -309,14 +309,14 @@ export default function ReviewScreen({ navigateToScreen }) {
             </View>
           </View>
 
-          {/* 右侧空白处暗色遮罩层 */}
+          {/* Right side dark overlay backdrop */}
           <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
             <View style={styles.backdrop} />
           </TouchableWithoutFeedback>
         </View>
       </Modal>
 
-      {/* ==================== 头部导航 ==================== */}
+      {/* ==================== Header Navigation ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerMenuBtn} onPress={() => setIsSidebarOpen(true)}>
           <Ionicons name="menu-outline" size={28} color="#000" />
@@ -326,9 +326,9 @@ export default function ReviewScreen({ navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 核心筛选区 ==================== */}
+      {/* ==================== Core Filter Section ==================== */}
       <View style={styles.filterSection}>
-        {/* 星级级别选择器 (Star Level) */}
+        {/* Star Level Selector */}
         <View style={styles.starLevelContainer}>
           <Text style={styles.starLevelLabel}>Star Level:</Text>
           <View style={styles.starButtonsGroup}>
@@ -353,7 +353,7 @@ export default function ReviewScreen({ navigateToScreen }) {
           </View>
         </View>
 
-        {/* 搜索框 */}
+        {/* Search bar */}
         <View style={styles.searchBarContainer}>
           <TextInput
             style={styles.searchInput}
@@ -367,7 +367,7 @@ export default function ReviewScreen({ navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 结果统计与排序条 ==================== */}
+      {/* ==================== Result Count and Sort Bar ==================== */}
       <View style={styles.resultBar}>
         <Text style={styles.resultBarText}>{filteredReviews.length} Found:</Text>
         <TouchableOpacity
@@ -386,14 +386,14 @@ export default function ReviewScreen({ navigateToScreen }) {
       </View>
       <View style={styles.divider} />
 
-      {/* ==================== 评价内容滚动列表 ==================== */}
+      {/* ==================== Review Content Scroll List ==================== */}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
         {isReviewsLoading ? (
-          /* 加载状态指示器 */
+          /* Loading state indicator */
           <View style={styles.emptyContainer}>
             <ActivityIndicator size="large" color="#000" />
             <Text style={[styles.emptyText, { marginTop: 10 }]}>Loading reviews from database...</Text>
@@ -405,7 +405,7 @@ export default function ReviewScreen({ navigateToScreen }) {
         ) : (
           filteredReviews.map((review) => (
             <View key={review.id} style={styles.reviewCard}>
-              {/* 卡片头部：头像、名字、日期、星星 */}
+              {/* Card header: avatar, name, date, stars */}
               <View style={styles.cardHeader}>
                 <View style={styles.userInfoContainer}>
                   <View style={styles.commentAvatarCircle}>
@@ -426,7 +426,7 @@ export default function ReviewScreen({ navigateToScreen }) {
                 {renderStars(review.stars)}
               </View>
 
-              {/* 卡片主体评论内容（带高亮功能） */}
+              {/* Card body: review content (with highlight) */}
               <View style={styles.cardBody}>
                 {renderHighlightedContent(review.content, searchQuery)}
               </View>
@@ -438,13 +438,13 @@ export default function ReviewScreen({ navigateToScreen }) {
   );
 }
 
-// ==================== 🎨 粗线框极简风格样式表 ====================
+// ==================== 🎨 Bold-border minimalist style sheet ====================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },
   scrollContainer: { paddingBottom: 30 },
 
-  // 头部样式
+  // Header styles
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000', textAlign: 'center' },
 
-  // 筛选区域样式
+  // Filter section styles
   filterSection: {
     paddingHorizontal: 20,
     paddingVertical: 15,
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 
-  // 搜索框样式
+  // Search bar styles
   searchBarContainer: {
     width: '100%',
     height: 32,
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
 
-  // 统计条样式
+  // Result count bar styles
   resultBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
 
-  // 评价卡片列表样式
+  // Review card list styles
   reviewCard: {
     width: '100%',
     backgroundColor: '#fff',
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // 空白页与加载处理
+  // Empty state and loading handler
   emptyContainer: {
     padding: 50,
     alignItems: 'center',
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  /* ==================== 📌 Sidebar 样式表 ==================== */
+  /* ==================== 📌 Sidebar Style Sheet ==================== */
   modalContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
-    overflow: 'hidden' // 确保加载出来的图片不会超出圆圈范围
+    overflow: 'hidden' // Ensure loaded avatar image stays within circle boundary
   },
   avatarName: {
     fontSize: 12,
