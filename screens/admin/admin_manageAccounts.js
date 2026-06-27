@@ -56,7 +56,7 @@ export default function ManageAccounts() {
   // ==================== 动作处理逻辑 ====================
 
   const handleViewUser = (user) => {
-    setSelectedUser({ ...user }); // 复制一份给 selectedUser
+    setSelectedUser({ ...user }); 
     setCurrentView('detail'); 
   };
 
@@ -64,7 +64,7 @@ export default function ManageAccounts() {
     setCurrentView('edit'); 
   };
 
-  // 保存资料修改
+  
   const handleSaveChanges = async () => {
     if (!selectedUser.full_name.trim() || !selectedUser.email.trim()) {
       Alert.alert("Error", "Name and Email cannot be empty.");
@@ -86,7 +86,7 @@ export default function ManageAccounts() {
       if (error) throw error;
 
       Alert.alert("Success", "Account details updated successfully!");
-      fetchAccounts(); // 重新拉取最新列表
+      fetchAccounts(); 
       setCurrentView('detail'); 
     } catch (error) {
       Alert.alert("Update Failed", error.message);

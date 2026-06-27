@@ -345,15 +345,48 @@ export default function App() {
     return () => authListener.subscription.unsubscribe();
   }, []);
 
-  const fetchUserRole = async (userId) => {
+const fetchUserRole = async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('account_type')
+      .select('account_type, status') // 🌟 1. 这里加上 status，把它一起查出来
       .eq('id', userId)
       .single();
 
     if (!error && data) {
-      setUserRole(data.account_type);
+      // 🌟 2. 核心拦截逻辑：检查状态
+      if (data.status === 'Blocked') {
+        // 发现被封禁，立刻执行登出，清除 session
+        await supabase.auth.signOut();
+        // 弹窗警告
+        Alert.alert(
+          "Account Suspended ❌", 
+          "Your account has been blocked by the administrator. Please contact support."
+        );
+        // 清空角色状态，让他回到登录页
+        setUserRole(null); 
+      } else {
+        // 正常用户，赋予对应的身份，放行进入 App
+        setUserRole(data.account_type);
+      }
+
+      if (data.status === 'Deleted') {
+        // 发现被封禁，立刻执行登出，清除 session
+        await supabase.auth.signOut();
+        // 弹窗警告
+        Alert.alert(
+          "Account deleted ❌", 
+          "Your account has been delete by the administrator. Please contact support."
+        );
+        // 清空角色状态，让他回到登录页
+        setUserRole(null); 
+      } else {
+        // 正常用户，赋予对应的身份，放行进入 App
+        setUserRole(data.account_type);
+      }
+      
+    } else {
+      // 如果查询出错或找不到资料，确保设为空
+      setUserRole(null);
     }
     setIsAppLoading(false);
   };

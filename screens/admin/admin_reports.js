@@ -41,7 +41,7 @@ export default function GenerateReport() {
     const fetchSupabaseData = async () => {
       setLoading(true);
       try {
-        // 直接从我们建好的 3 个聪明的 View 拿数据，完全不需要在前端算数！
+        
         const [
           { data: revenueData, error: revError },
           { data: settlementData, error: setError },
@@ -56,14 +56,13 @@ export default function GenerateReport() {
         if (setError) throw setError;
         if (topError) throw topError;
 
-        // 更新状态，将数据库的数据直接 Map 进 UI 格式
         setReportsData({
           overall: {
             title: 'Overall Platform Revenue Trend', 
             type: 'bars',
             data: revenueData ? revenueData.map(item => ({ 
               label: item.label, 
-              value: Number(item.amount), // 确保是数字 
+              value: Number(item.amount), 
               prefix: item.prefix 
             })) : []
           },

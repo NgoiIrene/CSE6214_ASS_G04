@@ -8,12 +8,12 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { supabase } from '../../supabaseClient'; // 确保路径正确
+import { supabase } from '../../supabaseClient'; 
 
 export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   
-  // 初始化真实数据的 State
+  
   const [dashboardData, setDashboardData] = useState({
     activeUsers: 0,
     activeAds: 0,

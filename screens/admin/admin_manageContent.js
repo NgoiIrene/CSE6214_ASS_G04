@@ -33,7 +33,7 @@ export default function ManageMenuContent() {
     if (mainCategory === 'menu') {
       fetchMenuItems();
     } else if (mainCategory === 'review') {
-      fetchReviews(); // 🌟 正常拉取数据
+      fetchReviews();
     }
   }, [mainCategory]);
 
@@ -54,7 +54,8 @@ export default function ManageMenuContent() {
 
       const vendors = ['All'];
       data?.forEach(item => {
-        const vendorName = item.profiles?.full_name || item.profile?.full_name || 'Vendor ' + String(item.vendor_id).substring(0,4);
+        const vendorName = item.profiles?.full_name || item.profile?.full_name 
+        || 'Vendor ' + String(item.vendor_id).substring(0,4);
         if (!vendors.includes(vendorName)) {
           vendors.push(vendorName);
         }
