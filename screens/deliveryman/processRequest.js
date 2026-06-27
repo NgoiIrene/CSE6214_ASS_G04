@@ -27,21 +27,24 @@ export default function ProcessDeliveryRequest() {
   const [calculatedEarning, setCalculatedEarning] = useState(5.00); 
 
   useEffect(() => {
-    const fetchBaseFee = async () => {
-      if (orderData?.vendor_id) {
-        const { data, error } = await supabase
-          .from('delivery_zones')
-          .select('base_fee')
-          .eq('vendor_id', orderData.vendor_id)
-          .single();
+  const fetchBaseFee = async () => {
+    if (orderData?.earning != null) {
+      setCalculatedEarning(Number(orderData.earning));
+      return; 
+    }
 
-        if (data && data.base_fee) {
-          setCalculatedEarning(data.base_fee ); 
-        }
-      } else if (orderData?.earning) {
-        setCalculatedEarning(Number(orderData.earning));
+    if (orderData?.vendor_id) {
+      const { data, error } = await supabase
+        .from('delivery_zones')
+        .select('base_fee')
+        .eq('vendor_id', orderData.vendor_id)
+        .single();
+
+      if (data && data.base_fee) {
+        setCalculatedEarning(data.base_fee); 
       }
-    };
+    }
+  };
 
     const fetchProfileNames = async () => {
       if (!orderData) return;
@@ -68,7 +71,7 @@ export default function ProcessDeliveryRequest() {
   }, [orderData]);
 
   // database actual database field names
-  const [orderRef] = useState('ORD-' + Math.floor(100000 + Math.random() * 900000));
+  const orderRef = orderData?.order_number || 'Unknown Order';
   const customerName = customerProfileName || orderData?.customer_name || orderData?.customer?.full_name || orderData?.user_name || 'Cindy Kiki';
   const vendorName = vendorProfileName || orderData?.vendor_name || orderData?.vendor?.full_name || orderData?.vendor || 'Rasa Syiokk';
   const pickupLocation = orderData?.pickup_location || orderData?.vendor_location || vendorName || 'MMU Starbees';
