@@ -30,8 +30,8 @@ export default function ProcessDeliveryRequest() {
     const fetchBaseFee = async () => {
       if (orderData?.vendor_id) {
         const { data, error } = await supabase
-          .from('delivery_zones')
-          .select('base_fee')
+          .from('orders')
+          .select('earning')
           .eq('vendor_id', orderData.vendor_id)
           .single();
 
