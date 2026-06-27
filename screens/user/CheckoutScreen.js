@@ -234,7 +234,7 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
       // 🌟 在这里增加这一行，确保 CheckoutScreen 记住了刚刚下单的订单号
       setCheckoutData(prev => ({ ...prev, lastOrderNumber: orderNumber }));
 
-      Alert.alert("Success", "Order placed successfully!", [
+      Alert.alert("Success", "Order placed successfully! Click the TRACK ORDER button to track it now, or view it anytime in the Order History from the Home page sidebar.", [
         { text: "Back to Home", onPress: () => navigation.navigate('Home') },
         {
           text: "Track Order", onPress: () => {

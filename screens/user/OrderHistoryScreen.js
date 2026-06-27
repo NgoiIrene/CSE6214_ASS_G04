@@ -8,14 +8,14 @@ import { supabase } from '../../supabaseClient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
-export default function OrderHistoryScreen({ onOpenMenu }) {
+export default function OrderHistoryScreen({ onOpenMenu, navigation }) {
   const [activeTab, setActiveTab] = useState('Active');
   const [isModalVisible, setModalVisible] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState('');
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [displayOrderId, setDisplayOrderId] = useState('');
- 
+
   // 只保留这一个 orders 状态
   const [orders, setOrders] = useState([]);
 
@@ -53,15 +53,15 @@ export default function OrderHistoryScreen({ onOpenMenu }) {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
- const filteredOrders = orders.filter(order => {
-  // 将状态标准化：转为小写并去除空格
-  const status = (order.status || '').trim().toLowerCase();
- 
-  // 定义“已完成”或“已取消”的状态
-  const isPast = status === 'completed' || status === 'cancelled';
- 
-  return activeTab === 'Past' ? isPast : !isPast;
-});
+  const filteredOrders = orders.filter(order => {
+    // 将状态标准化：转为小写并去除空格
+    const status = (order.status || '').trim().toLowerCase();
+
+    // 定义“已完成”或“已取消”的状态
+    const isPast = status === 'completed' || status === 'cancelled';
+
+    return activeTab === 'Past' ? isPast : !isPast;
+  });
   // 处理重购
   const handleReorder = async (order) => {
     try {
@@ -73,7 +73,7 @@ export default function OrderHistoryScreen({ onOpenMenu }) {
         Alert.alert("Info", "No items to reorder.");
         return;
       }
-     
+
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from('carts').delete().eq('user_id', user.id);
       const { error } = await supabase.from('carts').insert(
@@ -91,27 +91,27 @@ export default function OrderHistoryScreen({ onOpenMenu }) {
   };
 
   const handleDownloadInvoice = async (order) => {
-  const items = typeof order.food_items_json === 'string' 
-    ? JSON.parse(order.food_items_json) 
-    : order.food_items_json;
+    const items = typeof order.food_items_json === 'string'
+      ? JSON.parse(order.food_items_json)
+      : order.food_items_json;
 
-  // 1. 生成商品列表 (移除了 Qty)
-  const itemsHtml = items.map(item => `
+    // 1. 生成商品列表 (移除了 Qty)
+    const itemsHtml = items.map(item => `
     <tr>
       <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">${item.name}</td>
       <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">RM ${(item.price * item.quantity).toFixed(2)}</td>
     </tr>
   `).join('');
 
-  // 2. 动态构建费用明细
-  let feesHtml = '';
-  if (order.order_type !== 'pick up') {
-    feesHtml += `<p><strong>Delivery Fee:</strong> RM ${order.delivery_fee?.toFixed(2) || '0.00'}</p>`;
-  }
-  feesHtml += `<p><strong>SST Fee:</strong> RM ${order.sst_fee?.toFixed(2) || '0.00'}</p>`;
+    // 2. 动态构建费用明细
+    let feesHtml = '';
+    if (order.order_type !== 'pick up') {
+      feesHtml += `<p><strong>Delivery Fee:</strong> RM ${order.delivery_fee?.toFixed(2) || '0.00'}</p>`;
+    }
+    feesHtml += `<p><strong>SST Fee:</strong> RM ${order.sst_fee?.toFixed(2) || '0.00'}</p>`;
 
-  // 3. 构建 HTML
-  const htmlContent = `
+    // 3. 构建 HTML
+    const htmlContent = `
     <html>
       <head>
         <style>
@@ -153,15 +153,15 @@ export default function OrderHistoryScreen({ onOpenMenu }) {
     </html>
   `;
 
-  try {
-    const { uri } = await Print.printToFileAsync({ html: htmlContent });
-    await Sharing.shareAsync(uri);
-  } catch (error) {
-    Alert.alert("Error", "Could not generate invoice: " + error.message);
-  }
-};
+    try {
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      await Sharing.shareAsync(uri);
+    } catch (error) {
+      Alert.alert("Error", "Could not generate invoice: " + error.message);
+    }
+  };
 
- const handleSubmitReview = async () => {
+  const handleSubmitReview = async () => {
     if (rating === 0) {
       Alert.alert("Error", "Please select a star rating.");
       return;
@@ -223,55 +223,78 @@ export default function OrderHistoryScreen({ onOpenMenu }) {
         </TouchableOpacity>
       </View>
 
-    <ScrollView style={styles.scrollArea}>
-  {filteredOrders.map((order) => (
-    <View key={order.id} style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.orderId}>#{order.order_number || 'N/A'}</Text>
-        <Text style={styles.orderDate}>{new Date(order.created_at).toLocaleDateString()}</Text>
-      </View>
-      
-      <View style={styles.statusRow}>
-        <Text style={styles.label}>Order status</Text>
-        <Text style={{ 
-          color: order.status === 'completed' ? 'green' : order.status === 'cancelled' ? 'red' : 'orange',
-          fontWeight: 'bold' 
-        }}> {order.status}</Text>
-      </View>
+      <ScrollView style={styles.scrollArea}>
+        {filteredOrders.map((order) => (
+          <View key={order.id} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.orderId}>#{order.order_number || 'N/A'}</Text>
+              <Text style={styles.orderDate}>{new Date(order.created_at).toLocaleDateString()}</Text>
+            </View>
 
-      <Text style={styles.label}>Shop Name:</Text>
-      <Text style={styles.shopName}>
-        {order.profiles ? order.profiles.full_name : 'Unknown Vendor'}
-      </Text>
+            <View style={styles.statusRow}>
+              <Text style={styles.label}>Order status</Text>
+              <Text style={{
+                color: order.status === 'completed' ? 'green' : order.status === 'cancelled' ? 'red' : 'orange',
+                fontWeight: 'bold'
+              }}> {order.status}</Text>
+            </View>
 
-      {/* 只有 Past Orders 显示下方按钮 */}
-      {activeTab === 'Past' && (
-        <>
-          {/* 这里去掉了 Reorder 按钮，让 Download 按钮独自占据一行或居中 */}
-          <View style={styles.singleActionRow}>
-            <TouchableOpacity style={styles.btnDownloadFull} onPress={() => handleDownloadInvoice(order)}>
-              <Text style={styles.btnTextBlack}>Download E-invoice</Text>
-            </TouchableOpacity>
+            {/* 🌟 干净整洁的 Shop Name 与 TRACK ORDER 按钮 */}
+            <View style={styles.shopNameRow}>
+              <View>
+                <Text style={styles.label}>Shop Name:</Text>
+                <Text style={styles.shopName}>
+                  {order.profiles ? order.profiles.full_name : 'Unknown Vendor'}
+                </Text>
+              </View>
+
+              {/* 🌟 只有在 Active 状态下显示唯一的 TRACK ORDER 按钮 */}
+              {activeTab === 'Active' && (
+                <TouchableOpacity
+                  style={styles.trackOrderBtn}
+                  onPress={() => {
+                    const isDelivery = order.order_type?.toLowerCase() === 'delivery';
+                    if (navigation) {
+                      navigation.navigate(
+                        isDelivery ? 'DeliveryOrderTrack' : 'PickupOrderTrack',
+                        { orderNumber: order.order_number }
+                      );
+                    } else {
+                      Alert.alert("Navigation Error", "Navigation object is missing.");
+                    }
+                  }}
+                >
+                  <Text style={styles.trackOrderText}>TRACK ORDER</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* 只有 Past Orders 显示下方按钮 */}
+            {activeTab === 'Past' && (
+              <>
+                <View style={styles.singleActionRow}>
+                  <TouchableOpacity style={styles.btnDownloadFull} onPress={() => handleDownloadInvoice(order)}>
+                    <Text style={styles.btnTextBlack}>Download E-invoice</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {order.status === 'completed' && (
+                  <TouchableOpacity
+                    style={styles.btnReview}
+                    onPress={() => {
+                      setCurrentOrderId(order.id);
+                      setDisplayOrderId(order.order_number);
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.btnTextBlack}>Make a review</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
-          
-          {/* 评价按钮保持不变 */}
-          {order.status === 'completed' && (
-            <TouchableOpacity 
-              style={styles.btnReview} 
-              onPress={() => { 
-                setCurrentOrderId(order.id);           
-                setDisplayOrderId(order.order_number); 
-                setModalVisible(true);
-              }}
-            >
-              <Text style={styles.btnTextBlack}>Make a review</Text>
-            </TouchableOpacity>
-          )}
-        </>
-      )}
-    </View>
-  ))}
-</ScrollView>
+        ))}
+      </ScrollView>
 
       <Modal animationType="fade" transparent={true} visible={isModalVisible} onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
@@ -286,14 +309,14 @@ export default function OrderHistoryScreen({ onOpenMenu }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5', width: '100%' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, backgroundColor: 'white', borderBottomWidth: 2, borderColor: 'black' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold' },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', fontFamily: 'serif' },
   tabContainer: { flexDirection: 'row', alignSelf: 'center', backgroundColor: '#e0e0e0', borderRadius: 25, marginVertical: 15, padding: 5 },
   tabButton: { paddingVertical: 10, paddingHorizontal: 25, borderRadius: 20 },
   activeTab: { backgroundColor: 'white' },
@@ -311,7 +334,7 @@ const styles = StyleSheet.create({
   shopName: { fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   singleActionRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 5 },
-  btnDownloadFull: {  width: '100%', backgroundColor: '#d3d3d3',  paddingVertical: 12,  borderRadius: 8,  justifyContent: 'center', alignItems: 'center',  borderWidth: 1 },
+  btnDownloadFull: { width: '100%', backgroundColor: '#d3d3d3', paddingVertical: 12, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   btnDownload: { flex: 1.3, backgroundColor: '#d3d3d3', paddingVertical: 10, paddingHorizontal: 5, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   btnReorder: { flex: 0.9, backgroundColor: '#222', paddingVertical: 10, paddingHorizontal: 5, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   btnReview: { backgroundColor: 'white', marginTop: 10, padding: 10, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
@@ -325,5 +348,21 @@ const styles = StyleSheet.create({
   starsContainer: { flexDirection: 'row', justifyContent: 'center', marginBottom: 20 },
   reviewLabel: { fontWeight: 'bold', marginBottom: 10 },
   textInput: { borderWidth: 1, borderColor: '#333', borderRadius: 10, height: 100, padding: 10, fontSize: 14, backgroundColor: '#fafafa' },
-  btnSubmit: { backgroundColor: '#222', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 20 }
+  btnSubmit: { backgroundColor: '#222', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 20 },
+  shopNameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 5 },
+  trackOrderBtn: {
+    backgroundColor: '#000000', // 🌟 变成黑色填充背景
+    paddingHorizontal: 14,
+    paddingVertical: 8, // 稍微增加一点高度让按钮更好看
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15
+  },
+  trackOrderText: {
+    color: '#ffffff', // 🌟 文字变成纯白色
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5
+  },
 }); 
