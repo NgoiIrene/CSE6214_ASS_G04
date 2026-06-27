@@ -209,42 +209,93 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
 
   const [vendors, setVendors] = useState([]);
 
+  // useEffect(() => {
+  // const fetchVendorsFromProfiles = async () => {
+  //   try {
+  //     // 🌟 利用 Supabase 的关联查询（前提：确保数据库有定义外键关系）
+  //     const { data, error } = await supabase
+  //       .from('profiles')
+  //       .select(`
+  //         id, 
+  //         full_name, 
+  //         avatar_url, 
+  //         rating,
+  //         categories (name) 
+  //       `) // 👈 这一行会自动去查 categories 表里 name 字段
+  //       .eq('account_type', 'vendor');
+
+  //     if (error) throw error;
+
+  //     if (data) {
+  //       const formattedVendors = data.map(vendor => ({
+  //         id: vendor.id,
+  //         name: vendor.full_name || 'Unnamed Vendor',
+  //         image_url: vendor.avatar_url || 'https://via.placeholder.com/150',
+  //         rating: vendor.rating || 'N/A',
+  //         // 🌟 把 categories 数组里的名字取出来拼接成字符串
+  //         category: vendor.categories && vendor.categories.length > 0 
+  //                   ? vendor.categories.map(c => c.name).join(', ') 
+  //                   : 'Local food' 
+  //       }));
+  //       setVendors(formattedVendors);
+  //     }
+  //   } catch (error) {
+  //     console.log('Fetch vendors error:', error.message);
+  //   }
+  // };
+  // fetchVendorsFromProfiles();
+
   useEffect(() => {
-  const fetchVendorsFromProfiles = async () => {
-    try {
-      // 🌟 利用 Supabase 的关联查询（前提：确保数据库有定义外键关系）
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          id, 
-          full_name, 
-          avatar_url, 
-          rating,
-          categories (name) 
-        `) // 👈 这一行会自动去查 categories 表里 name 字段
-        .eq('account_type', 'vendor');
+    const fetchVendorsFromProfiles = async () => {
+      try {
+        // 1. 抓取商家基本资料
+        const { data: vendorsData, error: vendorError } = await supabase
+          .from('profiles')
+          .select(`id, full_name, avatar_url, categories (name)`)
+          .eq('account_type', 'vendor');
 
-      if (error) throw error;
+        if (vendorError) throw vendorError;
 
-      if (data) {
-        const formattedVendors = data.map(vendor => ({
-          id: vendor.id,
-          name: vendor.full_name || 'Unnamed Vendor',
-          image_url: vendor.avatar_url || 'https://via.placeholder.com/150',
-          rating: vendor.rating || 'N/A',
-          // 🌟 把 categories 数组里的名字取出来拼接成字符串
-          category: vendor.categories && vendor.categories.length > 0 
-                    ? vendor.categories.map(c => c.name).join(', ') 
-                    : 'Local food' 
-        }));
-        setVendors(formattedVendors);
+        // 🌟 2. 抓取 reviews，并同时连表获取 orders 里的 vendor_id
+        const { data: reviewsData, error: reviewError } = await supabase
+          .from('reviews')
+          .select(`
+            rating, 
+            orders ( vendor_id ) 
+          `);
+
+        if (reviewError) throw reviewError;
+
+        if (vendorsData) {
+          const formattedVendors = vendorsData.map(vendor => {
+            // 🌟 3. 筛选出属于当前商家的评价 (通过 orders 表连过来的 vendor_id 判断)
+            const vendorReviews = reviewsData ? reviewsData.filter(r => r.orders?.vendor_id === vendor.id) : [];
+            let avgRating = 'N/A';
+
+            if (vendorReviews.length > 0) {
+              const totalScore = vendorReviews.reduce((sum, review) => sum + review.rating, 0);
+              avgRating = (totalScore / vendorReviews.length).toFixed(1); // 算平均分
+            }
+
+            return {
+              id: vendor.id,
+              name: vendor.full_name || 'Unnamed Vendor',
+              image_url: vendor.avatar_url || 'https://via.placeholder.com/150',
+              rating: avgRating, // 👈 动态平均分
+              category: vendor.categories && vendor.categories.length > 0
+                ? vendor.categories.map(c => c.name).join(', ')
+                : 'Local food'
+            };
+          });
+          setVendors(formattedVendors);
+        }
+      } catch (error) {
+        console.log('Fetch vendors error:', error.message);
       }
-    } catch (error) {
-      console.log('Fetch vendors error:', error.message);
-    }
-  };
-  fetchVendorsFromProfiles();
-}, []);
+    };
+    fetchVendorsFromProfiles();
+
+  }, []);
 
   const VendorCard = ({ vendor }) => (
     <TouchableOpacity
@@ -313,13 +364,13 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
           <Text style={[styles.sectionTitleFont, { fontSize: 28, letterSpacing: 1 }]}>Vendors</Text>
         </View>
 
-       <View style={styles.vendorListContainer}>
-  {vendors.length > 0 ? (
-    vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
-  ) : (
-    <Text style={{ textAlign: 'center', marginTop: 20 }}>暂无商家显示</Text>
-  )}
-</View>
+        <View style={styles.vendorListContainer}>
+          {vendors.length > 0 ? (
+            vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
+          ) : (
+            <Text style={{ textAlign: 'center', marginTop: 20 }}>暂无商家显示</Text>
+          )}
+        </View>
 
       </ScrollView>
 
