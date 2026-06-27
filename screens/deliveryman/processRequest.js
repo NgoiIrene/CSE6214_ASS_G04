@@ -31,7 +31,7 @@ export default function ProcessDeliveryRequest() {
       if (orderData?.vendor_id) {
         const { data, error } = await supabase
           .from('orders')
-          .select('base_fee')
+          .select('earning')
           .eq('vendor_id', orderData.vendor_id)
           .single();
 
