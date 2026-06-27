@@ -1,13 +1,25 @@
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState, useContext, useCallback } from 'react';
+import { Calendar, LocaleConfig } from 'react-native-calendars'; // 🌟 替换了原先的 DateTimePicker
 import { RiderContext } from './RiderProvider';
 import { supabase } from '../../supabaseClient';
 import {
   Alert, Image, Platform, SafeAreaView, ScrollView, StyleSheet,
   Text, TouchableOpacity, View, ActivityIndicator
 } from 'react-native';
+
+// 🌟 显式配置 react-native-calendars 为纯英文
+LocaleConfig.locales = {
+  en: {
+    monthNames: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    monthNamesShort: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    dayNames: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    dayNamesShort: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+    today: 'Today'
+  }
+};
+LocaleConfig.defaultLocale = 'en';
 
 export default function WorkingShift() {
   const navigation = useNavigation();
@@ -19,13 +31,20 @@ export default function WorkingShift() {
     return today;
   };
 
+  // 🌟 新增：用于将 Date 对象转换为 YYYY-MM-DD 字符串传递给日历组件
+  const formatDateString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [currentDate, setCurrentDate] = useState(getToday());
   const [showPicker, setShowPicker] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingShifts, setIsLoadingShifts] = useState(false);
 
-  // 🌟 1. 全新的时间表 (2小时一个 Slot，增加 startHour 方便比对)
   const initialShiftsTemplate = [
     { id: 1, time: '8.00AM - 10.00AM', duration: '2hrs', startHour: 8, state: 'available' },
     { id: 2, time: '10.00AM - 12.00PM', duration: '2hrs', startHour: 10, state: 'available' },
@@ -61,7 +80,6 @@ export default function WorkingShift() {
       } else {
         const takenTimes = data ? data.map(d => d.shift_time) : [];
         
-        // 🌟 2. 核心逻辑：获取当前真实时间，判断时间段是否已过期
         const now = new Date();
         const isToday = currentDate.toDateString() === now.toDateString();
         const currentHour = now.getHours();
@@ -69,11 +87,9 @@ export default function WorkingShift() {
         const updatedShifts = initialShiftsTemplate.map(shift => {
           let currentState = shift.state;
 
-          // 拦截规则 1: 只要当前时间还没到班次的结束时间（startHour + 2），就可以继续拿
           if (isToday && currentHour >= (shift.startHour + 2)) {
             currentState = 'expired';
           } 
-          // 拦截规则 2: 如果已经被自己选了
           else if (takenTimes.includes(shift.time)) {
             currentState = 'taken';
           }
@@ -120,9 +136,12 @@ export default function WorkingShift() {
     return copy < getToday();
   };
 
-  const onDateChange = (event, selectedDate) => {
+  // 🌟 新增：处理自定义英文日历选定日期的逻辑
+  const onCalendarDateSelect = (dateString) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    const selectedDate = new Date(year, month - 1, day);
+    setCurrentDate(selectedDate);
     setShowPicker(false);
-    if (selectedDate) setCurrentDate(selectedDate);
   };
 
   const handleDatePress = (fullDate) => {
@@ -257,7 +276,6 @@ export default function WorkingShift() {
             <ActivityIndicator size="large" color="#000" style={{ marginTop: 30 }} />
           ) : (
             currentShifts.map((shift) => {
-              // 🌟 3. 处理不同状态的 UI
               let btnStyle = styles.btnAvailable; 
               let btnTextStyle = styles.btnTextAvailable; 
               let btnLabel = "Take Shift"; 
@@ -280,7 +298,6 @@ export default function WorkingShift() {
                 btnLabel = "Expired"; 
               }
 
-              // 决定是否禁用卡片交互 (Taken 或 Expired 都会禁用)
               const isDisabled = shift.state === 'taken' || shift.state === 'expired';
 
               return (
@@ -315,9 +332,31 @@ export default function WorkingShift() {
         </TouchableOpacity>
       </View>
 
-      {showPicker && <DateTimePicker value={currentDate} mode="date" display="default" minimumDate={getToday()} onChange={onDateChange} />}
+      {/* 🌟 替换：将原先的 DateTimePicker 彻底移除，替换为纯英文样式的遮罩层 Modal 日历 */}
+      {showPicker && (
+        <View style={styles.calendarModalOverlay}>
+          <View style={styles.calendarModalContainer}>
+            <View style={styles.calendarModalHeader}>
+              <Text style={styles.calendarModalTitle}>Select Date</Text>
+              <TouchableOpacity onPress={() => setShowPicker(false)}>
+                <Ionicons name="close" size={24} color="black" />
+              </TouchableOpacity>
+            </View>
+            <Calendar
+              current={formatDateString(currentDate)}
+              minDate={formatDateString(getToday())}
+              onDayPress={(day) => onCalendarDateSelect(day.dateString)}
+              theme={{
+                todayTextColor: '#2196F3',
+                arrowColor: 'black',
+                monthTextColor: 'black',
+                textMonthFontWeight: 'bold',
+              }}
+            />
+          </View>
+        </View>
+      )}
 
-      {/* Sidebar 保持不变 */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -396,7 +435,6 @@ const styles = StyleSheet.create({
   btnTextSelected: { color: '#FFF' },
   btnTaken: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   btnTextTaken: { color: '#A0A0A0' },
-  // 新增 Expired 状态的样式
   btnExpired: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   btnTextExpired: { color: '#B0B0B0', textDecorationLine: 'line-through' },
   footerRow: { flexDirection: 'row', padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
@@ -417,5 +455,43 @@ const styles = StyleSheet.create({
   menuTextActive: { fontSize: 15, fontWeight: 'bold', color: '#424242' },
   sidebarFooter: { borderTopWidth: 1, borderColor: '#E0E0E0', backgroundColor: '#FFF' },
   logoutButton: { flexDirection: 'row', paddingVertical: 20, paddingHorizontal: 25, alignItems: 'center' },
-  logoutText: { fontSize: 15, fontWeight: 'bold', color: '#FF3B30' }
+  logoutText: { fontSize: 15, fontWeight: 'bold', color: '#FF3B30' },
+  
+  // 🌟 新增：全英文自定义日历弹窗的遮罩样式
+  calendarModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  calendarModalContainer: {
+    width: '85%',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 15,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  calendarModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  calendarModalTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
 });
