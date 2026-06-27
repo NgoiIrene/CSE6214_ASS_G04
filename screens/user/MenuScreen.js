@@ -14,6 +14,65 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
   const [vendors, setVendors] = useState([]);
   const [selectedTag, setSelectedTag] = useState(null);
 
+  // useEffect(() => {
+  //   const fetchMenuData = async () => {
+  //     try {
+  //       // 1. 抓取所有商家
+  //       const { data: vends, error: vendError } = await supabase
+  //         .from('profiles')
+  //         .select('*')
+  //         .eq('account_type', 'vendor');
+
+  //       if (vendError) throw vendError;
+
+  //       // 🌟 2. 抓取你截图里的那个分类关联表！
+  //       // ⚠️ 如果你的表名不叫 vendor_categories，请一定要修改这里！！！
+  //       const { data: mappings, error: mapError } = await supabase
+  //         .from('categories')
+  //         .select('vendor_id, name');
+
+  //       if (mapError) throw mapError;
+
+  //       if (vends && mappings) {
+  //         // --- 处理顶部的 Filter 按钮 ---
+  //         // 提取所有不重复的分类名字
+  //        const allNames = mappings.map(m => m.name.trim());
+  //         const uniqueNames = [...new Set(allNames)];
+
+  //         const dynamicTags = uniqueNames.map((name, index) => ({
+  //           id: (index + 1).toString(),
+  //           name: name
+  //         }));
+  //         setTags([{ id: '0', name: 'All' }, ...dynamicTags]);
+
+  //         // --- 处理下方的商家列表并绑定分类 ---
+  //         const formattedVendors = vends.map(vendor => {
+  //           // 在关联表里，找出所有属于当前商家的分类名字
+  //           const vendorTags = mappings
+  //             .filter(m => m.vendor_id === vendor.id)
+  //             .map(m => m.name);
+
+  //           return {
+  //             id: vendor.id,
+  //             name: vendor.full_name || vendor.username || 'Unnamed Vendor',
+  //             rating: vendor.rating || 'N/A',
+  //             // 自动把它的分类拼接起来显示在卡片上，如果没有就显示 Default
+  //             cuisine: vendorTags.length > 0 ? vendorTags.join(', ') : 'Local food',
+  //             image: vendor.avatar_url || 'https://via.placeholder.com/150',
+  //             tags: vendorTags // 🌟 这是 Filter 能完美过滤的核心钥匙！
+  //           };
+  //         });
+
+  //         setVendors(formattedVendors);
+  //       }
+  //     } catch (error) {
+  //       console.log("Fetch Menu Data error:", error.message);
+  //     }
+  //   };
+
+  //   fetchMenuData();
+  // }, []);
+
   useEffect(() => {
     const fetchMenuData = async () => {
       try {
@@ -25,18 +84,26 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
 
         if (vendError) throw vendError;
 
-        // 🌟 2. 抓取你截图里的那个分类关联表！
-        // ⚠️ 如果你的表名不叫 vendor_categories，请一定要修改这里！！！
+        // 2. 抓取分类表
         const { data: mappings, error: mapError } = await supabase
           .from('categories')
           .select('vendor_id, name');
 
         if (mapError) throw mapError;
 
+        // 🌟 3. 抓取 reviews，并同时连表获取 orders 里的 vendor_id
+        const { data: reviewsData, error: reviewError } = await supabase
+          .from('reviews')
+          .select(`
+              rating, 
+              orders ( vendor_id ) 
+            `);
+
+        if (reviewError) throw reviewError;
+
         if (vends && mappings) {
           // --- 处理顶部的 Filter 按钮 ---
-          // 提取所有不重复的分类名字
-         const allNames = mappings.map(m => m.name.trim());
+          const allNames = mappings.map(m => m.name.trim());
           const uniqueNames = [...new Set(allNames)];
 
           const dynamicTags = uniqueNames.map((name, index) => ({
@@ -47,19 +114,25 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
 
           // --- 处理下方的商家列表并绑定分类 ---
           const formattedVendors = vends.map(vendor => {
-            // 在关联表里，找出所有属于当前商家的分类名字
             const vendorTags = mappings
               .filter(m => m.vendor_id === vendor.id)
               .map(m => m.name);
 
+            // 🌟 4. 筛选评价并动态计算平均分
+            const vendorReviews = reviewsData ? reviewsData.filter(r => r.orders?.vendor_id === vendor.id) : [];
+            let avgRating = 'N/A';
+            if (vendorReviews.length > 0) {
+              const total = vendorReviews.reduce((sum, r) => sum + r.rating, 0);
+              avgRating = (total / vendorReviews.length).toFixed(1);
+            }
+
             return {
               id: vendor.id,
               name: vendor.full_name || vendor.username || 'Unnamed Vendor',
-              rating: vendor.rating || 'N/A',
-              // 自动把它的分类拼接起来显示在卡片上，如果没有就显示 Default
+              rating: avgRating, // 👈 动态平均分
               cuisine: vendorTags.length > 0 ? vendorTags.join(', ') : 'Local food',
               image: vendor.avatar_url || 'https://via.placeholder.com/150',
-              tags: vendorTags // 🌟 这是 Filter 能完美过滤的核心钥匙！
+              tags: vendorTags
             };
           });
 
@@ -72,6 +145,7 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
 
     fetchMenuData();
   }, []);
+
 
   // 🌟 过滤逻辑：如果商家身上的 tags 包含了选中的标签，就显示出来！
   const filteredVendors = (selectedTag && selectedTag.name !== 'All')
