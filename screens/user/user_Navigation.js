@@ -102,8 +102,24 @@ function MainLayout() {
                     />
                 );
 
+            // case 'Order History':
+            //     return <OrderHistoryScreen {...props} />;
+
             case 'Order History':
-                return <OrderHistoryScreen {...props} />;
+                return (
+                    <OrderHistoryScreen 
+                        {...props} 
+                        navigation={{
+                            navigate: (pageName, params) => {
+                                // 🌟 接收传过来的 orderNumber，并把它存进全局的 checkoutData 里
+                                if (params && params.orderNumber) {
+                                    setCheckoutData(prev => ({ ...prev, lastOrderNumber: params.orderNumber }));
+                                }
+                                setCurrentPage(pageName);
+                            }
+                        }}
+                    />
+                );
 
             case 'Checkout':
                 const CheckoutScreen = require('./CheckoutScreen').default;

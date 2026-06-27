@@ -41,6 +41,18 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
 
                 if (orderError) throw orderError;
 
+                if (orderResult && orderResult.vendor_id) {
+                    const { data: vendorProfile } = await supabase
+                        .from('profiles')
+                        .select('full_name')
+                        .eq('id', orderResult.vendor_id)
+                        .single();
+
+                    if (vendorProfile) {
+                        orderResult.vendor_name = vendorProfile.full_name;
+                    }
+                }
+
                 // 2. 独立查询：拿到 orderResult 后，如果有 rider_id，去查骑手
                 if (orderResult && orderResult.rider_id) {
                     const { data: riderProfile, error: riderError } = await supabase
@@ -304,7 +316,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
     if (loading) return <ActivityIndicator size="large" style={{ flex: 1 }} />;
 
     const orderDate = orderData?.created_at ? new Date(orderData.created_at).toLocaleDateString() : "N/A";
-    const vendorName = "Vendor";
+    const vendorName = orderData?.vendor_name || "Unknown Vendor";
     const deliveryBuilding = orderData?.delivery_building || "N/A";
 
     return (
@@ -360,7 +372,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                 {/* 4. DELIVERY MAN DETAILS */}
                 {currentStatusLevel >= 4 && (
                     <View style={styles.deliveryManCard}>
-                        <Text style={styles.deliveryManTitle}>Delivery Man Details</Text>
+                        <Text style={styles.deliveryManTitle}>Delivery Man Detail</Text>
                         <View style={styles.infoDivider} />
                         <View style={styles.deliveryManRow}>
                             {/* 🌟 智能判断：有头像链接，并且【不是】本地 file:// 开头的，才显示真实图片 */}
@@ -391,7 +403,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F8F9FA',
-        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+        paddingTop: 0,
         paddingBottom: 48
     },
     header: {

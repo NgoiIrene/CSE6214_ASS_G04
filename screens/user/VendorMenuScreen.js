@@ -487,10 +487,10 @@ function ShoppingCartView({ cartItems, remarks, setRemarks, increaseQuantity, de
 // ==========================================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 10 : 10, backgroundColor: '#ffffff', zIndex: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: 0, marginTop: -25, backgroundColor: '#ffffff', zIndex: 10 },
   backBtn: { width: 35, height: 30, justifyContent: 'center', alignItems: 'center' },
   cartHeaderIcon: { padding: 2, position: 'relative' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', flex: 1, textAlign: 'center', marginHorizontal: 10 },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000', fontFamily: 'serif', flex: 1, textAlign: 'center', marginHorizontal: 10 },
   divider: { height: 2, backgroundColor: '#000000', width: '100%' },
   scrollContainer: { paddingHorizontal: 16, paddingTop: 30, paddingBottom: Platform.OS === 'ios' ? 30 : 20 },
 
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
 
 const cartStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff', paddingTop: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: 10, backgroundColor: '#ffffff' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: 0, backgroundColor: '#ffffff' },
   titleContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '900', color: '#000', fontFamily: 'serif' },
   closeXBtn: { padding: 2 },
