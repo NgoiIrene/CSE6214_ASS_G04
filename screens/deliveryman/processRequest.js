@@ -143,7 +143,13 @@ export default function ProcessDeliveryRequest() {
       setOrderStatus('accepted');
       Alert.alert("Order Accepted! 🚀", "GPS connected. Please follow the route to the restaurant for pick-up.");
       
-      navigation.navigate('UpdateProgress', { orderData: data[0] });
+      navigation.navigate('UpdateProgress', { 
+      orderData: { 
+        ...data[0], 
+        customer_name: customerName, 
+        vendor_name: vendorName      
+      } 
+    });
 
     } catch (error) {
       Alert.alert("System Error", error.message);
