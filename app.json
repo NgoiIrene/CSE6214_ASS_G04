@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.dhsx.CampusFoodApp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -28,6 +29,11 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-mail-composer"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "00052941-1083-465b-bec2-1e0857370279"
+      }
+    }
   }
 }
