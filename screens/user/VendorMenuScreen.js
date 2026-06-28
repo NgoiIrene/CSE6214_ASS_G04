@@ -20,9 +20,9 @@ export default function VendorMenuScreen({ vendorData, onBack, navigateToCheckou
   };
 
   const [foodItems, setFoodItems] = useState([]);
-  
+
   // 🌟 新增：用于存储从数据库拉取的公告内容
-const [announcementContent, setAnnouncementContent] = useState('');
+  const [announcementContent, setAnnouncementContent] = useState('');
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
@@ -78,17 +78,17 @@ const [announcementContent, setAnnouncementContent] = useState('');
           .maybeSingle();
 
         if (error) throw error;
-        
+
         if (data && data.content) {
           setAnnouncementContent(data.content);
         } else {
           // 🌟 找不到公告时，设为空白
-          setAnnouncementContent(''); 
+          setAnnouncementContent('');
         }
       } catch (error) {
         console.log('Fetch announcement error:', error.message);
         // 🌟 抓取失败时，也设为空白
-        setAnnouncementContent(''); 
+        setAnnouncementContent('');
       }
     };
 
@@ -103,7 +103,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
         if (!user) return;
 
         const { data, error } = await supabase
-          .from('carts') 
+          .from('carts')
           .select(`quantity, food_id, food_items (name, price, image_url, vendor_id)`)
           .eq('user_id', user.id)
           .eq('is_ordered', false);
@@ -132,7 +132,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert("Debug", "User is not logged in!"); 
+        Alert.alert("Debug", "User is not logged in!");
         return;
       }
 
@@ -142,7 +142,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
       } else {
         const { data: existingCart } = await supabase
           .from('carts')
-          .select('cart_id') 
+          .select('cart_id')
           .eq('user_id', user.id)
           .eq('food_id', foodId)
           .maybeSingle();
@@ -212,7 +212,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
         const cleanPrice = parseFloat(food.price ? food.price.replace('RM ', '') : '10.00') || 10.00;
         newCart = [...prevCart, { id: food.id, name: food.name, price: cleanPrice, quantity: 1, image: food.image, vendor_id: vendorId }];
       }
-      
+
       syncCartToDB(food.id, existingItem ? existingItem.quantity + 1 : 1);
       return newCart;
     });
@@ -250,7 +250,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
 
   const removeItemFromCart = (id) => {
     setCart(prevItems => prevItems.filter(item => item.id !== id));
-    syncCartToDB(id, 0, null); 
+    syncCartToDB(id, 0, null);
   };
 
   const getTotalCartQuantity = () => {
@@ -280,7 +280,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
       <View style={styles.divider} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-       {/* Notice 留言板 - 强行显示卡片 */}
+        {/* Notice 留言板 - 强行显示卡片 */}
         <View style={styles.announcementCard}>
           <View style={styles.announcementBadge}>
             <Ionicons name="reader-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
@@ -314,7 +314,7 @@ const [announcementContent, setAnnouncementContent] = useState('');
                         <Text style={[styles.foodNameText, isOutOfStock && styles.foodTextDisabled]} numberOfLines={2}>{food.name}</Text>
                         <Text style={[styles.foodPriceText, isOutOfStock && styles.foodTextDisabled]}>{food.price}</Text>
                       </View>
-                      
+
                       {/* 🌟 偶数行 (右侧按钮) 的 OUT OF STOCK */}
                       {isOutOfStock && (
                         <View style={styles.outOfStockContainerRightBtn}>
@@ -362,20 +362,27 @@ const [announcementContent, setAnnouncementContent] = useState('');
         )}
       </ScrollView>
 
-      {/* 弹窗部分 */}
+
+
       <Modal animationType="fade" transparent={true} visible={isModalVisible} onRequestClose={() => setIsModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropCloser} activeOpacity={1} onPress={() => setIsModalVisible(false)} />
           {selectedFood && (
             <View style={styles.popupCardBody}>
-              <View style={styles.popupHeaderRow}><TouchableOpacity onPress={() => setIsModalVisible(false)}><Ionicons name="close" size={26} color="#000" /></TouchableOpacity></View>
+              <View style={styles.popupHeaderRow}><TouchableOpacity onPress={() => setIsModalVisible(false)}>
+                <Ionicons name="close" size={26} color="#000" />
+              </TouchableOpacity>
+              </View>
               <View style={styles.popupImageWrapper}>
                 <Image source={{ uri: selectedFood.image }} style={styles.popupFoodImage} />
-                {selectedFood.status === 'new' && <View style={styles.modalStatusBadge}><Text style={styles.statusBadgeText}>NEW!</Text></View>}
+                {selectedFood.status === 'new' && <View style={styles.modalStatusBadge}>
+                  <Text style={styles.statusBadgeText}>NEW!</Text>
+                </View>}
               </View>
               <Text style={styles.popupFoodName}>{selectedFood.name}</Text>
               <ScrollView style={styles.popupDetailsScroll} showsVerticalScrollIndicator={false}>
-                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Ingredient:</Text><Text style={styles.detailValue}>{selectedFood.ingredient}</Text></View>
+                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Ingredient:</Text>
+                  <Text style={styles.detailValue}>{selectedFood.ingredient}</Text></View>
                 <View style={styles.detailTextGroup}>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
                     <Ionicons name="warning-outline" size={22} color="#D9383A" style={{ marginRight: 6, marginTop: -2 }} />
@@ -383,10 +390,14 @@ const [announcementContent, setAnnouncementContent] = useState('');
                   </View>
                   <Text style={[styles.detailValue, { color: '#000000', fontWeight: '900' }]}>{selectedFood.allergen}</Text>
                 </View>
-                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Calories:</Text><Text style={styles.detailValue}>{selectedFood.calories}</Text></View>
-                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Price:</Text><Text style={styles.popupPriceValue}>{selectedFood.price}</Text></View>
+                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Calories:</Text>
+                  <Text style={styles.detailValue}>{selectedFood.calories}</Text></View>
+                <View style={styles.detailTextGroup}><Text style={styles.detailLabel}>Price:</Text>
+                  <Text style={styles.popupPriceValue}>{selectedFood.price}</Text></View>
               </ScrollView>
-              <TouchableOpacity style={[styles.popupOrderButton, selectedFood.status === 'out_of_stock' && styles.popupOrderButtonDisabled]} disabled={selectedFood.status === 'out_of_stock'} onPress={() => { setIsModalVisible(false); handleAddToCart(selectedFood, selectedFood.status !== 'out_of_stock'); }}>
+              <TouchableOpacity style={[styles.popupOrderButton, selectedFood.status === 'out_of_stock' && styles.popupOrderButtonDisabled]}
+                disabled={selectedFood.status === 'out_of_stock'}
+                onPress={() => { setIsModalVisible(false); handleAddToCart(selectedFood, selectedFood.status !== 'out_of_stock'); }}>
                 <Text style={styles.popupOrderButtonText}>{selectedFood.status === 'out_of_stock' ? 'OUT OF STOCK' : 'Add to Cart'}</Text>
               </TouchableOpacity>
             </View>
@@ -532,15 +543,15 @@ const styles = StyleSheet.create({
   outOfStockContainerRightBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute', 
-    bottom: 14,            
-    left: 12, 
+    position: 'absolute',
+    bottom: 14,
+    left: 12,
   },
   outOfStockContainerLeftBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute', 
-    bottom: 14,            
+    position: 'absolute',
+    bottom: 14,
     left: 45, // 给左侧的灰色按钮留出空间，文字就不会被挡住了！
   },
   outOfStockText: { fontSize: 12, fontWeight: '900', color: '#757575', textTransform: 'uppercase' },
