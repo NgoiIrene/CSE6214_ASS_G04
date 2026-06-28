@@ -13,7 +13,7 @@ import { RiderContext } from './RiderProvider';
 
 export default function DeliveryResetPassword() {
   const navigation = useNavigation();
-  const { avatarUri, riderName } = useContext(RiderContext); // 直接从全局拿头像和名字
+  const { avatarUri, riderName } = useContext(RiderContext); 
 
   const [step, setStep] = useState(1);                     
   const [isLoading, setIsLoading] = useState(false); 
@@ -139,7 +139,7 @@ export default function DeliveryResetPassword() {
     <SafeAreaView style={styles.safeArea}>
       <View style={{ height: Platform.OS === 'ios' ? 10 : 40, backgroundColor: '#FFF' }} />
 
-      {/* ==================== 顶部导航栏 ==================== */}
+      {/* ==================== header ==================== */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuIconBox} onPress={() => step === 1 ? setIsSidebarOpen(true) : setStep(1)} activeOpacity={0.7}>
           <View style={styles.menuIconBorder}>
@@ -154,7 +154,7 @@ export default function DeliveryResetPassword() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           <View style={styles.wireframeCard}>
             
-            {/* STEP 1: Email 验证界面 */}
+            {/* STEP 1: Email verification */}
             {step === 1 && (
               <View style={{ width: '100%' }}>
                 <View style={styles.wireframeInputRow}>
@@ -189,7 +189,7 @@ export default function DeliveryResetPassword() {
               </View>
             )}
 
-            {/* STEP 2: 修改新密码界面 */}
+            {/* STEP 2: reset password */}
             {step === 2 && (
               <View style={{ width: '100%' }}>
                 <View style={styles.wireframeInputRow}>
@@ -221,7 +221,7 @@ export default function DeliveryResetPassword() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ==================== 侧边栏 (   RESET PASSWORD 高亮) ==================== */}
+      {/* ==================== sidebar menu (   RESET PASSWORD  HOVER  ) ==================== */}
       {isSidebarOpen ? (
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={styles.closeOverlay} activeOpacity={1} onPress={() => setIsSidebarOpen(false)} />
@@ -238,7 +238,7 @@ export default function DeliveryResetPassword() {
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('WorkingShift'); }}><Ionicons name="calendar-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>WORKING SHIFT</Text></TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setIsSidebarOpen(false); navigation.navigate('EarningsHistory'); }}><Ionicons name="wallet-outline" size={22} color="#666" style={styles.menuIconLeft} /><Text style={styles.menuText}>EARNINGS & HISTORY</Text></TouchableOpacity>
               
-              {/* 这里是当前页，设为 Active 状态 */}
+              {/* current page, set as active */}
               <TouchableOpacity style={styles.menuItemActive} onPress={() => setIsSidebarOpen(false)}><Ionicons name="lock-closed" size={22} color="#424242" style={styles.menuIconLeft} /><Text style={styles.menuTextActive}>RESET PASSWORD</Text></TouchableOpacity>
             </ScrollView>
             <View style={styles.sidebarFooter}>
