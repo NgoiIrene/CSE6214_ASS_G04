@@ -109,7 +109,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
   const [isEditModeCategory, setIsEditModeCategory] = useState(false);
 
   // ==================== 📢 Announcement board state ====================
-  const [welcomeText, setWelcomeText] = useState('Welcome to our store! Hope you have a nice day.');
+  const [welcomeText, setWelcomeText] = useState(' ');
   const [imageUri, setImageUri] = useState(null);
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 }); // Real dimensions, avoid flickering
   const [imageLoaded, setImageLoaded] = useState(false); // Image loaded flag, prevents rendering with wrong ratio first
@@ -155,7 +155,7 @@ function MenuScreen({ onBack, navigateToScreen }) {
         }
 
         if (announcementRes.data) {
-          setWelcomeText(announcementRes.data.content || 'Welcome to our store! Hope you have a nice day.');
+          setWelcomeText(announcementRes.data.content || ' ');
           const dbImgUrl = announcementRes.data.image_url || null;
           setImageUri(dbImgUrl);
         }

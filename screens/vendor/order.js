@@ -96,10 +96,10 @@ function HomeScreen({ onNavigateToDetail, currentTab, setCurrentTab, requestedOr
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerMenuBtn} onPress={onOpenMenu}>
-          <Ionicons name="menu-outline" size={28} color="#000" />
+          <Ionicons name="menu" size={35} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Home</Text>
-        <View style={{ width: 32 }} />
+        <View style={{ width: 35 }} />
       </View>
       <View style={styles.divider} />
 
@@ -503,7 +503,7 @@ export default function App({ route, navigateToScreen }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingBottom: 12, paddingTop: Platform.OS === 'ios' ? 15 : 35 },
-  headerMenuBtn: { width: 32, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#000', borderRadius: 6, padding: 2 },
+  headerMenuBtn: { width: 35, justifyContent: 'center', alignItems: 'center' },
   headerBackBtn: { width: 32, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 32, fontWeight: 'normal', color: '#000', textAlign: 'center' },
   divider: { height: 2, backgroundColor: '#000', width: '100%' },

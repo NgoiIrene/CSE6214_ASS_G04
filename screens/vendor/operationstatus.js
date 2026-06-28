@@ -718,10 +718,10 @@ export default function OperationStatusApp({ onBack, navigateToScreen }) {
       {/* ==================== Header ==================== */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setIsSidebarOpen(true)} style={styles.backButton}>
-          <Ionicons name="menu-outline" size={28} color="#000" />
+          <Ionicons name="menu" size={35} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Operation Status</Text>
-        <View style={{ width: 32 }} />
+        <View style={{ width: 35 }} />
       </View>
 
       <View style={styles.divider} />
@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15, paddingBottom: 12,
     paddingTop: Platform.OS === 'ios' ? 15 : 35,
   },
-  backButton:  { justifyContent: 'center', alignItems: 'center', padding: 5 },
+  backButton: { width: 35, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '600', color: '#000', textAlign: 'center' },
   divider:     { height: 1, backgroundColor: '#000', width: '100%' },
   keyboardAvoid:   { flex: 1 },
