@@ -355,7 +355,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                 <View style={styles.noteBox}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}><Ionicons name="warning-outline" size={18} color="#000" /><Text style={styles.noteTitle}> Note!</Text></View>
                     <Text style={styles.noteSubTitle}>Grace Period Active:</Text>
-                    <Text style={styles.noteDesc}>You have 30s Remaining to cancel order</Text>
+                    <Text style={styles.noteDesc}>You have {countdown}s Remaining to cancel order</Text>
                     <Text style={styles.noteSubTitle}>Order Preparing:</Text>
                     <Text style={styles.noteDesc}>Your order will be accepted by Vendor AFTER the 30s grace period</Text>
                 </View>
