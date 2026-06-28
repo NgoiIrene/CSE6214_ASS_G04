@@ -18,7 +18,7 @@ export const RiderProvider = ({ children }) => {
 
       if (!error && data) {
         if (data.full_name) setRiderName(data.full_name);
-        if (data.avatar_url) setAvatarUri(data.avatar_url); // 🌟 确保从数据库加载头像
+        if (data.avatar_url) setAvatarUri(data.avatar_url); 
       }
     } catch (error) {
       console.log("Error fetching profile in Provider:", error);
