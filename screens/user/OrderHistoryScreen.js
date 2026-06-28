@@ -16,15 +16,14 @@ export default function OrderHistoryScreen({ onOpenMenu, navigation }) {
   const [reviewText, setReviewText] = useState('');
   const [displayOrderId, setDisplayOrderId] = useState('');
 
-  // 只保留这一个 orders 状态
+  
   const [orders, setOrders] = useState([]);
 
   const fetchOrders = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data, error } = await supabase
+       const { data, error } = await supabase
         .from('orders')
         .select(`
         *,
@@ -42,26 +41,21 @@ export default function OrderHistoryScreen({ onOpenMenu, navigation }) {
 
   useEffect(() => {
     fetchOrders();
-
-    const channel = supabase
+     const channel = supabase
       .channel('order-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         fetchOrders();
       })
       .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const filteredOrders = orders.filter(order => {
-    // 将状态标准化：转为小写并去除空格
-    const status = (order.status || '').trim().toLowerCase();
+   const filteredOrders = orders.filter(order => {
+     const status = (order.status || '').trim().toLowerCase();
+     const isPast = status === 'completed' || status === 'cancelled';
+     return activeTab === 'Past' ? isPast : !isPast;
+   });
 
-    // 定义“已完成”或“已取消”的状态
-    const isPast = status === 'completed' || status === 'cancelled';
-
-    return activeTab === 'Past' ? isPast : !isPast;
-  });
   // 处理重购
   const handleReorder = async (order) => {
     try {
@@ -174,6 +168,7 @@ export default function OrderHistoryScreen({ onOpenMenu, navigation }) {
         return;
       }
 
+      // Insert review into the reviews table
       const { error } = await supabase.from('reviews').insert([
         {
           order_id: currentOrderId,
@@ -184,9 +179,8 @@ export default function OrderHistoryScreen({ onOpenMenu, navigation }) {
       ]);
 
       if (error) throw error;
-
-      Alert.alert("Success", "Review submitted successfully!");
-      setModalVisible(false);
+       Alert.alert("Success", "Review submitted successfully!");
+      setModalVisible(false); // Close modal after submission
       setRating(0);
       setReviewText('');
     } catch (error) {

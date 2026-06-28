@@ -124,6 +124,7 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
   };
 
   // 🌟 4. 实时轮询逻辑 (用于更新状态)
+  
   useEffect(() => {
     if (!orderData?.order_number) return;
 
@@ -137,34 +138,33 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
       if (data) {
         const currentStatus = data.status;
 
-        // 🔴 如果订单被拒绝
+        // If order rejected
         if (currentStatus === 'rejected') {
           clearInterval(statusSync);
-          // 🌟 修改：如果是用户自己取消的，就不弹 Vendor Rejected 的警告！
-          if (!isUserCancellingRef.current) {
+           if (!isUserCancellingRef.current) {
             Alert.alert("Order Rejected", "Vendor rejected the order.", [
               { text: "OK", onPress: () => navigation.navigate('Home') }
             ]);
           }
         }
-        // 🟢 5. Completed
+        // If order Completed
         else if (currentStatus === 'completed') {
           setCurrentStatusLevel(5);
           clearInterval(statusSync);
         }
-        // 🟢 4. Ready for Pickup
+        // If order Ready for Pickup
         else if (currentStatus === 'ready_for_pickup') {
           setCurrentStatusLevel(4);
         }
-        // 🟢 3. Accepted by Vendor & Preparing (点亮 1, 2, 3)
+        // If order Accepted by Vendor & Preparing 
         else if (currentStatus === 'preparing') {
           setCurrentStatusLevel(3);
         }
-        // 🟡 1. Order Placed / 还在 pending 状态 (加上了纯 pending 兜底)
+        // If Order Placed but is pending 
         else if (currentStatus === 'pending_vendor' || currentStatus === 'pending_grace_period' || currentStatus === 'pending') {
           setCurrentStatusLevel(1);
 
-          // 🌟 检查超时
+          // Check timing
           const createdAt = new Date(data.created_at).getTime();
           const etaTime = createdAt + (30.5 * 60 * 1000);
           if (Date.now() > etaTime && !hasAlertedDelay) {
@@ -173,7 +173,7 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
           }
         }
       }
-    }, 5000);
+    }, 5000); // Keep checking per  5 seconds 
 
     return () => clearInterval(statusSync);
   }, [orderData, hasAlertedDelay]);
@@ -224,7 +224,7 @@ export default function OrderTrackingPickupScreen({ route, navigation }) {
 
   // 🌟 6. 用户点击“我已经取餐”
   const handleConfirmPickup = async () => {
-    if (currentStatusLevel === 4) { // 必须是 ready_for_pickup 才能按
+    if (currentStatusLevel === 4) { //order status = ready_for_pickup
       try {
         const { error } = await supabase
           .from('orders')

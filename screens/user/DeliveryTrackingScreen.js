@@ -23,7 +23,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
     const [loading, setLoading] = useState(true);
     const [imageError, setImageError] = useState(false);
 
-    // 🌟 新增：读取数据库逻辑
+
     useEffect(() => {
         const fetchOrderDetails = async () => {
             if (!orderNumber) {
@@ -32,7 +32,6 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
             }
 
             try {
-                // 1. 先查订单本身 (不要在这里连表，防止 rider_id 为 null 导致的查询错误)
                 const { data: orderResult, error: orderError } = await supabase
                     .from('orders')
                     .select('*')
@@ -89,10 +88,9 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
 
     const isUserCancellingRef = useRef(false);
 
-    // 🌟 2. 动态计算 ETA (下单时间 + 30秒宽限期 + 30分钟准备时间)
+
     useEffect(() => {
         if (orderData?.created_at) {
-            // 将数据库的 created_at 转为日期对象
             const createdAt = new Date(orderData.created_at);
 
             // 计算 ETA: 下单时间 + 35.5分钟 (30s 宽限期 + 35min 准备)
@@ -110,11 +108,12 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
     }, [orderData]); // 只要 orderData 一拿到，立刻计算
 
     // 🌟 3. 实时轮询逻辑 (用于更新状态)
+
+
     useEffect(() => {
         if (!orderData?.order_number) return;
 
         const statusSync = setInterval(async () => {
-            // 🌟 1. 加上 rider_id 的查询
             const { data } = await supabase
                 .from('orders')
                 .select('status, created_at, rider_id')
@@ -122,7 +121,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                 .single();
 
             if (data) {
-                // 🌟 2. 核心修复：如果数据库里有了 rider_id，且当前 state 里没有，就立刻去查头像名字！
+                // 
                 if (data.rider_id && (!orderData.rider_id || data.rider_id !== orderData.rider_id)) {
                     const { data: riderProfile } = await supabase
                         .from('profiles')
@@ -140,10 +139,9 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
 
                 const currentStatus = data.status;
 
-                // 🔴 如果订单被拒绝
+                // If order rejected
                 if (currentStatus === 'rejected') {
-                    clearInterval(statusSync); // 停止轮询
-                    // 👇 🌟 修改：如果是用户自己取消的，就不弹 Vendor Rejected 的警告！ 👇
+                    clearInterval(statusSync);
                     if (!isUserCancellingRef.current) {
                         Alert.alert("Order Rejected", "Vendor rejected the order.", [
                             { text: "OK", onPress: () => navigation.navigate('Home') }
@@ -151,57 +149,54 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                     }
                 }
 
-                // 🟢 5. Delivered
+                // If order Delivered
                 else if (currentStatus === 'completed') {
 
-                    // 🌟 加固：先停止轮询，防止在弹窗期间再次触发状态更新
                     clearInterval(statusSync);
-
                     setCurrentStatusLevel(7);
 
-                    // 🌟 新增：订单完成弹窗
+                    // Display order completed message
                     Alert.alert(
                         "Order Completed",
                         "Enjoy Your Meal! Order is successfully delivered.",
                         [{ text: "OK", onPress: () => navigation.navigate('Home') }]
                     );
                 }
-                // 🟢 4. Out for Delivery
+                // If order Out for Delivery
                 else if (currentStatus === 'otw_delivery') {
                     setCurrentStatusLevel(6);
                 }
-                // 🟢 3. Picked up by Delivery Man
+                // If order Picked up by Delivery Man
                 else if (currentStatus === 'pickup_rider') {
                     setCurrentStatusLevel(5);
                 }
-                // 🟢 2. Accepted by Delivery Man
+                // If order Accepted by Delivery Man
                 else if (currentStatus === 'preparing') {
                     setCurrentStatusLevel(4);
-                    // 🌟 骑手终于接单了，立刻禁用取消按钮！
                     setIsCancelDisabled(true);
                 }
-                // 🌟 新增逻辑：Vendor 食物做好了，但一直没有骑手接单
+
+                // If vendor done preparing but no delivery man accept order
                 else if (currentStatus === 'ready_for_pickup') {
-                    setCurrentStatusLevel(3); // UI 进度条依然停留在 Preparing 阶段
-                    // 🌟 重新激活取消按钮，让用户可以自己取消！
+                    setCurrentStatusLevel(3);
                     setIsCancelDisabled(false);
                 }
-                // 🟢 1. Accepted by Vendor & Preparing (Level 2 和 3 一起亮起)
+                // If order Accepted by Vendor & Preparing (Level 2 and 3 trick concurrently)
                 else if (currentStatus === 'pending_rider') {
                     setCurrentStatusLevel(3);
                 }
 
-                // 🟡 还在 pending 状态 (Vendor 还没接单)
+                // If order is pending (no vendor accept order)
                 else if (currentStatus === 'pending_vendor') {
                     setCurrentStatusLevel(1);
 
-                    // 🌟 检查时间：如果迟迟没有变成 pending_rider，对比当前时间与 ETA
+                    // Calculate ETA 
                     const createdAt = new Date(data.created_at).getTime();
-                    const etaTime = createdAt + (30.5 * 60 * 1000); // 下单时间 + 30分30秒
+                    const etaTime = createdAt + (30.5 * 60 * 1000);
 
-                    // 如果当前时间已经超过了 ETA，并且还没弹过窗
+                    // action if order waiting time over ETA 
                     if (Date.now() > etaTime && !hasAlertedDelay) {
-                        setHasAlertedDelay(true); // 锁上开关，避免无限弹窗
+                        setHasAlertedDelay(true);
                         Alert.alert(
                             "Order Delayed",
                             "The vendor is taking longer than expected. Please be patient or contact the vendor."
@@ -209,7 +204,7 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                     }
                 }
             }
-        }, 5000); // 每 5 秒查一次
+        }, 5000); // Keep checking per 5 seconds
 
         return () => clearInterval(statusSync);
     }, [orderData, hasAlertedDelay]); // 🌟 确保依赖项更新
@@ -246,11 +241,9 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                     try {
 
                         isUserCancellingRef.current = true;
-
-                        // 1. 拦截倒计时和状态提交
                         setIsCancelDisabled(true);
 
-                        // 2. 把订单状态改成 rejected
+                        // 1. Mark status as cancelled
                         const { error: cancelError } = await supabase
                             .from('orders')
                             .update({ status: 'cancelled' })
@@ -258,18 +251,16 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
 
                         if (cancelError) throw cancelError;
 
-                        // 3. 执行退款：把钱加回用户的钱包
                         if (orderData && orderData.total_price) {
                             const { data: { user } } = await supabase.auth.getUser();
                             if (user) {
-                                // 先查目前的余额
                                 const { data: walletData } = await supabase
                                     .from('wallets')
                                     .select('balance')
                                     .eq('user_id', user.id)
                                     .single();
 
-                                // 加上这笔订单的钱，更新回去
+                                // 2. Refund balance to wallet
                                 if (walletData) {
                                     const newBalance = walletData.balance + orderData.total_price;
                                     await supabase
@@ -280,19 +271,19 @@ export default function OrderTrackingDeliveryScreen({ route, navigation }) {
                             }
                         }
 
-                        // 4. 成功提示并返回主页
+                        // 3. Display successful cancel message & navigate back to home page
                         Alert.alert("Order Cancelled", "Your order has been cancelled and the amount has been refunded to your wallet.", [
                             { text: "OK", onPress: () => navigation.navigate('Home') }
                         ]);
-
                     } catch (error) {
                         Alert.alert("Cancel Failed", error.message);
-                        setIsCancelDisabled(false); // 失败的话恢复按钮
+                        setIsCancelDisabled(false);
                     }
                 }
             }
         ]);
     };
+
 
     const renderStep = (level, title, description) => {
         const isActive = currentStatusLevel >= level;

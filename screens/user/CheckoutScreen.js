@@ -119,10 +119,11 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
     fetchInitialData();
   }, []);
 
-  // 🌟 3. 升级下单逻辑：把你表里所有的列都精准填入！
+ 
   const handlePlaceOrder = async () => {
     try {
-      // 🌟 新增：防御性检查，防止 vendorId 为空
+
+      // verify and get vendor_id
       let currentVendorId = vendorId;
       if (!currentVendorId && items.length > 0) {
         const { data: foodData } = await supabase.from('food_items').select('vendor_id').eq('id', items[0].id).single();
@@ -136,14 +137,12 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Please login first");
 
+      // Validation: Check wallet balance
       if (walletBalance < totalPayment) {
         Alert.alert("Insufficient Balance", "Please top up your wallet through your profile.");
         return;
       }
 
-      // ==========================================
-      // 🌟 新增融合：去 Database 拿最新的抽成设定
-      // ==========================================
       const { data: settings, error: settingsError } = await supabase
         .from('system_financial_settings')
         .select('*')
@@ -152,11 +151,8 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
 
       if (settingsError) throw new Error("Failed to fetch system financial settings.");
 
-      // 提取设定的百分比
       const commissionRate = settings.commission_rate / 100;
 
-      // 🌟 新增：去 delivery_zones 表拿 extra_fee
-      // （这里默认拿 id = 1 的 zone，如果你的系统有匹配建筑物的逻辑，可后续更改 id）
       const { data: zoneData, error: zoneError } = await supabase
         .from('delivery_zones')
         .select('base_fee, extra_fee')
@@ -188,33 +184,29 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
       // 🌟 把购物车里的 items 变成一串文字 (例如: "1x Bibimbap, 2x Coke")
       const foodDetailsString = items.map(item => `${item.quantity}x ${item.name}`).join(', ');
 
-      // 🌟 插入订单，对应你截图中所有的列名！
+      //Database Action: Insert order record
       const { error: orderError } = await supabase.from('orders').insert([{
         user_id: user.id,
-        vendor_id: currentVendorId,              // 存入商家 ID
-        order_number: orderNumber,        // ORD-xxxxxx
-        order_type: orderType.toLowerCase(), // delivery 或 pick up
-        delivery_building: orderType === 'Delivery' ? campusBuilding : null, // 只有 Delivery 才有 Building
-        food_details: foodDetailsString,  // 存入食物文字详情
-        subtotal: itemsTotal,             // RM 10.00
-        sst_fee: tax,                     // RM 0.50
-        delivery_fee: finalDeliveryFee,        // RM 5.00
-        total_price: finalTotalPrice,        // RM 15.50
-        payment_method: 'Campus Wallet',  // 支付方式
-        status: 'pending',                // 初始状态
-        remarks: remarks,                  // 备注
-        food_items_json: JSON.stringify(items), // 🌟 关键：把 items 数组存成 JSON 字符串
-
-        // 👇 融合进来的新字段：锁定这笔订单的财务账目
-        // 👇 给计算结果加上安全转换，消除红线
+        vendor_id: currentVendorId,             
+        order_number: orderNumber,        
+        order_type: orderType.toLowerCase(), 
+        delivery_building: orderType === 'Delivery' ? campusBuilding : null, 
+        food_details: foodDetailsString, 
+        subtotal: itemsTotal,             
+        sst_fee: tax,                     
+        delivery_fee: finalDeliveryFee,        
+        total_price: finalTotalPrice,       
+        payment_method: 'Campus Wallet',  
+        status: 'pending',                
+        remarks: remarks,                  
+        food_items_json: JSON.stringify(items),
         vendor_commission: parseFloat(Number(calculatedVendorCommission || 0).toFixed(2)),
         delivery_split: parseFloat(Number(calculatedDeliverySplit || 0).toFixed(2))
       }]);
       if (orderError) throw orderError;
 
-      // 扣款与清空购物车
+      // Cleanup: Deduct funds and mark cart as ordered
       await supabase.from('wallets').update({ balance: walletBalance - finalTotalPrice }).eq('user_id', user.id);
-      // 🌟 关键：在这里直接标记为已下单 (is_ordered: true)
       const { error: cartError } = await supabase
         .from('carts')
         .update({ is_ordered: true })
@@ -225,11 +217,7 @@ export default function CheckoutScreen({ route, navigation, setCheckoutData }) {
         console.error("Failed to mark cart as ordered:", cartError.message);
       }
 
-      await supabase
-        .from('carts')
-        .update({ is_ordered: true }) // 🌟 标记这些购物车条目为“已下单”
-        .eq('user_id', user.id)
-        .eq('is_ordered', false); // 🌟 只标记那些还没被下单的
+      await supabase.from('carts').update({ is_ordered: true }) .eq('user_id', user.id).eq('is_ordered', false); 
 
       // 🌟 在这里增加这一行，确保 CheckoutScreen 记住了刚刚下单的订单号
       setCheckoutData(prev => ({ ...prev, lastOrderNumber: orderNumber }));

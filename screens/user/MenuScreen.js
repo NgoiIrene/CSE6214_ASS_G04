@@ -14,64 +14,6 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
   const [vendors, setVendors] = useState([]);
   const [selectedTag, setSelectedTag] = useState(null);
 
-  // useEffect(() => {
-  //   const fetchMenuData = async () => {
-  //     try {
-  //       // 1. 抓取所有商家
-  //       const { data: vends, error: vendError } = await supabase
-  //         .from('profiles')
-  //         .select('*')
-  //         .eq('account_type', 'vendor');
-
-  //       if (vendError) throw vendError;
-
-  //       // 🌟 2. 抓取你截图里的那个分类关联表！
-  //       // ⚠️ 如果你的表名不叫 vendor_categories，请一定要修改这里！！！
-  //       const { data: mappings, error: mapError } = await supabase
-  //         .from('categories')
-  //         .select('vendor_id, name');
-
-  //       if (mapError) throw mapError;
-
-  //       if (vends && mappings) {
-  //         // --- 处理顶部的 Filter 按钮 ---
-  //         // 提取所有不重复的分类名字
-  //        const allNames = mappings.map(m => m.name.trim());
-  //         const uniqueNames = [...new Set(allNames)];
-
-  //         const dynamicTags = uniqueNames.map((name, index) => ({
-  //           id: (index + 1).toString(),
-  //           name: name
-  //         }));
-  //         setTags([{ id: '0', name: 'All' }, ...dynamicTags]);
-
-  //         // --- 处理下方的商家列表并绑定分类 ---
-  //         const formattedVendors = vends.map(vendor => {
-  //           // 在关联表里，找出所有属于当前商家的分类名字
-  //           const vendorTags = mappings
-  //             .filter(m => m.vendor_id === vendor.id)
-  //             .map(m => m.name);
-
-  //           return {
-  //             id: vendor.id,
-  //             name: vendor.full_name || vendor.username || 'Unnamed Vendor',
-  //             rating: vendor.rating || 'N/A',
-  //             // 自动把它的分类拼接起来显示在卡片上，如果没有就显示 Default
-  //             cuisine: vendorTags.length > 0 ? vendorTags.join(', ') : 'Local food',
-  //             image: vendor.avatar_url || 'https://via.placeholder.com/150',
-  //             tags: vendorTags // 🌟 这是 Filter 能完美过滤的核心钥匙！
-  //           };
-  //         });
-
-  //         setVendors(formattedVendors);
-  //       }
-  //     } catch (error) {
-  //       console.log("Fetch Menu Data error:", error.message);
-  //     }
-  //   };
-
-  //   fetchMenuData();
-  // }, []);
 
   useEffect(() => {
     const fetchMenuData = async () => {
@@ -147,7 +89,7 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
   }, []);
 
 
-  // 🌟 过滤逻辑：如果商家身上的 tags 包含了选中的标签，就显示出来！
+
   const filteredVendors = (selectedTag && selectedTag.name !== 'All')
     ? vendors.filter(vendor => vendor.tags.includes(selectedTag.name))
     : vendors;
@@ -208,28 +150,27 @@ export default function MenuScreen({ onOpenMenu, navigateToVendor }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.vendorScrollPadding}>
         {filteredVendors.length === 0 ? (
-          <View style={styles.noDataContainer}><Text style={styles.noDataText}>No food vendor available for "{selectedTag?.name}"</Text></View>
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>No food vendor available for "{selectedTag?.name}"
+            </Text>
+          </View>
         ) : (
           filteredVendors.map((vendor) => (
             <TouchableOpacity
               key={vendor.id}
               style={styles.vendorCard}
               activeOpacity={0.9}
-              onPress={() => {
-                if (navigateToVendor) {
-                  navigateToVendor(vendor);
-                } else {
-                  Alert.alert("Error", "Navigation not hooked up properly in Main App.js");
-                }
-              }}
+              onPress={() => navigateToVendor(vendor)}
             >
               <Image source={{ uri: vendor.image }} style={styles.vendorImage} />
               <View style={styles.vendorInfoBox}>
                 <Text style={styles.vendorNameText}>{vendor.name}</Text>
                 <View style={styles.metaRatingRow}>
-                  <Ionicons name="star" size={16} color="#FFD700" />
+                  <Ionicons name="star" size={16} color="#FFD700" style={{ marginTop: 1 }} />
                   <Text style={styles.ratingNumberText}>{vendor.rating}</Text>
-                  <Text style={styles.cuisineTypeText}>{vendor.cuisine}</Text>
+                  <Text style={styles.cuisineTypeText} numberOfLines={2}>
+                    {vendor.cuisine.replace(/,\s*/g, '\n')}
+                  </Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -259,9 +200,28 @@ const styles = StyleSheet.create({
   vendorImage: { width: 105, height: 105, borderRadius: 12, borderWidth: 1.5, borderColor: '#000000', resizeMode: 'cover' },
   vendorInfoBox: { flex: 1, height: 90, backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#000000', borderLeftWidth: 0, borderTopRightRadius: 4, borderBottomRightRadius: 4, paddingHorizontal: 12, justifyContent: 'center' },
   vendorNameText: { fontSize: 18, fontWeight: 'bold', color: '#000000', marginBottom: 6 },
-  metaRatingRow: { flexDirection: 'row', alignItems: 'center' },
-  ratingNumberText: { fontSize: 14, fontWeight: 'bold', color: '#000000', marginLeft: 4, marginRight: 12 },
-  cuisineTypeText: { fontSize: 14, fontWeight: 'bold', color: '#000000' },
+  // metaRatingRow: { flexDirection: 'row', alignItems: 'center' },
+  // ratingNumberText: { fontSize: 14, fontWeight: 'bold', color: '#000000', marginLeft: 4, marginRight: 12 },
+  // cuisineTypeText: { fontSize: 14, fontWeight: 'bold', color: '#000000' },
+  metaRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start', // 🌟 改为顶端对齐，适配换行
+    marginTop: 2
+  },
+  ratingNumberText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#000000',
+    marginLeft: 4,
+    marginRight: 12
+  },
+  cuisineTypeText: {
+    fontSize: 11, // 🌟 稍微缩小字号，适应换行
+    fontWeight: '800',
+    color: '#555555', // 颜色变深灰
+    flex: 1, // 🌟 核心限制：把它困在框架里
+    lineHeight: 15 // 增加一点行高，让分行更清晰
+  },
   noDataContainer: { width: '100%', paddingVertical: 40, alignItems: 'center', justifyContent: 'center' },
   noDataText: { fontSize: 14, fontWeight: '700', color: '#7f7f7f', textAlign: 'center' }
 });

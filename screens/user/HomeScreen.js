@@ -71,7 +71,7 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
     }
   }, [autoOpenCart]);
 
-  // 🌟 最新修复版：完美适配干净的 carts 表，解决存不进数据库的问题
+
   const syncCartToDB = async (foodId, quantity) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -81,20 +81,17 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
       }
 
       if (quantity === 0) {
-        // 如果数量是 0，从购物车删除
         const { error } = await supabase.from('carts').delete().match({ user_id: user.id, food_id: foodId });
         if (error) console.log("Delete error:", error.message);
       } else {
-        // 1. 先检查数据库里是不是已经有这道菜了
         const { data: existingCart } = await supabase
           .from('carts')
-          .select('cart_id') // 随便选一个字段检查存在性
+          .select('cart_id')
           .eq('user_id', user.id)
           .eq('food_id', foodId)
           .maybeSingle();
 
         if (existingCart) {
-          // 2. 如果有，就更新数量 (不再传 name 字段)
           const { error: updateError } = await supabase
             .from('carts')
             .update({ quantity: quantity })
@@ -102,7 +99,6 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
             .eq('food_id', foodId);
           if (updateError) console.log("Update error:", updateError.message);
         } else {
-          // 3. 如果没有，就插入新的一行 (不再传 name 字段)
           const { error: insertError } = await supabase
             .from('carts')
             .insert({ user_id: user.id, food_id: foodId, quantity: quantity });
@@ -313,9 +309,15 @@ export default function HomeScreen({ onOpenMenu, navigateToCheckout, autoOpenCar
       <View style={styles.vendorDetails}>
         <Text style={styles.vendorName} numberOfLines={1}>{vendor.name}</Text>
         <View style={styles.vendorRatingRow}>
-          <Ionicons name="star" size={16} color="#FFD700" />
+          {/* 🌟 稍微下移一点，配合换行后的文字 */}
+          <Ionicons name="star" size={16} color="#FFD700" style={{ marginTop: 1 }} />
           <Text style={styles.vendorRatingText}>{vendor.rating}</Text>
-          <Text style={styles.vendorCuisineText}>{vendor.category}</Text>
+
+          {/* 🌟 1. numberOfLines={2} 防止分类太多超过卡片高度 */}
+          {/* 🌟 2. replace(/, /g, '\n') 就是把你说的 "一行一行呈现" 变出来！ */}
+          <Text style={styles.vendorCuisineText} numberOfLines={2}>
+            {vendor.category.replace(/, /g, '\n')}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -492,9 +494,28 @@ const styles = StyleSheet.create({
   vendorImage: { width: 105, height: 105, borderRadius: 16, borderWidth: 1.5, borderColor: '#000000', resizeMode: 'cover', zIndex: 2, backgroundColor: '#fff' },
   vendorDetails: { flex: 1, height: 80, backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#000000', borderLeftWidth: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12, justifyContent: 'center', paddingLeft: 16, paddingRight: 10, marginLeft: -2, zIndex: 1 },
   vendorName: { fontSize: 18, fontWeight: 'bold', color: '#000000', marginBottom: 6 },
-  vendorRatingRow: { flexDirection: 'row', alignItems: 'center' },
-  vendorRatingText: { fontSize: 15, fontWeight: 'bold', color: '#000000', marginLeft: 6, marginRight: 12 },
-  vendorCuisineText: { fontSize: 14, fontWeight: 'bold', color: '#000000' },
+  // vendorRatingRow: { flexDirection: 'row', alignItems: 'center' },
+  // vendorRatingText: { fontSize: 15, fontWeight: 'bold', color: '#000000', marginLeft: 6, marginRight: 12 },
+  // vendorCuisineText: { fontSize: 14, fontWeight: 'bold', color: '#000000' },
+  vendorRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start', // 🌟 必须改成 flex-start(顶部对齐)，否则换行后星星会跑到中间
+    marginTop: 2
+  },
+  vendorRatingText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#000000',
+    marginLeft: 6,
+    marginRight: 12
+  },
+  vendorCuisineText: {
+    fontSize: 12, // 🌟 字号稍微缩小一点点，显得更高级
+    fontWeight: '800',
+    color: '#555555', // 颜色变深灰，衬托出黑色的店名
+    flex: 1, // 🌟 核心魔法：强制限制在白底框架内部，绝不跑出去！
+    lineHeight: 16 // 让一行一行呈现时，上下有一点呼吸感
+  },
 
   foodNameWrapperTmp: { width: '100%', flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
